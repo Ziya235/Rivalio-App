@@ -73,6 +73,9 @@ const matchDetailInclude = {
   },
 };
 
+// Every query is a Neon roundtrip (~1s), so the 5s default is not enough here.
+const TX_OPTIONS = { maxWait: 15000, timeout: 30000 };
+
 const assertLeagueOwner = async (req, res, leagueId) => {
   if (!leagueId) {
     res.status(400).json({ success: false, message: "Invalid league id" });
@@ -560,21 +563,27 @@ export const updateMatch = async (req, res) => {
       await prisma.matchEvent.deleteMany({ where: { matchId } });
     }
 
-    const match = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       const updated = await tx.match.update({
         where: { id: matchId },
         data,
-        include: matchDetailInclude,
+        select: {
+          id: true,
+          status: true,
+          homeTeamId: true,
+          awayTeamId: true,
+          statsApplied: true,
+        },
       });
 
-      if (data.status === "FINISHED") {
+      if (updated.status === "FINISHED") {
         await applyGamesPlayedForMatch(tx, updated);
       }
+    }, TX_OPTIONS);
 
-      return tx.match.findUnique({
-        where: { id: matchId },
-        include: matchDetailInclude,
-      });
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: matchDetailInclude,
     });
 
     return res.status(200).json({
@@ -688,7 +697,7 @@ export const addMatchEvent = async (req, res) => {
     const scorerId = parsePositiveInt(playerId) || null;
     const assistId = parsePositiveInt(assistPlayerId) || null;
 
-    const result = await prisma.$transaction(async (tx) => {
+    const eventId = await prisma.$transaction(async (tx) => {
       const event = await tx.matchEvent.create({
         data: {
           matchId,
@@ -701,7 +710,7 @@ export const addMatchEvent = async (req, res) => {
           playerOutId: parsePositiveInt(playerOutId) || null,
           note: note?.trim() || null,
         },
-        include: eventInclude,
+        select: { id: true },
       });
 
       if (eventType === "GOAL") {
@@ -712,7 +721,7 @@ export const addMatchEvent = async (req, res) => {
         });
       }
 
-      const updatedMatch = await tx.match.update({
+      await tx.match.update({
         where: { id: matchId },
         data: {
           homeScore: { increment: delta.home },
@@ -722,16 +731,27 @@ export const addMatchEvent = async (req, res) => {
             ? { status: "LIVE", startedAt: new Date() }
             : {}),
         },
-        include: matchDetailInclude,
+        select: { id: true },
       });
 
-      return { event, match: updatedMatch };
-    });
+      return event.id;
+    }, TX_OPTIONS);
+
+    const [event, updatedMatch] = await Promise.all([
+      prisma.matchEvent.findUnique({
+        where: { id: eventId },
+        include: eventInclude,
+      }),
+      prisma.match.findUnique({
+        where: { id: matchId },
+        include: matchDetailInclude,
+      }),
+    ]);
 
     return res.status(201).json({
       success: true,
       message: "Event added successfully",
-      data: result,
+      data: { event, match: updatedMatch },
     });
   } catch (error) {
     console.log("Error in addMatchEvent:", error);
@@ -774,7 +794,7 @@ export const deleteMatchEvent = async (req, res) => {
       match.awayTeamId,
     );
 
-    const updatedMatch = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       if (event.type === "GOAL") {
         await applyGoalAssistToUsers(tx, {
           playerId: event.playerId,
@@ -785,14 +805,19 @@ export const deleteMatchEvent = async (req, res) => {
 
       await tx.matchEvent.delete({ where: { id: eventId } });
 
-      return tx.match.update({
+      await tx.match.update({
         where: { id: matchId },
         data: {
           homeScore: Math.max(0, match.homeScore - delta.home),
           awayScore: Math.max(0, match.awayScore - delta.away),
         },
-        include: matchDetailInclude,
+        select: { id: true },
       });
+    }, TX_OPTIONS);
+
+    const updatedMatch = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: matchDetailInclude,
     });
 
     return res.status(200).json({

@@ -2,48 +2,48 @@
  * Apply / revert goal & assist counters on linked User profiles.
  */
 export const applyGoalAssistToUsers = async (tx, { playerId, assistPlayerId, direction }) => {
-  const delta = direction === "decrement" ? -1 : 1;
+  const playerIds = [...new Set([playerId, assistPlayerId].filter(Boolean))];
+  if (playerIds.length === 0) return;
 
-  if (playerId) {
-    const player = await tx.player.findUnique({
-      where: { id: playerId },
-      select: { userId: true },
-    });
-    if (player?.userId) {
-      const user = await tx.user.findUnique({
-        where: { id: player.userId },
-        select: { goals: true },
+  const players = await tx.player.findMany({
+    where: { id: { in: playerIds }, userId: { not: null } },
+    select: { id: true, userId: true },
+  });
+
+  const userIdOf = (id) =>
+    id ? players.find((p) => p.id === id)?.userId ?? null : null;
+
+  const scorerUserId = userIdOf(playerId);
+  const assistUserId = userIdOf(assistPlayerId);
+
+  if (direction === "decrement") {
+    // The `gt: 0` filter keeps counters non-negative without a read-back roundtrip.
+    if (scorerUserId) {
+      await tx.user.updateMany({
+        where: { id: scorerUserId, goals: { gt: 0 } },
+        data: { goals: { decrement: 1 } },
       });
-      if (user) {
-        await tx.user.update({
-          where: { id: player.userId },
-          data: {
-            goals: Math.max(0, user.goals + delta),
-          },
-        });
-      }
     }
+    if (assistUserId) {
+      await tx.user.updateMany({
+        where: { id: assistUserId, assists: { gt: 0 } },
+        data: { assists: { decrement: 1 } },
+      });
+    }
+    return;
   }
 
-  if (assistPlayerId) {
-    const assist = await tx.player.findUnique({
-      where: { id: assistPlayerId },
-      select: { userId: true },
+  if (scorerUserId) {
+    await tx.user.updateMany({
+      where: { id: scorerUserId },
+      data: { goals: { increment: 1 } },
     });
-    if (assist?.userId) {
-      const user = await tx.user.findUnique({
-        where: { id: assist.userId },
-        select: { assists: true },
-      });
-      if (user) {
-        await tx.user.update({
-          where: { id: assist.userId },
-          data: {
-            assists: Math.max(0, user.assists + delta),
-          },
-        });
-      }
-    }
+  }
+  if (assistUserId) {
+    await tx.user.updateMany({
+      where: { id: assistUserId },
+      data: { assists: { increment: 1 } },
+    });
   }
 };
 
@@ -63,9 +63,9 @@ export const applyGamesPlayedForMatch = async (tx, match) => {
 
   const userIds = [...new Set(players.map((p) => p.userId).filter(Boolean))];
 
-  for (const userId of userIds) {
-    await tx.user.update({
-      where: { id: userId },
+  if (userIds.length > 0) {
+    await tx.user.updateMany({
+      where: { id: { in: userIds } },
       data: { gamesPlayed: { increment: 1 } },
     });
   }

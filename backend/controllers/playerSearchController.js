@@ -51,16 +51,13 @@ export const createPlayerSearch = async (req, res) => {
     } = req.body;
 
     const hostId = parsePositiveInt(hostTeamId);
-    const oppId =
-      opponentTeamId != null && opponentTeamId !== ""
-        ? parsePositiveInt(opponentTeamId)
-        : null;
+    const oppId = parsePositiveInt(opponentTeamId);
     const needed = Number(playersNeeded);
 
-    if (!hostId) {
+    if (!hostId || !oppId) {
       return res.status(400).json({
         success: false,
-        message: "hostTeamId is required",
+        message: "hostTeamId and opponentTeamId are required",
       });
     }
 
@@ -112,42 +109,36 @@ export const createPlayerSearch = async (req, res) => {
       });
     }
 
-    if (oppId) {
-      if (oppId === hostId) {
-        return res.status(400).json({
-          success: false,
-          message: "Opponent must be a different team",
-        });
-      }
-      const opp = await prisma.team.findUnique({
-        where: { id: oppId },
-        select: { id: true },
+    if (oppId === hostId) {
+      return res.status(400).json({
+        success: false,
+        message: "Opponent must be a different team",
       });
-      if (!opp) {
-        return res.status(404).json({
-          success: false,
-          message: "Opponent team not found",
-        });
-      }
+    }
+
+    const opp = await prisma.team.findUnique({
+      where: { id: oppId },
+      select: { id: true },
+    });
+    if (!opp) {
+      return res.status(404).json({
+        success: false,
+        message: "Opponent team not found",
+      });
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      let matchId = null;
-
-      if (oppId) {
-        const match = await tx.match.create({
-          data: {
-            homeTeamId: hostId,
-            awayTeamId: oppId,
-            scheduledAt: when,
-            venue: venue.trim(),
-            notes: notes?.trim() || null,
-            matchType: "FRIENDLY",
-            createdById: req.user.id,
-          },
-        });
-        matchId = match.id;
-      }
+      const match = await tx.match.create({
+        data: {
+          homeTeamId: hostId,
+          awayTeamId: oppId,
+          scheduledAt: when,
+          venue: venue.trim(),
+          notes: notes?.trim() || null,
+          matchType: "FRIENDLY",
+          createdById: req.user.id,
+        },
+      });
 
       return tx.playerSearch.create({
         data: {
@@ -158,7 +149,7 @@ export const createPlayerSearch = async (req, res) => {
           venue: venue.trim(),
           notes: notes?.trim() || null,
           playersNeeded: needed,
-          matchId,
+          matchId: match.id,
         },
         include: searchInclude,
       });
@@ -324,7 +315,10 @@ export const listPlayerSearches = async (req, res) => {
     await expirePastListings();
 
     const searches = await prisma.playerSearch.findMany({
-      where: { status: "OPEN" },
+      where: {
+        status: { in: ["OPEN", "FULL"] },
+        scheduledAt: { gt: new Date() },
+      },
       include: searchInclude,
       orderBy: { scheduledAt: "asc" },
     });
@@ -430,6 +424,58 @@ export const requestJoinPlayerSearch = async (req, res) => {
   }
 };
 
+export const listMyPlayerSearchNotifications = async (req, res) => {
+  try {
+    const [incoming, outcomes] = await Promise.all([
+      prisma.playerSearchRequest.findMany({
+        where: {
+          status: "PENDING",
+          playerSearch: {
+            hostTeam: { captainId: req.user.id },
+          },
+        },
+        include: {
+          user: { select: userBriefSelect },
+          playerSearch: {
+            include: {
+              hostTeam: { select: teamSelect },
+              opponentTeam: { select: teamSelect },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.playerSearchRequest.findMany({
+        where: {
+          userId: req.user.id,
+          status: { in: ["ACCEPTED", "REJECTED", "CANCELLED"] },
+        },
+        include: {
+          playerSearch: {
+            include: {
+              hostTeam: { select: teamSelect },
+              opponentTeam: { select: teamSelect },
+            },
+          },
+        },
+        orderBy: { respondedAt: "desc" },
+        take: 50,
+      }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: { incoming, outcomes },
+    });
+  } catch (error) {
+    console.log("Error in listMyPlayerSearchNotifications:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
 export const respondPlayerSearchRequest = async (req, res) => {
   try {
     const requestId = parsePositiveInt(req.params.requestId);
@@ -445,7 +491,15 @@ export const respondPlayerSearchRequest = async (req, res) => {
     const request = await prisma.playerSearchRequest.findUnique({
       where: { id: requestId },
       include: {
-        playerSearch: true,
+        playerSearch: {
+          include: {
+            hostTeam: {
+              select: {
+                captainId: true,
+              },
+            },
+          },
+        },
         user: {
           select: {
             id: true,
@@ -465,7 +519,7 @@ export const respondPlayerSearchRequest = async (req, res) => {
       });
     }
 
-    if (request.playerSearch.createdById !== req.user.id) {
+    if (request.playerSearch.hostTeam.captainId !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: "Only the host captain can respond",
@@ -505,26 +559,6 @@ export const respondPlayerSearchRequest = async (req, res) => {
         where: { id: requestId },
         data: { status: "ACCEPTED", respondedAt: new Date() },
       });
-
-      const existingPlayer = await tx.player.findFirst({
-        where: {
-          teamId: request.playerSearch.hostTeamId,
-          userId: request.userId,
-        },
-      });
-
-      if (!existingPlayer) {
-        await tx.player.create({
-          data: {
-            firstName: request.user.firstName,
-            lastName: request.user.lastName,
-            photo: request.user.image || null,
-            teamId: request.playerSearch.hostTeamId,
-            userId: request.userId,
-            position: "Guest",
-          },
-        });
-      }
 
       const filled = request.playerSearch.playersFilled + 1;
       const isFull = filled >= request.playerSearch.playersNeeded;

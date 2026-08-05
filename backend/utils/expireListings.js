@@ -23,11 +23,10 @@ export const expirePastListings = async () => {
       data: { status: "EXPIRED" },
     });
 
-    // Delete expired open challenges (and cascade requests)
+    // Remove every challenge at kickoff time and cascade its notifications.
     await tx.challenge.deleteMany({
       where: {
-        status: "EXPIRED",
-        matchId: null,
+        scheduledAt: { lt: now },
       },
     });
 

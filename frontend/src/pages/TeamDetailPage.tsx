@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { MapPin, Users, UserPlus, Trophy } from "lucide-react";
 import { Button, Input } from "../components/ui";
 import {
-  addPlayerByUsername,
   fetchTeam,
+  invitePlayerToTeam,
   removeTeamPlayer,
   type TeamDetail,
 } from "../api/teams";
@@ -23,6 +23,7 @@ export default function TeamDetailPage() {
   const [position, setPosition] = useState("");
   const [adding, setAdding] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!Number.isInteger(teamId) || teamId <= 0) {
@@ -60,16 +61,17 @@ export default function TeamDetailPage() {
     }
     setAdding(true);
     setFormError(null);
+    setFormSuccess(null);
     try {
-      await addPlayerByUsername(teamId, {
+      await invitePlayerToTeam(teamId, {
         username: username.trim().toLowerCase(),
         position: position.trim() || undefined,
       });
       setUsername("");
       setPosition("");
-      await load();
+      setFormSuccess("Oyunçuya komanda dəvəti göndərildi");
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Əlavə edilmədi");
+      setFormError(err instanceof Error ? err.message : "Dəvət göndərilmədi");
     } finally {
       setAdding(false);
     }
@@ -150,6 +152,36 @@ export default function TeamDetailPage() {
           </div>
         </div>
 
+        <div className="mb-8">
+          <p className="mb-2 text-sm font-medium text-white/60">
+            Bütün liqalar üzrə statistika
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "Oyun", value: team.leagueStats.matchesPlayed },
+              { label: "Qol", value: team.leagueStats.goals, accent: true },
+              { label: "Asist", value: team.leagueStats.assists },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-2xl border border-white/10 bg-[#101017] px-4 py-4 text-center"
+              >
+                <div
+                  className={`font-display text-3xl font-bold ${
+                    stat.accent ? "text-[#c5f135]" : "text-white"
+                  }`}
+                >
+                  {stat.value}
+                </div>
+                <div className="mt-1 text-xs text-white/40">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-white/30">
+            Public və private liqalardakı bitmiş oyunlar
+          </p>
+        </div>
+
         {team.leagueMemberships.length > 0 ? (
           <div className="mb-8 rounded-2xl border border-white/10 bg-[#101017] p-4">
             <h2 className="text-sm font-semibold text-white/70 mb-3 flex items-center gap-2">
@@ -181,7 +213,7 @@ export default function TeamDetailPage() {
           >
             <h2 className="text-sm font-semibold text-white flex items-center gap-2">
               <UserPlus size={14} />
-              Username ilə oyunçu əlavə et
+              Oyunçuya komanda dəvəti göndər
             </h2>
             <div className="grid sm:grid-cols-2 gap-3">
               <Input
@@ -200,8 +232,11 @@ export default function TeamDetailPage() {
             {formError ? (
               <p className="text-sm text-rose-400">{formError}</p>
             ) : null}
+            {formSuccess ? (
+              <p className="text-sm text-emerald-400">{formSuccess}</p>
+            ) : null}
             <Button type="submit" disabled={adding} size="sm">
-              {adding ? "Əlavə edilir..." : "Əlavə et"}
+              {adding ? "Göndərilir..." : "Dəvət göndər"}
             </Button>
           </form>
         ) : null}
@@ -217,8 +252,13 @@ export default function TeamDetailPage() {
                 className="flex items-center justify-between gap-3 px-4 py-3"
               >
                 <div>
-                  <p className="text-white font-medium">
+                  <p className="font-medium text-white">
+                    <Link
+                      to={`/players/${p.id}`}
+                      className="hover:text-[#c5f135]"
+                    >
                     {p.firstName} {p.lastName}
+                    </Link>
                     {p.userId === team.captainId ? (
                       <span className="ml-2 text-[10px] uppercase tracking-wide text-[#c5f135]">
                         Kapitan

@@ -50,6 +50,54 @@ export type Challenge = {
   }>;
 };
 
+export type ChallengeNotificationRequest = {
+  id: number;
+  status: "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED";
+  message: string | null;
+  createdAt: string;
+  respondedAt: string | null;
+  team: {
+    id: number;
+    name: string;
+    logo: string | null;
+    city: string | null;
+    captainId: number;
+  };
+  requestedBy?: {
+    id: number;
+    username: string;
+    firstName: string;
+    lastName: string;
+    image?: string | null;
+  };
+  challenge: {
+    id: number;
+    scheduledAt: string;
+    venue: string;
+    notes: string | null;
+    status: string;
+    team: {
+      id: number;
+      name: string;
+      logo: string | null;
+      city: string | null;
+      captainId: number;
+    };
+    acceptedTeam: {
+      id: number;
+      name: string;
+      logo: string | null;
+      city: string | null;
+      captainId: number;
+    } | null;
+  };
+};
+
+export type ChallengeNotifications = {
+  incoming: ChallengeNotificationRequest[];
+  outcomes: ChallengeNotificationRequest[];
+};
+
 export type PlayerSearch = {
   id: number;
   scheduledAt: string;
@@ -87,8 +135,52 @@ export type PlayerSearch = {
   }>;
 };
 
+export type PlayerSearchNotificationRequest = {
+  id: number;
+  status: "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED";
+  message: string | null;
+  createdAt: string;
+  respondedAt: string | null;
+  user?: {
+    id: number;
+    username: string;
+    firstName: string;
+    lastName: string;
+    image?: string | null;
+  };
+  playerSearch: {
+    id: number;
+    scheduledAt: string;
+    venue: string;
+    notes: string | null;
+    hostTeam: {
+      id: number;
+      name: string;
+      logo: string | null;
+      city: string | null;
+      captainId: number;
+    };
+    opponentTeam: {
+      id: number;
+      name: string;
+      logo: string | null;
+      city: string | null;
+      captainId: number;
+    } | null;
+  };
+};
+
+export type PlayerSearchNotifications = {
+  incoming: PlayerSearchNotificationRequest[];
+  outcomes: PlayerSearchNotificationRequest[];
+};
+
 export function fetchChallenges(): Promise<Challenge[]> {
   return apiFetch<Challenge[]>("/api/challenges");
+}
+
+export function fetchMyChallengeNotifications(): Promise<ChallengeNotifications> {
+  return apiFetch<ChallengeNotifications>("/api/me/challenge-notifications");
 }
 
 export function createChallenge(payload: {
@@ -127,6 +219,12 @@ export function fetchPlayerSearches(): Promise<PlayerSearch[]> {
   return apiFetch<PlayerSearch[]>("/api/player-searches");
 }
 
+export function fetchMyPlayerSearchNotifications(): Promise<PlayerSearchNotifications> {
+  return apiFetch<PlayerSearchNotifications>(
+    "/api/me/player-search-notifications",
+  );
+}
+
 export function createFriendly(payload: {
   homeTeamId: number;
   awayTeamId: number;
@@ -143,7 +241,7 @@ export function createFriendly(payload: {
 
 export function createPlayerSearch(payload: {
   hostTeamId: number;
-  opponentTeamId?: number;
+  opponentTeamId: number;
   scheduledAt: string;
   venue: string;
   notes?: string;

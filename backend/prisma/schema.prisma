@@ -29,20 +29,22 @@ model User {
   goals       Int @default(0)
   assists     Int @default(0)
 
-  permissions UserPermission[]
-  leagues     League[]
-  players     Player[]
+  permissions   UserPermission[]
+  leagues       League[]
+  players       Player[]
   leagueMembers LeagueMember[]
 
   captainedTeams Team[] @relation("TeamCaptain")
 
-  leagueTeamInvitesSent   LeagueTeamInvite[]  @relation("LeagueTeamInviteSender")
-  leagueJoinRequests      LeagueJoinRequest[] @relation("LeagueJoinRequester")
-  challengesCreated       Challenge[]         @relation("ChallengeCreator")
-  challengeRequests       ChallengeRequest[]  @relation("ChallengeRequester")
-  playerSearchesCreated   PlayerSearch[]      @relation("PlayerSearchCreator")
-  playerSearchRequests    PlayerSearchRequest[] @relation("PlayerSearchRequester")
-  friendliesCreated       Match[]             @relation("FriendlyCreator")
+  leagueTeamInvitesSent     LeagueTeamInvite[]    @relation("LeagueTeamInviteSender")
+  leagueJoinRequests        LeagueJoinRequest[]   @relation("LeagueJoinRequester")
+  challengesCreated         Challenge[]           @relation("ChallengeCreator")
+  challengeRequests         ChallengeRequest[]    @relation("ChallengeRequester")
+  playerSearchesCreated     PlayerSearch[]        @relation("PlayerSearchCreator")
+  playerSearchRequests      PlayerSearchRequest[] @relation("PlayerSearchRequester")
+  friendliesCreated         Match[]               @relation("FriendlyCreator")
+  teamPlayerInvitesReceived TeamPlayerInvite[]    @relation("TeamPlayerInvitee")
+  teamPlayerInvitesSent     TeamPlayerInvite[]    @relation("TeamPlayerInviter")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -106,11 +108,11 @@ model League {
   sport     Sport @relation(fields: [sportId], references: [id], onDelete: Cascade)
   createdBy User  @relation(fields: [createdById], references: [id], onDelete: Cascade)
 
-  teams           LeagueTeam[]
-  members         LeagueMember[]
-  matches         Match[]
-  teamInvites     LeagueTeamInvite[]
-  joinRequests    LeagueJoinRequest[]
+  teams        LeagueTeam[]
+  members      LeagueMember[]
+  matches      Match[]
+  teamInvites  LeagueTeamInvite[]
+  joinRequests LeagueJoinRequest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -133,17 +135,18 @@ model Team {
   players           Player[]
   leagueMemberships LeagueTeam[]
 
-  homeMatches Match[] @relation("HomeTeam")
-  awayMatches Match[] @relation("AwayTeam")
+  homeMatches Match[]      @relation("HomeTeam")
+  awayMatches Match[]      @relation("AwayTeam")
   matchEvents MatchEvent[] @relation("EventTeam")
 
-  teamInvites      LeagueTeamInvite[]
-  joinRequests     LeagueJoinRequest[]
-  challenges       Challenge[]         @relation("ChallengeTeam")
-  acceptedChallenges Challenge[]       @relation("ChallengeAcceptedTeam")
-  challengeRequests ChallengeRequest[]
-  playerSearchesHost     PlayerSearch[] @relation("PlayerSearchHost")
-  playerSearchesOpponent PlayerSearch[] @relation("PlayerSearchOpponent")
+  teamInvites            LeagueTeamInvite[]
+  joinRequests           LeagueJoinRequest[]
+  challenges             Challenge[]         @relation("ChallengeTeam")
+  acceptedChallenges     Challenge[]         @relation("ChallengeAcceptedTeam")
+  challengeRequests      ChallengeRequest[]
+  playerSearchesHost     PlayerSearch[]      @relation("PlayerSearchHost")
+  playerSearchesOpponent PlayerSearch[]      @relation("PlayerSearchOpponent")
+  playerInvites          TeamPlayerInvite[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -190,6 +193,29 @@ model Player {
   @@index([userId])
 }
 
+model TeamPlayerInvite {
+  id            Int           @id @default(autoincrement())
+  teamId        Int
+  invitedUserId Int
+  invitedById   Int
+  status        RequestStatus @default(PENDING)
+  position      String?
+  shirtNumber   Int?
+  message       String?
+  respondedAt   DateTime?
+
+  team        Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  invitedUser User @relation("TeamPlayerInvitee", fields: [invitedUserId], references: [id], onDelete: Cascade)
+  invitedBy   User @relation("TeamPlayerInviter", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([invitedUserId, status])
+  @@index([invitedById, status])
+  @@index([teamId, status])
+}
+
 enum MatchStatus {
   SCHEDULED
   LIVE
@@ -213,30 +239,30 @@ enum MatchEventType {
 }
 
 model Match {
-  id          Int         @id @default(autoincrement())
-  leagueId    Int?
-  homeTeamId  Int
-  awayTeamId  Int
-  round       Int?
-  matchType   MatchType   @default(LEAGUE)
-  status      MatchStatus @default(SCHEDULED)
-  scheduledAt DateTime
-  venue       String?
-  notes       String?
-  homeScore   Int         @default(0)
-  awayScore   Int         @default(0)
-  minute      Int?
-  startedAt   DateTime?
-  finishedAt  DateTime?
-  createdById Int?
-  statsApplied Boolean    @default(false)
+  id           Int         @id @default(autoincrement())
+  leagueId     Int?
+  homeTeamId   Int
+  awayTeamId   Int
+  round        Int?
+  matchType    MatchType   @default(LEAGUE)
+  status       MatchStatus @default(SCHEDULED)
+  scheduledAt  DateTime
+  venue        String?
+  notes        String?
+  homeScore    Int         @default(0)
+  awayScore    Int         @default(0)
+  minute       Int?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdById  Int?
+  statsApplied Boolean     @default(false)
 
-  league      League? @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  homeTeam    Team    @relation("HomeTeam", fields: [homeTeamId], references: [id], onDelete: Cascade)
-  awayTeam    Team    @relation("AwayTeam", fields: [awayTeamId], references: [id], onDelete: Cascade)
-  createdBy   User?   @relation("FriendlyCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  events      MatchEvent[]
-  challenge   Challenge?
+  league       League?       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  homeTeam     Team          @relation("HomeTeam", fields: [homeTeamId], references: [id], onDelete: Cascade)
+  awayTeam     Team          @relation("AwayTeam", fields: [awayTeamId], references: [id], onDelete: Cascade)
+  createdBy    User?         @relation("FriendlyCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  events       MatchEvent[]
+  challenge    Challenge?
   playerSearch PlayerSearch?
 
   createdAt DateTime @default(now())
@@ -361,10 +387,10 @@ model Challenge {
   acceptedTeamId Int?
   matchId        Int?            @unique
 
-  team         Team  @relation("ChallengeTeam", fields: [teamId], references: [id], onDelete: Cascade)
-  createdBy    User  @relation("ChallengeCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  acceptedTeam Team? @relation("ChallengeAcceptedTeam", fields: [acceptedTeamId], references: [id], onDelete: SetNull)
-  match        Match? @relation(fields: [matchId], references: [id], onDelete: SetNull)
+  team         Team               @relation("ChallengeTeam", fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy    User               @relation("ChallengeCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  acceptedTeam Team?              @relation("ChallengeAcceptedTeam", fields: [acceptedTeamId], references: [id], onDelete: SetNull)
+  match        Match?             @relation(fields: [matchId], references: [id], onDelete: SetNull)
   requests     ChallengeRequest[]
 
   createdAt DateTime @default(now())
@@ -414,10 +440,10 @@ model PlayerSearch {
   status         PlayerSearchStatus @default(OPEN)
   matchId        Int?               @unique
 
-  hostTeam     Team  @relation("PlayerSearchHost", fields: [hostTeamId], references: [id], onDelete: Cascade)
-  createdBy    User  @relation("PlayerSearchCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  opponentTeam Team? @relation("PlayerSearchOpponent", fields: [opponentTeamId], references: [id], onDelete: SetNull)
-  match        Match? @relation(fields: [matchId], references: [id], onDelete: SetNull)
+  hostTeam     Team                  @relation("PlayerSearchHost", fields: [hostTeamId], references: [id], onDelete: Cascade)
+  createdBy    User                  @relation("PlayerSearchCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  opponentTeam Team?                 @relation("PlayerSearchOpponent", fields: [opponentTeamId], references: [id], onDelete: SetNull)
+  match        Match?                @relation(fields: [matchId], references: [id], onDelete: SetNull)
   requests     PlayerSearchRequest[]
 
   createdAt DateTime @default(now())

@@ -2,12 +2,15 @@ import express from "express";
 import {
   createPlayer,
   deletePlayer,
+  getPlayerProfile,
 } from "../controllers/playerController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { adminMiddleware } from "../middlewares/adminMiddleware.js";
 import { permissionMiddleware } from "../middlewares/permissionMiddleware.js";
 
 const router = express.Router();
+
+router.get("/players/:playerId", authMiddleware, getPlayerProfile);
 
 router.post(
   "/teams/:teamId/players",

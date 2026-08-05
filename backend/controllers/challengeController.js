@@ -207,6 +207,64 @@ export const requestChallenge = async (req, res) => {
   }
 };
 
+export const listMyChallengeNotifications = async (req, res) => {
+  try {
+    await expirePastListings();
+    const now = new Date();
+
+    const [incoming, outcomes] = await Promise.all([
+      prisma.challengeRequest.findMany({
+        where: {
+          challenge: {
+            team: { captainId: req.user.id },
+            scheduledAt: { gt: now },
+          },
+        },
+        include: {
+          team: { select: teamSelect },
+          requestedBy: { select: userBriefSelect },
+          challenge: {
+            include: {
+              team: { select: teamSelect },
+              acceptedTeam: { select: teamSelect },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.challengeRequest.findMany({
+        where: {
+          requestedById: req.user.id,
+          status: { in: ["ACCEPTED", "REJECTED", "CANCELLED"] },
+          challenge: { scheduledAt: { gt: now } },
+        },
+        include: {
+          team: { select: teamSelect },
+          challenge: {
+            include: {
+              team: { select: teamSelect },
+              acceptedTeam: { select: teamSelect },
+            },
+          },
+        },
+        orderBy: { respondedAt: "desc" },
+        take: 50,
+      }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: { incoming, outcomes },
+    });
+  } catch (error) {
+    console.log("Error in listMyChallengeNotifications:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
 export const respondChallengeRequest = async (req, res) => {
   try {
     const requestId = parsePositiveInt(req.params.requestId);
@@ -222,7 +280,15 @@ export const respondChallengeRequest = async (req, res) => {
     const request = await prisma.challengeRequest.findUnique({
       where: { id: requestId },
       include: {
-        challenge: true,
+        challenge: {
+          include: {
+            team: {
+              select: {
+                captainId: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -233,10 +299,10 @@ export const respondChallengeRequest = async (req, res) => {
       });
     }
 
-    if (request.challenge.createdById !== req.user.id) {
+    if (request.challenge.team.captainId !== req.user.id) {
       return res.status(403).json({
         success: false,
-        message: "Only the challenge owner can respond",
+        message: "Only the challenge team captain can respond",
       });
     }
 
@@ -348,10 +414,23 @@ export const cancelChallenge = async (req, res) => {
       });
     }
 
-    const updated = await prisma.challenge.update({
-      where: { id: challengeId },
-      data: { status: "CANCELLED" },
-      include: challengeInclude,
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.challengeRequest.updateMany({
+        where: {
+          challengeId,
+          status: "PENDING",
+        },
+        data: {
+          status: "CANCELLED",
+          respondedAt: new Date(),
+        },
+      });
+
+      return tx.challenge.update({
+        where: { id: challengeId },
+        data: { status: "CANCELLED" },
+        include: challengeInclude,
+      });
     });
 
     return res.status(200).json({

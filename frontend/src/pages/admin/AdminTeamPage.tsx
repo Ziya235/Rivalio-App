@@ -232,12 +232,14 @@ export function AdminTeamPage() {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-sm">
+            <table className="w-full min-w-[700px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <th className="px-4 py-3">Oyunçu</th>
                   <th className="px-4 py-3">№</th>
                   <th className="px-4 py-3">Pozisiya</th>
+                  <th className="px-4 py-3 text-center">Qol</th>
+                  <th className="px-4 py-3 text-center">Asist</th>
                   <th className="px-4 py-3 text-right">Əməliyyat</th>
                 </tr>
               </thead>
@@ -250,9 +252,12 @@ export function AdminTeamPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <PlayerAvatar player={player} />
-                        <span className="font-semibold text-ink">
+                        <Link
+                          to={`/players/${player.id}`}
+                          className="font-semibold text-ink hover:text-brand"
+                        >
                           {player.firstName} {player.lastName}
-                        </span>
+                        </Link>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-slate-600">
@@ -260,6 +265,12 @@ export function AdminTeamPage() {
                     </td>
                     <td className="px-4 py-3 text-slate-600">
                       {player.position || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-center font-semibold text-ink">
+                      {player.goals ?? 0}
+                    </td>
+                    <td className="px-4 py-3 text-center font-semibold text-ink">
+                      {player.assists ?? 0}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button

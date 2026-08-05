@@ -17,6 +17,11 @@ import {
   listTeams,
   removeTeamPlayer,
 } from "../controllers/userTeamController.js";
+import {
+  invitePlayerToTeam,
+  listMyTeamPlayerInviteNotifications,
+  respondTeamPlayerInvite,
+} from "../controllers/teamPlayerInviteController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { adminMiddleware } from "../middlewares/adminMiddleware.js";
 import { permissionMiddleware } from "../middlewares/permissionMiddleware.js";
@@ -28,7 +33,22 @@ router.get("/teams", authMiddleware, listTeams);
 router.post("/teams", authMiddleware, createUserTeam);
 router.get("/teams/:teamId", authMiddleware, getTeamById);
 router.post("/teams/:teamId/players/by-username", authMiddleware, addPlayerByUsername);
+router.post(
+  "/teams/:teamId/player-invites",
+  authMiddleware,
+  invitePlayerToTeam,
+);
 router.delete("/teams/:teamId/players/:playerId", authMiddleware, removeTeamPlayer);
+router.get(
+  "/me/team-player-invite-notifications",
+  authMiddleware,
+  listMyTeamPlayerInviteNotifications,
+);
+router.post(
+  "/team-player-invites/:inviteId/respond",
+  authMiddleware,
+  respondTeamPlayerInvite,
+);
 
 // —— League invites / join requests ——
 router.get("/me/team-invites", authMiddleware, listMyTeamInvites);

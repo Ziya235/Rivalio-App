@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import { prisma } from "../config/db.js";
 import { generateToken } from "../utils/generateToken.js";
+import { getUserLeagueStats } from "../utils/leagueStats.js";
 
 const ADMIN_DEFAULT_PERMISSIONS = [
   {
@@ -45,7 +46,7 @@ const userSelect = {
   },
 };
 
-const formatUser = (user) => ({
+const formatUser = (user, leagueStats) => ({
   id: user.id,
   username: user.username,
   firstName: user.firstName,
@@ -57,9 +58,9 @@ const formatUser = (user) => ({
   school: user.school,
   image: user.image,
   role: user.role,
-  gamesPlayed: user.gamesPlayed ?? 0,
-  goals: user.goals ?? 0,
-  assists: user.assists ?? 0,
+  gamesPlayed: leagueStats?.gamesPlayed ?? user.gamesPlayed ?? 0,
+  goals: leagueStats?.goals ?? user.goals ?? 0,
+  assists: leagueStats?.assists ?? user.assists ?? 0,
   permissions: user.permissions.map((item) => item.permission.code),
 });
 
@@ -280,12 +281,13 @@ export const login = async (req, res) => {
     }
 
     const token = generateToken(user);
+    const leagueStats = await getUserLeagueStats(user.id);
 
     return res.status(200).json({
       success: true,
       message: "Login successful",
       data: {
-        user: formatUser(user),
+        user: formatUser(user, leagueStats),
         token,
       },
     });
@@ -301,10 +303,12 @@ export const login = async (req, res) => {
 
 export const me = async (req, res) => {
   try {
+    const leagueStats = await getUserLeagueStats(req.user.id);
+
     return res.status(200).json({
       success: true,
       data: {
-        user: req.user,
+        user: { ...req.user, ...leagueStats },
       },
     });
   } catch (error) {
@@ -402,12 +406,13 @@ export const updateProfile = async (req, res) => {
       },
       select: userSelect,
     });
+    const leagueStats = await getUserLeagueStats(userId);
 
     return res.status(200).json({
       success: true,
       message: "Profile updated successfully",
       data: {
-        user: formatUser(updatedUser),
+        user: formatUser(updatedUser, leagueStats),
       },
     });
   } catch (error) {
@@ -450,12 +455,13 @@ export const updateProfileImage = async (req, res) => {
       data: { image: imagePath },
       select: userSelect,
     });
+    const leagueStats = await getUserLeagueStats(req.user.id);
 
     return res.status(200).json({
       success: true,
       message: "Profile image updated successfully",
       data: {
-        user: formatUser(updatedUser),
+        user: formatUser(updatedUser, leagueStats),
       },
     });
   } catch (error) {

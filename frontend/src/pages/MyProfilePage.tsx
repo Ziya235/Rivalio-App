@@ -339,7 +339,9 @@ export default function MyProfilePage() {
             />
 
             <div>
-              <p className="text-sm font-medium text-white/80 mb-1.5">Statistika</p>
+              <p className="text-sm font-medium text-white/80 mb-1.5">
+                Bütün liqalar üzrə statistika
+              </p>
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { label: 'Oyun', value: user.gamesPlayed ?? 0 },
@@ -361,6 +363,9 @@ export default function MyProfilePage() {
                   </div>
                 ))}
               </div>
+              <p className="mt-2 text-xs text-white/30">
+                Public və private liqalardakı bitmiş oyunlar
+              </p>
             </div>
 
             {error && (

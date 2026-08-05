@@ -2,6 +2,7 @@ import express from "express";
 import {
   cancelChallenge,
   createChallenge,
+  listMyChallengeNotifications,
   listChallenges,
   requestChallenge,
   respondChallengeRequest,
@@ -9,6 +10,7 @@ import {
 import {
   createFriendly,
   createPlayerSearch,
+  listMyPlayerSearchNotifications,
   listPlayerSearches,
   requestJoinPlayerSearch,
   respondPlayerSearchRequest,
@@ -18,6 +20,11 @@ import { authMiddleware } from "../middlewares/authMiddleware.js";
 const router = express.Router();
 
 router.get("/challenges", authMiddleware, listChallenges);
+router.get(
+  "/me/challenge-notifications",
+  authMiddleware,
+  listMyChallengeNotifications,
+);
 router.post("/challenges", authMiddleware, createChallenge);
 router.post("/challenges/:challengeId/requests", authMiddleware, requestChallenge);
 router.post(
@@ -28,6 +35,11 @@ router.post(
 router.delete("/challenges/:challengeId", authMiddleware, cancelChallenge);
 
 router.get("/player-searches", authMiddleware, listPlayerSearches);
+router.get(
+  "/me/player-search-notifications",
+  authMiddleware,
+  listMyPlayerSearchNotifications,
+);
 router.post("/player-searches", authMiddleware, createPlayerSearch);
 router.post("/friendlies", authMiddleware, createFriendly);
 router.post(

@@ -45,6 +45,11 @@ export type TeamSummary = {
 
 export type TeamDetail = TeamSummary & {
   description: string | null;
+  leagueStats: {
+    matchesPlayed: number;
+    goals: number;
+    assists: number;
+  };
   players: Array<{
     id: number;
     firstName: string;
@@ -87,6 +92,36 @@ export type TeamInvite = {
   createdAt: string;
 };
 
+export type TeamPlayerInvite = {
+  id: number;
+  status: "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED";
+  position: string | null;
+  shirtNumber: number | null;
+  message: string | null;
+  respondedAt: string | null;
+  createdAt: string;
+  team: TeamSummary;
+  invitedUser: {
+    id: number;
+    username: string;
+    firstName: string;
+    lastName: string;
+    image?: string | null;
+  };
+  invitedBy: {
+    id: number;
+    username: string;
+    firstName: string;
+    lastName: string;
+    image?: string | null;
+  };
+};
+
+export type TeamPlayerInviteNotifications = {
+  incoming: TeamPlayerInvite[];
+  outcomes: TeamPlayerInvite[];
+};
+
 export function fetchTeams(params?: {
   mine?: boolean;
   q?: string;
@@ -123,6 +158,40 @@ export function addPlayerByUsername(
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function invitePlayerToTeam(
+  teamId: number,
+  payload: {
+    username: string;
+    position?: string;
+    shirtNumber?: number;
+    message?: string;
+  },
+): Promise<TeamPlayerInvite> {
+  return apiFetch<TeamPlayerInvite>(`/api/teams/${teamId}/player-invites`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchMyTeamPlayerInviteNotifications(): Promise<TeamPlayerInviteNotifications> {
+  return apiFetch<TeamPlayerInviteNotifications>(
+    "/api/me/team-player-invite-notifications",
+  );
+}
+
+export function respondTeamPlayerInvite(
+  inviteId: number,
+  action: "accept" | "reject",
+): Promise<TeamPlayerInvite> {
+  return apiFetch<TeamPlayerInvite>(
+    `/api/team-player-invites/${inviteId}/respond`,
+    {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    },
+  );
 }
 
 export function removeTeamPlayer(

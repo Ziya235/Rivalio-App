@@ -1,5 +1,6 @@
 import { prisma } from "../config/db.js";
 import { parsePositiveInt, teamSelect, userBriefSelect } from "../utils/helpers.js";
+import { getTeamLeagueStats } from "../utils/leagueStats.js";
 
 const teamDetailInclude = {
   captain: { select: userBriefSelect },
@@ -94,7 +95,10 @@ export const createUserTeam = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Team created successfully",
-      data: team,
+      data: {
+        ...team,
+        leagueStats: { matchesPlayed: 0, goals: 0, assists: 0 },
+      },
     });
   } catch (error) {
     console.log("Error in createUserTeam:", error);
@@ -176,9 +180,11 @@ export const getTeamById = async (req, res) => {
       });
     }
 
+    const leagueStats = await getTeamLeagueStats(teamId);
+
     return res.status(200).json({
       success: true,
-      data: team,
+      data: { ...team, leagueStats },
     });
   } catch (error) {
     console.log("Error in getTeamById:", error);
