@@ -106,7 +106,7 @@ export function ModalSubmitButton({
       type="submit"
       form={formId}
       disabled={loading}
-      className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-dark disabled:opacity-60"
+      className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-ink shadow-sm hover:bg-brand-dark disabled:opacity-60"
     >
       <Check className="h-4 w-4" />
       {loading ? "Gözləyin..." : label}

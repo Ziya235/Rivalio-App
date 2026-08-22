@@ -43,11 +43,24 @@ export type Challenge = {
     captainId: number;
     captain?: { username: string; firstName: string; lastName: string };
   };
+  acceptedTeam?: {
+    id: number;
+    name: string;
+    logo: string | null;
+  } | null;
   requests: Array<{
     id: number;
     status: string;
-    team: { id: number; name: string };
+    message?: string | null;
+    team: { id: number; name: string; logo: string | null };
+    requestedBy?: {
+      username: string;
+      firstName: string;
+      lastName: string;
+      image?: string | null;
+    };
   }>;
+  myRequest: { id: number; status: string; teamId: number } | null;
 };
 
 export type ChallengeNotificationRequest = {
@@ -126,13 +139,16 @@ export type PlayerSearch = {
   requests: Array<{
     id: number;
     status: string;
+    message?: string | null;
     user: {
       id: number;
       username: string;
       firstName: string;
       lastName: string;
+      image?: string | null;
     };
   }>;
+  myRequest: { id: number; status: string } | null;
 };
 
 export type PlayerSearchNotificationRequest = {
@@ -241,7 +257,7 @@ export function createFriendly(payload: {
 
 export function createPlayerSearch(payload: {
   hostTeamId: number;
-  opponentTeamId: number;
+  opponentTeamId?: number;
   scheduledAt: string;
   venue: string;
   notes?: string;

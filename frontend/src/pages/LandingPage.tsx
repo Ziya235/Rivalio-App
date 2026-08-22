@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useOutletContext } from 'react-router-dom'
 import {
   Users,
   Shield,
@@ -18,6 +18,8 @@ import {
 } from 'lucide-react'
 import { Button, Badge } from '../components/ui'
 import { SPORTS } from '../data'
+import type { AppOutletContext } from '../App'
+
 
 const FEATURES = [
   {
@@ -88,6 +90,13 @@ const HOW_STEPS = [
     desc: 'Oyunlarına qatıl, nəticələri qeyd et, statistikalarını izlə.',
   },
 ]
+
+const HERO_IMAGES = {
+  match:
+    'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=700&h=900&fit=crop&auto=format',
+  team:
+    'https://images.unsplash.com/photo-1546519638405-a8d71a7f5e49?w=500&h=400&fit=crop&auto=format',
+}
 
 const STATS = [
   { value: '2,500+', label: 'Aktiv oyunçu' },
@@ -177,7 +186,7 @@ function AccordionItem({ q, a }: { q: string; a: string }) {
 
 function AppPreview() {
   return (
-    <div className="relative w-full max-w-[340px] mx-auto">
+    <div className="landing-dark-preview relative w-full max-w-[340px] mx-auto">
       {/* Phone frame */}
       <div className="relative bg-[#0e0e16] rounded-[40px] border-2 border-white/10 shadow-2xl overflow-hidden"
         style={{ aspectRatio: '9/19' }}>
@@ -324,80 +333,121 @@ function AppPreview() {
 
 export default function LandingPage() {
   const navigate = useNavigate()
+  const { isDarkMode } = useOutletContext<AppOutletContext>()
+  const accent = isDarkMode ? '#c5f135' : '#4d6b0b'
+
   return (
-    <div className="bg-[#08080e] min-h-screen">
-      {/* ======= HERO ======= */}
+    <div
+      className={`landing-page min-h-screen transition-colors duration-300 ${
+        isDarkMode ? 'landing-page--dark' : 'landing-page--light'
+      }`}
+    >
       <section className="relative min-h-screen flex items-center overflow-hidden pt-16">
-        {/* Background glows */}
-        <div className="hero-glow w-[600px] h-[600px] bg-[#c5f135]/5 top-0 -left-[200px]" />
-        <div className="hero-glow w-[400px] h-[400px] bg-[#7c3aed]/8 top-[30%] right-0" />
+  {/* Background glows */}
+  <div className="hero-glow w-[600px] h-[600px] bg-[#c5f135]/5 top-0 -left-[200px]" />
+  <div className="hero-glow w-[400px] h-[400px] bg-[#7c3aed]/8 top-[30%] right-0" />
 
-        {/* Grid lines bg */}
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage:
-              'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
-            backgroundSize: '60px 60px',
-          }}
-        />
+  {/* Grid lines bg */}
+  <div
+    className={
+      isDarkMode
+        ? 'absolute inset-0 opacity-[0.03]'
+        : 'absolute inset-0 opacity-[0.05]'
+    }
+    style={{
+      backgroundImage: isDarkMode
+        ? 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)'
+        : 'linear-gradient(rgba(15,23,42,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(15,23,42,0.5) 1px, transparent 1px)',
+      backgroundSize: '60px 60px',
+    }}
+  />
 
-        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 w-full py-20">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            {/* Left: Text */}
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#c5f135]/8 border border-[#c5f135]/20 rounded-full mb-6">
-                <span className="w-1.5 h-1.5 bg-[#c5f135] rounded-full animate-pulse" />
-                <span className="text-xs font-semibold text-[#c5f135]">2,500+ aktiv oyunçu</span>
-              </div>
+  <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 w-full py-20">
+    <div className="grid lg:grid-cols-2 gap-10 items-center">
 
-              <h1 className="font-display text-6xl sm:text-7xl lg:text-8xl font-bold text-white leading-[0.95] mb-6">
-                Rəqibini tap.
-                <br />
-                <span className="text-gradient-lime glow-lime-text">Komandanı qur.</span>
-                <br />
-                Oyuna qoşul.
-              </h1>
-
-              <p className="text-white/55 text-lg leading-relaxed mb-8 max-w-lg">
-                Yaxınlığındakı oyunçuları, komandaları və idman partnyorlarını tap. Öz komandanı yarat,
-                oyun təşkil et və yerli yarışlara qoşul.
-              </p>
-
-              <div className="flex flex-wrap gap-3 mb-10">
-                <Button onClick={() => navigate('/register')} size="lg">
-                  İndi Başla
-                  <ArrowRight size={18} />
-                </Button>
-                <Button onClick={() => navigate('/sports')} variant="outline" size="lg">
-                  <Play size={16} />
-                  İdmanları Kəşf Et
-                </Button>
-              </div>
-
-              {/* Sport icons */}
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm text-white/30">Dəstəklənən idmanlar:</span>
-                {['⚽', '🏀', '🎾', '🏓', '🏐'].map((icon) => (
-                  <span
-                    key={icon}
-                    className="w-9 h-9 bg-white/5 border border-white/8 rounded-xl flex items-center justify-center text-lg hover:bg-white/10 transition-colors cursor-pointer"
-                  >
-                    {icon}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Right: App Preview */}
-            <div className="hidden lg:flex justify-end items-center">
-              <div className="animate-float">
-                <AppPreview />
-              </div>
-            </div>
-          </div>
+      {/* Left */}
+      <div className="relative z-20">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#c5f135]/8 border border-[#c5f135]/20 rounded-full mb-6">
+          <span className="w-1.5 h-1.5 bg-[#c5f135] rounded-full animate-pulse" />
+          <span className="text-xs font-semibold text-[#c5f135]">
+            2,500+ aktiv oyunçu
+          </span>
         </div>
-      </section>
+
+        <h1 className="font-display text-6xl sm:text-7xl lg:text-8xl font-bold text-white leading-[0.95] mb-6">
+          Rəqibini tap.
+          <br />
+          <span className="text-gradient-lime glow-lime-text">
+            Komandanı qur.
+          </span>
+          <br />
+          Oyuna qoşul.
+        </h1>
+
+        <p className="text-white/55 text-lg leading-relaxed mb-8 max-w-lg">
+          Yaxınlığındakı oyunçuları, komandaları və idman partnyorlarını tap.
+          Öz komandanı yarat, oyun təşkil et və yerli yarışlara qoşul.
+        </p>
+
+        <div className="flex flex-wrap gap-3 mb-10">
+          <Button onClick={() => navigate('/register')} size="lg">
+            İndi Başla
+            <ArrowRight size={18} />
+          </Button>
+
+          <Button
+            onClick={() => navigate('/sports')}
+            variant="outline"
+            size="lg"
+          >
+            <Play size={16} />
+            İdmanları Kəşf Et
+          </Button>
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-sm text-white/30">
+            Dəstəklənən idmanlar:
+          </span>
+
+          {['⚽', '🏀', '🎾', '🏓', '🏐'].map((icon) => (
+            <span
+              key={icon}
+              className="w-9 h-9 bg-white/5 border border-white/8 rounded-xl flex items-center justify-center text-lg hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              {icon}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Right */}
+      <div className="hidden lg:flex justify-center items-center relative">
+        <div className="relative w-[680px] h-[620px] flex items-center justify-center">
+
+          <div className="absolute w-[480px] h-[480px] rounded-full bg-[#7c3aed]/15 blur-[120px]" />
+
+          <img
+            src={new URL('../assets/rivalio-hero.png', import.meta.url).href}
+            alt="Rivalio platform preview"
+            className="
+              relative
+              z-10
+              w-[720px]
+              max-w-none
+              object-contain
+              translate-x-10
+              drop-shadow-[0_30px_80px_rgba(124,58,237,0.25)]
+            "
+          />
+
+          <div className="absolute bottom-[90px] right-[40px] w-[180px] h-[180px] rounded-full bg-[#c5f135]/10 blur-[80px]" />
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
 
       {/* ======= SPORTS ======= */}
       <section className="py-24">
@@ -420,7 +470,13 @@ export default function LandingPage() {
                     alt={sport.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#08080e] via-[#08080e]/40 to-transparent" />
+                  <div
+                    className={`absolute inset-0 bg-gradient-to-t ${
+                      isDarkMode
+                        ? 'from-[#08080e] via-[#08080e]/40 to-transparent'
+                        : 'from-[#0f172a]/50 via-[#0f172a]/10 to-transparent'
+                    }`}
+                  />
                   <div
                     className="absolute top-3 left-3 w-8 h-8 rounded-xl flex items-center justify-center text-base"
                     style={{ background: sport.color + '22', border: `1px solid ${sport.color}44` }}
@@ -629,7 +685,7 @@ export default function LandingPage() {
                 {/* Stars */}
                 <div className="flex gap-0.5 mb-4">
                   {Array.from({ length: t.rating }).map((_, i) => (
-                    <Star key={i} size={14} fill="#c5f135" className="text-[#c5f135]" />
+                    <Star key={i} size={14} fill={accent} color={accent} />
                   ))}
                 </div>
                 <p className="text-white/70 text-sm leading-relaxed mb-5 italic">"{t.text}"</p>

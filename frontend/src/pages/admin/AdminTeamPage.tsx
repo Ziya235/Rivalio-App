@@ -1,6 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ChevronRight, Plus, Trash2, Users } from "lucide-react";
+import { ChevronRight, Plus,  Users } from "lucide-react";
 import { AdminPageShell } from "../../components/admin/AdminLayout";
 import {
   AdminModal,
@@ -10,7 +10,7 @@ import {
   ModalSubmitButton,
   inputClass,
 } from "../../components/admin/AdminModal";
-import { createPlayer, deletePlayer } from "../../api/admin";
+import { createPlayer } from "../../api/admin";
 import { fetchTeam } from "../../api/leagues";
 import type { TeamDetail, TeamPlayer } from "../../types/league";
 
@@ -57,7 +57,6 @@ export function AdminTeamPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -129,19 +128,6 @@ export function AdminTeamPage() {
     }
   };
 
-  const handleDelete = async (player: TeamPlayer) => {
-    const full = `${player.firstName} ${player.lastName}`;
-    if (!window.confirm(`"${full}" oyunçusunu silmək istəyirsiniz?`)) return;
-    setDeletingId(player.id);
-    try {
-      await deletePlayer(leagueId, teamId, player.id);
-      await load();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Silinmədi");
-    } finally {
-      setDeletingId(null);
-    }
-  };
 
   if (loading) {
     return (
@@ -156,7 +142,7 @@ export function AdminTeamPage() {
           {error || "Komanda tapılmadı"}
         </p>
         <Link
-          to={`/admin/leagues/${leagueId}`}
+          to={`/admin/football/leagues/${leagueId}`}
           className="text-sm font-semibold text-brand"
         >
           ← Liqaya qayıt
@@ -178,7 +164,7 @@ export function AdminTeamPage() {
             resetForm();
             setModalOpen(true);
           }}
-          className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-dark"
+          className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-ink shadow-sm hover:bg-brand-dark"
         >
           <Plus className="h-4 w-4" />
           Oyunçu əlavə et
@@ -186,12 +172,12 @@ export function AdminTeamPage() {
       }
     >
       <nav className="mb-5 flex flex-wrap items-center gap-1.5 text-sm text-slate-500">
-        <Link to="/admin" className="hover:text-brand">
+        <Link to="/admin/football/leagues" className="hover:text-brand">
           Liqalar
         </Link>
         <ChevronRight className="h-3.5 w-3.5" />
         <Link
-          to={`/admin/leagues/${leagueId}`}
+          to={`/admin/football/leagues/${leagueId}`}
           className="hover:text-brand"
         >
           {team.league.name}
@@ -236,11 +222,8 @@ export function AdminTeamPage() {
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <th className="px-4 py-3">Oyunçu</th>
-                  <th className="px-4 py-3">№</th>
-                  <th className="px-4 py-3">Pozisiya</th>
                   <th className="px-4 py-3 text-center">Qol</th>
                   <th className="px-4 py-3 text-center">Asist</th>
-                  <th className="px-4 py-3 text-right">Əməliyyat</th>
                 </tr>
               </thead>
               <tbody>
@@ -260,29 +243,14 @@ export function AdminTeamPage() {
                         </Link>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {player.shirtNumber ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {player.position || "—"}
-                    </td>
+                 
                     <td className="px-4 py-3 text-center font-semibold text-ink">
                       {player.goals ?? 0}
                     </td>
                     <td className="px-4 py-3 text-center font-semibold text-ink">
                       {player.assists ?? 0}
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        disabled={deletingId === player.id}
-                        onClick={() => void handleDelete(player)}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
-                        title="Sil"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </td>
+                 
                   </tr>
                 ))}
               </tbody>

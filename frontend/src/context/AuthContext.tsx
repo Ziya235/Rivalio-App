@@ -23,7 +23,7 @@ type AuthContextValue = {
   user: User | null;
   isLoading: boolean;
   isAdmin: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   register: (payload: RegisterPayload) => Promise<void>;
   updateProfile: (payload: UpdateProfilePayload) => Promise<void>;
   updateProfileImage: (file: File) => Promise<void>;
@@ -56,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { user: nextUser, token } = await loginRequest(email, password);
     setToken(token);
     setUser(nextUser);
+    return nextUser;
   }, []);
 
   const register = useCallback(async (payload: RegisterPayload) => {

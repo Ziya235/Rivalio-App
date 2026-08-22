@@ -1,3 +1,9 @@
+import footballImg from './assets/football.avif'
+import basketballImg from './assets/basketboll.png'
+import tennisImg from './assets/tennis.avif'
+import tableTennisImg from './assets/table-tennis.avif'
+import volleyballImg from './assets/voleyball.avif'
+
 export const SPORTS = [
   {
     id: 'football',
@@ -7,20 +13,10 @@ export const SPORTS = [
     teams: 124,
     games: 67,
     leagues: 18,
-    image: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600&h=400&fit=crop&auto=format',
+    image: footballImg,
     color: '#22c55e',
   },
-  {
-    id: 'basketball',
-    name: 'Basketbol',
-    icon: '🏀',
-    players: 531,
-    teams: 76,
-    games: 42,
-    leagues: 11,
-    image: 'https://images.unsplash.com/photo-1546519638405-a8d71a7f5e49?w=600&h=400&fit=crop&auto=format',
-    color: '#f97316',
-  },
+
   {
     id: 'tennis',
     name: 'Tennis',
@@ -29,7 +25,7 @@ export const SPORTS = [
     teams: 0,
     games: 218,
     leagues: 9,
-    image: 'https://images.unsplash.com/photo-1595435934249-5df7ed86e1c0?w=600&h=400&fit=crop&auto=format',
+    image: tennisImg,
     color: '#eab308',
   },
   {
@@ -40,7 +36,7 @@ export const SPORTS = [
     teams: 0,
     games: 341,
     leagues: 7,
-    image: 'https://images.unsplash.com/photo-1609710228159-0fa9bd7c0827?w=600&h=400&fit=crop&auto=format',
+    image: tableTennisImg,
     color: '#3b82f6',
   },
   {
@@ -51,8 +47,97 @@ export const SPORTS = [
     teams: 54,
     games: 29,
     leagues: 6,
-    image: 'https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?w=600&h=400&fit=crop&auto=format',
+    image: volleyballImg,
     color: '#a855f7',
+  },
+  {
+    id: 'basketball',
+    name: 'Basketbol',
+    icon: '🏀',
+    players: 531,
+    teams: 76,
+    games: 42,
+    leagues: 11,
+    image: basketballImg,
+    color: '#f97316',
+  },
+]
+
+export const SPORTS1 = [
+  {
+    id: 'football',
+    name: 'Futbol',
+    icon: '⚽',
+    description: 'Komandanı qur, rəqiblər tap və yerli liqalarda mübarizə apar.',
+    status: 'Ən populyar',
+
+    teamSize: '6v6 — 11v11',
+    players: 312,
+    teams: 54,
+    leagues: 6,
+
+    image:
+      footballImg,
+  },
+
+  {
+    id: 'tennis',
+    name: 'Tennis',
+    icon: '🎾',
+    description: 'Səviyyənə uyğun rəqib tap və fərdi matçlarda gücünü göstər.',
+    status: 'Aktiv',
+
+    teamSize: '1v1 — 2v2',
+    players: 312,
+    teams: 54,
+    leagues: 6,
+
+    image: tennisImg
+  },
+  {
+    id: 'table-tennis',
+    name: 'Stolüstü Tennis',
+    icon: '🏓',
+    description: 'Rəqibini tap, sürətli matçlara qoşul və reytinqdə yüksəl.',
+    status: 'Aktiv',
+
+    teamSize: '1v1 — 2v2',
+    players: 312,
+    teams: 54,
+    leagues: 6,
+
+    image: tableTennisImg
+  },
+  {
+    id: 'volleyball',
+    name: 'Voleybol',
+    icon: '🏐',
+    description: 'Komanda yığ, oyun təşkil et və turnirlərdə iştirak et.',
+    status: 'Yeni',
+
+    teamSize: '4v4 — 6v6',
+    skillLevels: 'Bütün səviyyələr',
+    players: 312,
+    teams: 54,
+    leagues: 6,
+
+    image: volleyballImg
+  },
+
+  {
+    id: 'basketball',
+    name: 'Basketbol',
+    icon: '🏀',
+    description: 'Komanda yarat, meydançaya çıx və digər komandalarla yarış.',
+    status: 'Populyar',
+
+    teamSize: '3v3 — 5v5',
+    players: 312,
+    teams: 54,
+    leagues: 6,
+
+    image:
+      basketballImg
   },
 ]
 

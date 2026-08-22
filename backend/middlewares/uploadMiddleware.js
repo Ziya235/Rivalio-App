@@ -19,7 +19,7 @@ const storage = multer.diskStorage({
     const safeExt = [".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(ext)
       ? ext
       : ".jpg";
-    cb(null, `user-${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`);
+    cb(null, `img-${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`);
   },
 });
 
@@ -38,3 +38,5 @@ export const uploadUserImage = multer({
     fileSize: 5 * 1024 * 1024,
   },
 }).single("image");
+
+export const uploadImage = uploadUserImage;

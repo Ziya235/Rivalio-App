@@ -88,11 +88,15 @@ interface CardProps {
   onClick?: () => void
 }
 
-export function Card({ children, className = '', hover, onClick }: CardProps) {
+export function Card({ children, className = '', hover, onClick, light }: CardProps & { light?: boolean }) {
   return (
     <div
       onClick={onClick}
-      className={`bg-[#101017] card-border rounded-2xl ${hover ? 'hover-card cursor-pointer' : ''} ${className}`}
+      className={`rounded-2xl ${
+        light
+          ? 'bg-white/70 backdrop-blur-sm border border-gray-200 shadow-sm'
+          : 'bg-[#101017] card-border'
+      } ${hover ? light ? 'hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer' : 'hover-card cursor-pointer' : ''} ${className}`}
     >
       {children}
     </div>
@@ -157,12 +161,13 @@ export function Input({
   error,
   readOnly,
   disabled,
-}: InputProps) {
+  light,
+}: InputProps & { light?: boolean }) {
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
-      {label && <label className="text-sm font-medium text-white/80">{label}</label>}
+      {label && <label className={`text-sm font-medium ${light ? 'text-gray-700' : 'text-white/80'}`}>{label}</label>}
       <div className="relative">
-        {icon && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40">{icon}</span>}
+        {icon && <span className={`absolute left-3 top-1/2 -translate-y-1/2 ${light ? 'text-gray-400' : 'text-white/40'}`}>{icon}</span>}
         <input
           type={type}
           value={value}
@@ -170,7 +175,17 @@ export function Input({
           placeholder={placeholder}
           readOnly={readOnly}
           disabled={disabled}
-          className={`w-full bg-[#18181f] border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-white/30 text-sm transition-all ${icon ? 'pl-10' : ''} ${error ? 'border-red-500/50' : ''} ${readOnly || disabled ? 'opacity-70 cursor-default focus:outline-none' : 'focus:outline-none focus:border-[#c5f135]/50'}`}
+          className={`w-full rounded-xl px-4 py-2.5 text-sm transition-all ${
+            light
+              ? 'bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400'
+              : 'bg-[#18181f] border border-white/10 text-white placeholder-white/30'
+          } ${icon ? 'pl-10' : ''} ${error ? 'border-red-500/50' : ''} ${
+            readOnly || disabled
+              ? 'opacity-70 cursor-default focus:outline-none'
+              : light
+                ? 'focus:outline-none focus:border-emerald-500/50'
+                : 'focus:outline-none focus:border-[#c5f135]/50'
+          }`}
         />
       </div>
       {error && <span className="text-xs text-red-400">{error}</span>}
@@ -186,17 +201,21 @@ interface SelectFieldProps {
   className?: string
 }
 
-export function SelectField({ label, value, onChange, options, className = '' }: SelectFieldProps) {
+export function SelectField({ label, value, onChange, options, className = '', light }: SelectFieldProps & { light?: boolean }) {
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
-      {label && <label className="text-sm font-medium text-white/80">{label}</label>}
+      {label && <label className={`text-sm font-medium ${light ? 'text-gray-700' : 'text-white/80'}`}>{label}</label>}
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-[#18181f] border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm appearance-none cursor-pointer"
+        className={`w-full rounded-xl px-4 py-2.5 text-sm appearance-none cursor-pointer ${
+          light
+            ? 'bg-gray-50 border border-gray-200 text-gray-900'
+            : 'bg-[#18181f] border border-white/10 text-white'
+        }`}
       >
         {options.map((o) => (
-          <option key={o.value} value={o.value} className="bg-[#18181f]">
+          <option key={o.value} value={o.value} className={light ? 'bg-white' : 'bg-[#18181f]'}>
             {o.label}
           </option>
         ))}
@@ -233,17 +252,24 @@ interface TabsProps {
   active: string
   onChange: (t: string) => void
   className?: string
+  light?: boolean
 }
 
-export function Tabs({ tabs, active, onChange, className = '' }: TabsProps) {
+export function Tabs({ tabs, active, onChange, className = '', light = false }: TabsProps) {
   return (
-    <div className={`flex gap-0 border-b border-white/8 ${className}`}>
+    <div className={`flex gap-0 border-b ${light ? 'border-gray-200' : 'border-white/8'} ${className}`}>
       {tabs.map((tab) => (
         <button
           key={tab}
           onClick={() => onChange(tab)}
-          className={`px-5 py-3 text-sm font-semibold transition-all duration-200 ${
-            active === tab ? 'tab-active' : 'tab-inactive hover:text-white/80'
+          className={`px-5 py-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
+            active === tab
+              ? light
+                ? 'border-emerald-500 text-emerald-600'
+                : 'border-[#c5f135] text-[#c5f135]'
+              : light
+                ? 'border-transparent text-gray-400 hover:text-gray-700'
+                : 'border-transparent text-white/50 hover:text-white/80'
           }`}
         >
           {tab}

@@ -2,10 +2,11 @@ import { getToken } from "./auth";
 import type {
   ApiSuccess,
   League,
+  LeaguePlayerRow,
   StandingsResponse,
   TeamDetail,
 } from "../types/league";
-import type { LeagueTeamOption } from "../types/match";
+import type { LeagueTeamOption, Match } from "../types/match";
 
 async function apiFetch<T>(path: string): Promise<T> {
   const token = getToken();
@@ -47,4 +48,14 @@ export function fetchLeagueTeams(
   leagueId: number,
 ): Promise<LeagueTeamOption[]> {
   return apiFetch<LeagueTeamOption[]>(`/api/leagues/${leagueId}/teams`);
+}
+
+export function fetchLeaguePlayers(
+  leagueId: number,
+): Promise<LeaguePlayerRow[]> {
+  return apiFetch<LeaguePlayerRow[]>(`/api/leagues/${leagueId}/players`);
+}
+
+export function fetchLeagueMatches(leagueId: number): Promise<Match[]> {
+  return apiFetch<Match[]>(`/api/leagues/${leagueId}/matches`);
 }

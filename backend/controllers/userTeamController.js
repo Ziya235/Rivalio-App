@@ -35,6 +35,29 @@ const teamDetailInclude = {
   _count: { select: { players: true } },
 };
 
+export const uploadPublicImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Image file is required",
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Image uploaded",
+      data: { url: `/uploads/${req.file.filename}` },
+    });
+  } catch (error) {
+    console.log("Error in uploadPublicImage:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
 export const createUserTeam = async (req, res) => {
   try {
     const { name, shortName, logo, description, city, primaryColor, secondaryColor, foundedYear } =
@@ -140,6 +163,21 @@ export const listTeams = async (req, res) => {
         description: true,
         captain: { select: userBriefSelect },
         _count: { select: { players: true } },
+        leagueMemberships: {
+          select: {
+            league: {
+              select: {
+                id: true,
+                name: true,
+                logo: true,
+                visibility: true,
+                status: true,
+                season: true,
+                sport: { select: { id: true, name: true, code: true } },
+              },
+            },
+          },
+        },
       },
       orderBy: { name: "asc" },
       take: 100,

@@ -83,6 +83,24 @@ export type TeamPlayer = {
   minutes: number;
 };
 
+export type LeaguePlayerRow = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  position: string | null;
+  shirtNumber: number | null;
+  photo: string | null;
+  goals: number;
+  assists: number;
+  matchesPlayed: number;
+  team: {
+    id: number;
+    name: string;
+    shortName: string | null;
+    logo: string | null;
+  };
+};
+
 export type TeamTopScorer = {
   id: number;
   name: string;

@@ -41,6 +41,17 @@ export type TeamSummary = {
     lastName: string;
   };
   _count?: { players: number };
+  leagueMemberships?: Array<{
+    league: {
+      id: number;
+      name: string;
+      logo: string | null;
+      visibility: string;
+      status: string;
+      season: string | null;
+      sport?: { id: number; name: string; code: string };
+    };
+  }>;
 };
 
 export type TeamDetail = TeamSummary & {
@@ -135,6 +146,27 @@ export function fetchTeams(params?: {
 
 export function fetchTeam(teamId: number): Promise<TeamDetail> {
   return apiFetch<TeamDetail>(`/api/teams/${teamId}`);
+}
+
+export async function uploadImage(file: File): Promise<string> {
+  const token = getToken();
+  const body = new FormData();
+  body.append("image", file);
+
+  const res = await fetch("/api/uploads/image", {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body,
+  });
+  const data = (await res.json()) as ApiSuccess<{ url: string }>;
+
+  if (!res.ok) {
+    throw new Error(
+      (data as { message?: string }).message || "Şəkil yüklənmədi",
+    );
+  }
+
+  return data.data.url;
 }
 
 export function createTeam(payload: {

@@ -43,7 +43,6 @@ export const createPlayerSearch = async (req, res) => {
 
     const {
       hostTeamId,
-      opponentTeamId,
       scheduledAt,
       venue,
       notes,
@@ -51,13 +50,12 @@ export const createPlayerSearch = async (req, res) => {
     } = req.body;
 
     const hostId = parsePositiveInt(hostTeamId);
-    const oppId = parsePositiveInt(opponentTeamId);
     const needed = Number(playersNeeded);
 
-    if (!hostId || !oppId) {
+    if (!hostId) {
       return res.status(400).json({
         success: false,
-        message: "hostTeamId and opponentTeamId are required",
+        message: "hostTeamId is required",
       });
     }
 
@@ -83,10 +81,11 @@ export const createPlayerSearch = async (req, res) => {
     }
 
     const when = new Date(scheduledAt);
-    if (when <= new Date()) {
+    const minWhen = new Date(Date.now() + 60 * 60 * 1000);
+    if (when < minWhen) {
       return res.status(400).json({
         success: false,
-        message: "scheduledAt must be in the future",
+        message: "Matç ən azı 1 saat sonra yaradıla bilər",
       });
     }
 
@@ -109,50 +108,16 @@ export const createPlayerSearch = async (req, res) => {
       });
     }
 
-    if (oppId === hostId) {
-      return res.status(400).json({
-        success: false,
-        message: "Opponent must be a different team",
-      });
-    }
-
-    const opp = await prisma.team.findUnique({
-      where: { id: oppId },
-      select: { id: true },
-    });
-    if (!opp) {
-      return res.status(404).json({
-        success: false,
-        message: "Opponent team not found",
-      });
-    }
-
-    const result = await prisma.$transaction(async (tx) => {
-      const match = await tx.match.create({
-        data: {
-          homeTeamId: hostId,
-          awayTeamId: oppId,
-          scheduledAt: when,
-          venue: venue.trim(),
-          notes: notes?.trim() || null,
-          matchType: "FRIENDLY",
-          createdById: req.user.id,
-        },
-      });
-
-      return tx.playerSearch.create({
-        data: {
-          hostTeamId: hostId,
-          createdById: req.user.id,
-          opponentTeamId: oppId,
-          scheduledAt: when,
-          venue: venue.trim(),
-          notes: notes?.trim() || null,
-          playersNeeded: needed,
-          matchId: match.id,
-        },
-        include: searchInclude,
-      });
+    const result = await prisma.playerSearch.create({
+      data: {
+        hostTeamId: hostId,
+        createdById: req.user.id,
+        scheduledAt: when,
+        venue: venue.trim(),
+        notes: notes?.trim() || null,
+        playersNeeded: needed,
+      },
+      include: searchInclude,
     });
 
     return res.status(201).json({
@@ -221,10 +186,11 @@ export const createFriendly = async (req, res) => {
     }
 
     const when = new Date(scheduledAt);
-    if (when <= new Date()) {
+    const minWhen = new Date(Date.now() + 60 * 60 * 1000);
+    if (when < minWhen) {
       return res.status(400).json({
         success: false,
-        message: "scheduledAt must be in the future",
+        message: "Matç ən azı 1 saat sonra yaradıla bilər",
       });
     }
 
@@ -316,16 +282,49 @@ export const listPlayerSearches = async (req, res) => {
 
     const searches = await prisma.playerSearch.findMany({
       where: {
-        status: { in: ["OPEN", "FULL"] },
         scheduledAt: { gt: new Date() },
+        OR: [
+          { status: "OPEN" },
+          {
+            status: "FULL",
+            OR: [
+              { createdById: req.user.id },
+              { hostTeam: { captainId: req.user.id } },
+              {
+                requests: {
+                  some: {
+                    userId: req.user.id,
+                    status: "ACCEPTED",
+                  },
+                },
+              },
+            ],
+          },
+        ],
       },
       include: searchInclude,
       orderBy: { scheduledAt: "asc" },
     });
 
+    const searchIds = searches.map((s) => s.id);
+    const myRequests =
+      searchIds.length === 0
+        ? []
+        : await prisma.playerSearchRequest.findMany({
+            where: {
+              userId: req.user.id,
+              playerSearchId: { in: searchIds },
+            },
+            select: { id: true, status: true, playerSearchId: true },
+          });
+    const myBySearch = new Map(
+      myRequests.map((r) => [r.playerSearchId, { id: r.id, status: r.status }]),
+    );
+
     const data = searches.map((s) => ({
       ...s,
       spotsLeft: Math.max(0, s.playersNeeded - s.playersFilled),
+      myRequest: myBySearch.get(s.id) ?? null,
     }));
 
     return res.status(200).json({ success: true, data });
@@ -392,17 +391,53 @@ export const requestJoinPlayerSearch = async (req, res) => {
       });
     }
 
-    const request = await prisma.playerSearchRequest.create({
-      data: {
-        playerSearchId: searchId,
-        userId: req.user.id,
-        message: message?.trim() || null,
-      },
-      include: {
-        user: { select: userBriefSelect },
-        playerSearch: { include: searchInclude },
+    const existing = await prisma.playerSearchRequest.findUnique({
+      where: {
+        playerSearchId_userId: {
+          playerSearchId: searchId,
+          userId: req.user.id,
+        },
       },
     });
+
+    if (existing?.status === "PENDING") {
+      return res.status(409).json({
+        success: false,
+        message: "Sorğu artıq göndərilib və gözləyir",
+      });
+    }
+
+    if (existing?.status === "ACCEPTED") {
+      return res.status(400).json({
+        success: false,
+        message: "Bu axtarış üçün artıq qəbul olunmusunuz",
+      });
+    }
+
+    const include = {
+      user: { select: userBriefSelect },
+      playerSearch: { include: searchInclude },
+    };
+
+    const request = existing
+      ? await prisma.playerSearchRequest.update({
+          where: { id: existing.id },
+          data: {
+            status: "PENDING",
+            message: message?.trim() || null,
+            respondedAt: null,
+            createdAt: new Date(),
+          },
+          include,
+        })
+      : await prisma.playerSearchRequest.create({
+          data: {
+            playerSearchId: searchId,
+            userId: req.user.id,
+            message: message?.trim() || null,
+          },
+          include,
+        });
 
     return res.status(201).json({
       success: true,

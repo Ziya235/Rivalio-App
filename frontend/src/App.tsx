@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import {
   BrowserRouter,
   Routes,
@@ -17,12 +17,10 @@ import LandingPage from './pages/LandingPage'
 import SportsPage from './pages/SportsPage'
 import FootballPage from './pages/FootballPage'
 import SportGenericPage from './pages/SportGenericPage'
-import TeamsPage from './pages/TeamsPage'
 import TeamDetailPage from './pages/TeamDetailPage'
 import CreateTeamPage from './pages/CreateTeamPage'
 import FindOpponentPage from './pages/FindOpponentPage'
 import LeagueDetailPage from './pages/LeagueDetailPage'
-import PlayerProfilePage from './pages/PlayerProfilePage'
 import ChatPage from './pages/ChatPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -33,6 +31,10 @@ import { AdminLeagueDetailPage } from './pages/admin/AdminLeagueDetailPage'
 import { AdminTeamPage } from './pages/admin/AdminTeamPage'
 import { AdminMatchesPage } from './pages/admin/AdminMatchesPage'
 import { AdminMatchDetailPage } from './pages/admin/AdminMatchDetailPage'
+import { AdminChampionshipsPage } from './pages/admin/AdminChampionshipsPage'
+import PlayerProfilePage from './pages/PlayerProfilePage'
+import AboutUsPage from './pages/AboutUsPage'
+import FaqPage from './pages/FaqPage'
 
 const NO_HEADER = ['/login', '/register']
 const NO_FOOTER = ['/chat', '/login', '/register']
@@ -41,6 +43,7 @@ export type AppOutletContext = {
   isLoggedIn: boolean
   onLogin: () => void
   onLogout: () => void
+  isDarkMode: boolean
 }
 
 function AppLayout() {
@@ -48,6 +51,7 @@ function AppLayout() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('rivalio-theme') !== 'light')
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -72,16 +76,55 @@ function AppLayout() {
   const isLoggedIn = !!user
   const showHeader = !NO_HEADER.includes(location.pathname)
   const showFooter = !NO_FOOTER.includes(location.pathname)
+  const isLandingPage = location.pathname === '/'
+  const supportsTheme =
+    isLandingPage ||
+    location.pathname.startsWith('/sports') ||
+    location.pathname.startsWith('/teams') ||
+    location.pathname.startsWith('/players') ||
+    location.pathname.startsWith('/leagues') ||
+    location.pathname === '/profile' ||
+    location.pathname === '/notifications' ||
+    location.pathname === '/about-us' ||
+    location.pathname === '/faq'
+  const isLightMode = supportsTheme && !isDarkMode
+
+  const toggleTheme = () => {
+    setIsDarkMode((current) => {
+      const next = !current
+      localStorage.setItem('rivalio-theme', next ? 'dark' : 'light')
+      return next
+    })
+  }
 
   return (
-    <div className="min-h-screen bg-[#08080e] text-white font-body">
-      {showHeader && <Header />}
+    <div
+      className={`min-h-screen font-body transition-colors duration-300 ${
+        isLightMode
+          ? 'text-slate-900'
+          : 'bg-[#08080e] text-white'
+      }`}
+    >
+      {showHeader && (
+        <Header
+          isLightMode={isLightMode}
+          showThemeToggle={supportsTheme}
+          onThemeToggle={toggleTheme}
+        />
+      )}
 
       <main>
-        <Outlet context={{ isLoggedIn, onLogin: handleLogin, onLogout: handleLogout } satisfies AppOutletContext} />
+        <Outlet
+          context={{
+            isLoggedIn,
+            onLogin: handleLogin,
+            onLogout: handleLogout,
+            isDarkMode,
+          } satisfies AppOutletContext}
+        />
       </main>
 
-      {showFooter && <Footer />}
+      {showFooter && <Footer isLightMode={isLightMode} />}
 
       {toast && (
         <div
@@ -98,10 +141,32 @@ function AppLayout() {
   )
 }
 
+function BlockAdminFromSports({ children }: { children: ReactNode }) {
+  const { isAdmin, isLoading } = useAuth()
+  if (isLoading) return null
+  if (isAdmin) return <Navigate to="/admin" replace />
+  return children
+}
+
 function SportRoute() {
   const { sport } = useParams<{ sport: string }>()
   if (sport === 'football') return <FootballPage />
   return <SportGenericPage />
+}
+
+function AdminLegacyMatchRedirect() {
+  const { matchId } = useParams()
+  return <Navigate to={`/admin/football/matches/${matchId}`} replace />
+}
+
+function AdminLegacyLeagueRedirect() {
+  const { leagueId } = useParams()
+  return <Navigate to={`/admin/football/leagues/${leagueId}`} replace />
+}
+
+function AdminLegacyTeamRedirect() {
+  const { leagueId, teamId } = useParams()
+  return <Navigate to={`/admin/football/leagues/${leagueId}/teams/${teamId}`} replace />
 }
 
 export default function App() {
@@ -109,18 +174,37 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="admin" element={<AdminLayout />}>
-          <Route index element={<AdminLeaguesPage />} />
-          <Route path="matches" element={<AdminMatchesPage />} />
-          <Route path="matches/:matchId" element={<AdminMatchDetailPage />} />
-          <Route path="leagues/:leagueId" element={<AdminLeagueDetailPage />} />
-          <Route path="leagues/:leagueId/teams/:teamId" element={<AdminTeamPage />} />
+          <Route index element={<Navigate to="football/leagues" replace />} />
+          <Route path="football/leagues" element={<AdminLeaguesPage />} />
+          <Route path="football/leagues/:leagueId" element={<AdminLeagueDetailPage />} />
+          <Route path="football/leagues/:leagueId/teams/:teamId" element={<AdminTeamPage />} />
+          <Route path="football/matches" element={<AdminMatchesPage />} />
+          <Route path="football/matches/:matchId" element={<AdminMatchDetailPage />} />
+          <Route path="football/championships" element={<AdminChampionshipsPage />} />
+          <Route path="matches" element={<Navigate to="/admin/football/matches" replace />} />
+          <Route path="matches/:matchId" element={<AdminLegacyMatchRedirect />} />
+          <Route path="leagues/:leagueId" element={<AdminLegacyLeagueRedirect />} />
+          <Route path="leagues/:leagueId/teams/:teamId" element={<AdminLegacyTeamRedirect />} />
         </Route>
 
         <Route element={<AppLayout />}>
           <Route index element={<LandingPage />} />
-          <Route path="sports" element={<SportsPage />} />
-          <Route path="sports/:sport" element={<SportRoute />} />
-          <Route path="teams" element={<TeamsPage />} />
+          <Route
+            path="sports"
+            element={
+              <BlockAdminFromSports>
+                <SportsPage />
+              </BlockAdminFromSports>
+            }
+          />
+          <Route
+            path="sports/:sport"
+            element={
+              <BlockAdminFromSports>
+                <SportRoute />
+              </BlockAdminFromSports>
+            }
+          />
           <Route path="teams/create" element={<CreateTeamPage />} />
           <Route path="teams/:teamId" element={<TeamDetailPage />} />
           <Route path="find-opponent" element={<FindOpponentPage />} />
@@ -131,6 +215,8 @@ export default function App() {
           <Route path="register" element={<RegisterPage />} />
           <Route path="profile" element={<MyProfilePage />} />
           <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="about-us" element={<AboutUsPage />} />
+          <Route path="faq" element={<FaqPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

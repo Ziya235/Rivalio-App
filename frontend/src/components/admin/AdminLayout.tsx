@@ -1,29 +1,69 @@
 import { type ReactNode, useEffect, useState } from "react";
-import { Navigate, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-  HelpCircle,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  Settings,
-  Shield,
-  Trophy,
-  Users,
-  BarChart3,
   Calendar,
+  ChevronDown,
+  HelpCircle,
+  LogOut,
+  Medal,
+  Menu,
+  Trophy,
   X,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 
-const navItems = [
-  { to: "/admin", label: "Liqalar", icon: Trophy, end: true },
-  { to: "/admin/matches", label: "Oyunlar", icon: Calendar, end: false },
-  { to: "/football", label: "Futbol", icon: LayoutDashboard, end: false },
+type SportModule = {
+  to: string;
+  label: string;
+  icon: typeof Trophy;
+  matchPrefix: string;
+};
+
+type SportNav = {
+  id: string;
+  label: string;
+  enabled: boolean;
+  to?: string;
+  modules?: SportModule[];
+};
+
+const SPORTS: SportNav[] = [
+  {
+    id: "football",
+    label: "Futbol",
+    enabled: true,
+    to: "/admin/football/leagues",
+    modules: [
+      {
+        to: "/admin/football/leagues",
+        label: "Liqalar",
+        icon: Trophy,
+        matchPrefix: "/admin/football/leagues",
+      },
+      {
+        to: "/admin/football/matches",
+        label: "Oyunlar",
+        icon: Calendar,
+        matchPrefix: "/admin/football/matches",
+      },
+      {
+        to: "/admin/football/championships",
+        label: "Çempionatlar",
+        icon: Medal,
+        matchPrefix: "/admin/football/championships",
+      },
+    ],
+  },
+  { id: "tennis", label: "Tennis", enabled: false },
+  { id: "table-tennis", label: "Stolüstü tennis", enabled: false },
+  { id: "volleyball", label: "Voleybol", enabled: false },
+  { id: "basketball", label: "Basketbol", enabled: false },
 ];
 
 export function AdminLayout() {
   const { user, isAdmin, isLoading, logout } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -55,19 +95,19 @@ export function AdminLayout() {
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-56 flex-col border-r border-slate-200 bg-white transition-transform lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-white transition-transform lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex h-16 items-center justify-between border-b border-slate-100 px-5">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-sm font-black text-white">
-              S
+        <div className="flex h-16 items-center justify-between border-b border-slate-100 px-4">
+          <Link to="/admin/football/leagues" className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-sm font-black text-ink">
+              R
             </span>
             <span className="text-lg font-extrabold tracking-tight text-ink">
-              SPORT
+              Rival<span className="text-brand">io</span>
             </span>
-          </div>
+          </Link>
           <button
             type="button"
             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 lg:hidden"
@@ -77,43 +117,76 @@ export function AdminLayout() {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-4">
-          {navItems.map(({ to, label, icon: Icon, end }) => (
-            <NavLink
-              key={to + label}
-              to={to}
-              end={end}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
-                  isActive
-                    ? "bg-brand text-white shadow-sm"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-ink"
-                }`
-              }
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {label}
-            </NavLink>
-          ))}
-
-          <p className="px-3 pt-5 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            Tezliklə
+        <nav className="flex-1 overflow-y-auto px-3 py-4">
+          <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            İdman növləri
           </p>
-          {[
-            { label: "Komandalar", icon: Users },
-            { label: "Oyunçular", icon: Shield },
-            { label: "Statistika", icon: BarChart3 },
-            { label: "Ayarlar", icon: Settings },
-          ].map(({ label, icon: Icon }) => (
-            <span
-              key={label}
-              className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300"
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {label}
-            </span>
-          ))}
+          <div className="space-y-1">
+            {SPORTS.map((sport) => {
+              const sportActive =
+                sport.enabled &&
+                Boolean(sport.to) &&
+                pathname.startsWith(`/admin/${sport.id}`);
+
+              if (!sport.enabled) {
+                return (
+                  <span
+                    key={sport.id}
+                    title="Tezliklə"
+                    className="flex cursor-not-allowed items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300"
+                  >
+                    {sport.label}
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      Tezliklə
+                    </span>
+                  </span>
+                );
+              }
+
+              return (
+                <div key={sport.id}>
+                  <Link
+                    to={sport.to!}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+                      sportActive
+                        ? "bg-brand-soft text-ink"
+                        : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {sport.label}
+                    <ChevronDown
+                      className={`h-4 w-4 text-slate-400 transition ${
+                        sportActive ? "rotate-0" : "-rotate-90"
+                      }`}
+                    />
+                  </Link>
+                  {sportActive && sport.modules ? (
+                    <div className="mt-1 space-y-0.5 border-l border-slate-200 ml-4 pl-2">
+                      {sport.modules.map(({ to, label, icon: Icon, matchPrefix }) => {
+                        const moduleActive = pathname.startsWith(matchPrefix);
+                        return (
+                          <NavLink
+                            key={to}
+                            to={to}
+                            onClick={() => setSidebarOpen(false)}
+                            className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                              moduleActive
+                                ? "bg-brand text-ink shadow-sm"
+                                : "text-slate-600 hover:bg-slate-50 hover:text-ink"
+                            }`}
+                          >
+                            <Icon className="h-4 w-4 shrink-0" />
+                            {label}
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
         </nav>
 
         <div className="border-t border-slate-100 p-3">
@@ -140,7 +213,7 @@ export function AdminLayout() {
         </div>
       </aside>
 
-      <div className="flex min-h-screen flex-1 flex-col lg:ml-56">
+      <div className="flex min-h-screen flex-1 flex-col lg:ml-64">
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-6">
           <button
             type="button"

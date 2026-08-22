@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { Navigate, useNavigate, useOutletContext } from 'react-router-dom'
 import { Camera, Shield, UserMinus, MessageCircle, Pencil, X, Check } from 'lucide-react'
 import { Button, Badge, Tabs, Input, Avatar } from '../components/ui'
-import { TEAMS, LEAGUES, PLAYERS } from '../data'
+import { PLAYERS } from '../data'
+import { fetchLeagues } from '../api/leagues'
+import { fetchTeams, type TeamSummary } from '../api/teams'
+import type { League } from '../types/league'
 import { useAuth } from '../context/AuthContext'
 import type { User } from '../types/auth'
-
-const ME = PLAYERS[0]
+import type { AppOutletContext } from '../App'
 
 const FRIENDS = [
   { id: 'f1', name: 'Tural Həsənov', city: 'Gəncə', sport: 'Futbol', avatar: PLAYERS[1].avatar, mutual: 4 },
@@ -48,6 +50,32 @@ function calcAge(dateOfBirth: string) {
   return age
 }
 
+function TeamLogo({
+  src,
+  name,
+  light,
+  size = 'md',
+}: {
+  src: string | null
+  name: string
+  light: boolean
+  size?: 'md' | 'sm'
+}) {
+  const box = size === 'sm' ? 'w-10 h-10' : 'w-12 h-12'
+  if (src) {
+    return <img src={src} alt={name} className={`${box} rounded-xl object-cover`} />
+  }
+  return (
+    <div
+      className={`${box} rounded-xl flex items-center justify-center font-bold shrink-0 ${
+        light ? 'bg-emerald-500/15 text-emerald-600' : 'bg-[#c5f135]/15 text-[#c5f135]'
+      }`}
+    >
+      {name.slice(0, 1).toUpperCase()}
+    </div>
+  )
+}
+
 function formFromUser(user: User): ProfileForm {
   return {
     username: user.username,
@@ -64,6 +92,10 @@ function formFromUser(user: User): ProfileForm {
 export default function MyProfilePage() {
   const navigate = useNavigate()
   const { user, isLoading, updateProfile, updateProfileImage } = useAuth()
+  const { isDarkMode } = useOutletContext<AppOutletContext>()
+  const light = !isDarkMode
+  const bg = light ? "[background:linear-gradient(135deg,#E8FFF3_0%,#EAF8FF_48%,#F2EDFF_100%)]" : "bg-[#08080e]"
+  const cardCls = light ? "bg-white/70 backdrop-blur-sm border border-gray-200" : "bg-[#101017] card-border"
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [tab, setTab] = useState('Profil Məlumatları')
   const [editing, setEditing] = useState(false)
@@ -74,6 +106,10 @@ export default function MyProfilePage() {
   const [form, setForm] = useState<ProfileForm | null>(() =>
     user ? formFromUser(user) : null,
   )
+  const [myTeams, setMyTeams] = useState<TeamSummary[]>([])
+  const [myLeagues, setMyLeagues] = useState<League[]>([])
+  const [listsLoading, setListsLoading] = useState(false)
+  const [listsError, setListsError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) {
@@ -85,10 +121,70 @@ export default function MyProfilePage() {
     }
   }, [user, editing])
 
+  useEffect(() => {
+    if (!user) {
+      setMyTeams([])
+      setMyLeagues([])
+      return
+    }
+
+    let cancelled = false
+    setListsLoading(true)
+    setListsError(null)
+
+    void Promise.all([fetchTeams({ mine: true }), fetchLeagues()])
+      .then(([teams, leagues]) => {
+        if (cancelled) return
+        setMyTeams(teams)
+
+        const teamLeagueIds = new Set(
+          teams.flatMap((team) =>
+            (team.leagueMemberships ?? []).map((m) => m.league.id),
+          ),
+        )
+        setMyLeagues(
+          leagues.filter(
+            (league) =>
+              teamLeagueIds.has(league.id) ||
+              league.visibility === 'PRIVATE' ||
+              league.createdBy.id === user.id,
+          ),
+        )
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setListsError(err instanceof Error ? err.message : 'Yüklənmədi')
+      })
+      .finally(() => {
+        if (!cancelled) setListsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user])
+
+  const captainTeams = useMemo(
+    () => (user ? myTeams.filter((team) => team.captainId === user.id) : []),
+    [myTeams, user],
+  )
+  const memberTeams = useMemo(
+    () => (user ? myTeams.filter((team) => team.captainId !== user.id) : []),
+    [myTeams, user],
+  )
+  const publicLeagues = useMemo(
+    () => myLeagues.filter((league) => league.visibility === 'PUBLIC'),
+    [myLeagues],
+  )
+  const privateLeagues = useMemo(
+    () => myLeagues.filter((league) => league.visibility === 'PRIVATE'),
+    [myLeagues],
+  )
+
   if (isLoading) {
     return (
-      <div className="bg-[#08080e] min-h-screen pt-16 flex items-center justify-center">
-        <p className="text-white/50 text-sm">Yüklənir...</p>
+      <div className={`min-h-screen pt-16 flex items-center justify-center ${bg}`}>
+        <p className={`text-sm ${light ? "text-gray-500" : "text-white/50"}`}>Yüklənir...</p>
       </div>
     )
   }
@@ -182,8 +278,8 @@ export default function MyProfilePage() {
   }
 
   return (
-    <div className="bg-[#08080e] min-h-screen pt-16 pb-20">
-      <div className="relative h-48 bg-gradient-to-r from-[#c5f135]/10 via-[#7c3aed]/10 to-[#3b82f6]/10">
+    <div className={`min-h-screen pt-16 pb-20 ${bg}`}>
+      <div className={`relative h-48 ${light ? "bg-gradient-to-r from-emerald-500/10 via-purple-500/10 to-blue-500/10" : "bg-gradient-to-r from-[#c5f135]/10 via-[#7c3aed]/10 to-[#3b82f6]/10"}`}>
         <img
           src="https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=1600&h=300&fit=crop&auto=format"
           alt="Cover"
@@ -198,7 +294,7 @@ export default function MyProfilePage() {
               src={user.image || undefined}
               name={fullName}
               size="xl"
-              className="!rounded-2xl border-4 border-[#08080e]"
+              className={`!rounded-2xl border-4 ${light ? "border-white" : "border-[#08080e]"}`}
             />
             <input
               ref={fileInputRef}
@@ -221,10 +317,10 @@ export default function MyProfilePage() {
             </button>
           </div>
           <div className="flex-1 pt-4 sm:pt-0">
-            <h1 className="font-display text-4xl font-800 text-white">{fullName}</h1>
-            <p className="text-white/45 text-sm mt-1">@{user.username}</p>
+            <h1 className={`font-display text-4xl font-800 ${light ? "text-gray-900" : "text-white"}`}>{fullName}</h1>
+            <p className={`text-sm mt-1 ${light ? "text-gray-400" : "text-white/45"}`}>@{user.username}</p>
             {editing && (
-              <p className="text-xs text-white/35 mt-2">
+              <p className={`text-xs mt-2 ${light ? "text-gray-400" : "text-white/35"}`}>
                 {uploadingImage ? 'Şəkil yüklənir...' : 'Şəkli dəyişmək üçün avatar üzərinə klik edin'}
               </p>
             )}
@@ -232,20 +328,30 @@ export default function MyProfilePage() {
         </div>
 
         <Tabs
-          tabs={['Profil Məlumatları', 'Komandalar', 'Liqalar', 'Dostlar', 'Tənzimləmələr']}
+          tabs={['Profil Məlumatları', 'Komandalar', 'Liqalar', 'Dostlar']}
           active={tab}
           onChange={setTab}
           className="mb-8 overflow-x-auto"
+          light={light}
         />
 
         {tab === 'Profil Məlumatları' && (
           <div className="max-w-xl space-y-4">
             <div className="flex items-center justify-between gap-3 mb-2">
-              <p className="text-sm text-white/40">
+              <p className={`text-sm ${light ? "text-gray-400" : "text-white/40"}`}>
                 {editing ? 'Məlumatları redaktə edirsiniz' : 'Məlumatlar oxuma rejimindədir'}
               </p>
               {!editing ? (
-                <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setEditing(true)}
+                  className={
+                    light
+                      ? '!text-emerald-600 !border-emerald-500/50 hover:!bg-emerald-500/10 hover:!text-emerald-700 hover:!border-emerald-500'
+                      : '!text-[#c5f135] !border-[#c5f135]/40 hover:!bg-[#c5f135]/10 hover:!text-[#c5f135]'
+                  }
+                >
                   <Pencil size={14} />
                   Redaktə et
                 </Button>
@@ -268,6 +374,7 @@ export default function MyProfilePage() {
               value={profileForm.username}
               onChange={(v) => update('username', v.replace(/^@/, '').replace(/\s/g, '').toLowerCase())}
               readOnly={!editing}
+              light={light}
             />
 
             <div className="grid grid-cols-2 gap-4">
@@ -276,12 +383,14 @@ export default function MyProfilePage() {
                 value={profileForm.firstName}
                 onChange={(v) => update('firstName', v)}
                 readOnly={!editing}
+                light={light}
               />
               <Input
                 label="Soyad"
                 value={profileForm.lastName}
                 onChange={(v) => update('lastName', v)}
                 readOnly={!editing}
+                light={light}
               />
             </div>
 
@@ -291,6 +400,7 @@ export default function MyProfilePage() {
               value={profileForm.email}
               onChange={(v) => update('email', v)}
               readOnly={!editing}
+              light={light}
             />
 
             <div className="grid grid-cols-2 gap-4">
@@ -300,25 +410,29 @@ export default function MyProfilePage() {
                 value={profileForm.dateOfBirth}
                 onChange={(v) => update('dateOfBirth', v)}
                 readOnly={!editing}
+                light={light}
               />
               <Input
                 label="Yaş"
                 value={age !== null ? String(age) : '—'}
                 onChange={() => {}}
                 readOnly
+                light={light}
               />
             </div>
 
             <div>
-              <label className="text-sm font-medium text-white/80 block mb-1.5">Bio</label>
+              <label className={`text-sm font-medium block mb-1.5 ${light ? "text-gray-700" : "text-white/80"}`}>Bio</label>
               <textarea
                 value={profileForm.bio}
                 onChange={(e) => update('bio', e.target.value)}
                 readOnly={!editing}
                 rows={3}
                 placeholder="Özünüz haqqında qısa məlumat..."
-                className={`w-full bg-[#18181f] border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-white/30 text-sm resize-none ${
-                  editing ? 'focus:outline-none focus:border-[#c5f135]/50' : 'opacity-70 cursor-default'
+                className={`w-full rounded-xl px-4 py-2.5 text-sm resize-none ${
+                  light
+                    ? `bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 ${editing ? 'focus:outline-none focus:border-emerald-500/50' : 'opacity-70 cursor-default'}`
+                    : `bg-[#18181f] border border-white/10 text-white placeholder-white/30 ${editing ? 'focus:outline-none focus:border-[#c5f135]/50' : 'opacity-70 cursor-default'}`
                 }`}
               />
             </div>
@@ -329,6 +443,7 @@ export default function MyProfilePage() {
               value={profileForm.workplace}
               onChange={(v) => update('workplace', v)}
               readOnly={!editing}
+              light={light}
             />
             <Input
               label="Oxuduğunuz yer"
@@ -336,10 +451,11 @@ export default function MyProfilePage() {
               value={profileForm.school}
               onChange={(v) => update('school', v)}
               readOnly={!editing}
+              light={light}
             />
 
             <div>
-              <p className="text-sm font-medium text-white/80 mb-1.5">
+              <p className={`text-sm font-medium mb-1.5 ${light ? "text-gray-700" : "text-white/80"}`}>
                 Bütün liqalar üzrə statistika
               </p>
               <div className="grid grid-cols-3 gap-3">
@@ -350,20 +466,20 @@ export default function MyProfilePage() {
                 ].map((stat) => (
                   <div
                     key={stat.label}
-                    className="bg-[#18181f] border border-white/10 rounded-xl px-3 py-3 text-center"
+                    className={`rounded-xl px-3 py-3 text-center ${light ? "bg-gray-50 border border-gray-200" : "bg-[#18181f] border border-white/10"}`}
                   >
                     <div
                       className={`font-display text-2xl font-700 ${
-                        stat.accent ? 'text-[#c5f135]' : 'text-white'
+                        stat.accent ? (light ? 'text-emerald-600' : 'text-[#c5f135]') : (light ? 'text-gray-900' : 'text-white')
                       }`}
                     >
                       {stat.value}
                     </div>
-                    <div className="text-white/40 text-xs mt-0.5">{stat.label}</div>
+                    <div className={`text-xs mt-0.5 ${light ? "text-gray-400" : "text-white/40"}`}>{stat.label}</div>
                   </div>
                 ))}
               </div>
-              <p className="mt-2 text-xs text-white/30">
+              <p className={`mt-2 text-xs ${light ? "text-gray-400" : "text-white/30"}`}>
                 Public və private liqalardakı bitmiş oyunlar
               </p>
             </div>
@@ -374,7 +490,7 @@ export default function MyProfilePage() {
               </p>
             )}
             {success && (
-              <p className="text-sm text-[#c5f135] bg-[#c5f135]/10 border border-[#c5f135]/20 rounded-xl px-4 py-2.5">
+              <p className={`text-sm rounded-xl px-4 py-2.5 ${light ? "text-emerald-600 bg-emerald-500/10 border border-emerald-500/20" : "text-[#c5f135] bg-[#c5f135]/10 border border-[#c5f135]/20"}`}>
                 {success}
               </p>
             )}
@@ -383,58 +499,107 @@ export default function MyProfilePage() {
 
         {tab === 'Komandalar' && (
           <div className="space-y-6">
-            {[
-              { title: 'Yaratdığım komandalar', teams: TEAMS.filter((t) => t.captain === ME.name) },
-              { title: 'Oynadığım komandalar', teams: TEAMS.slice(0, 1) },
-            ].map(({ title, teams }) => (
-              <div key={title}>
-                <h3 className="text-white font-display text-xl font-700 mb-3">{title}</h3>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {teams.length > 0 ? (
-                    teams.map((team) => (
-                      <div
-                        key={team.id}
-                        className="bg-[#101017] card-border rounded-2xl p-4 flex items-center gap-3 hover-card cursor-pointer"
-                        onClick={() => navigate('/teams/t1')}
-                      >
-                        <img src={team.logo} alt={team.name} className="w-12 h-12 rounded-xl object-cover" />
-                        <div>
-                          <div className="text-white font-semibold">{team.name}</div>
-                          <div className="text-white/40 text-xs">
-                            {team.sport} · {team.members} üzv
+            {listsLoading ? (
+              <p className={`text-sm ${light ? 'text-gray-400' : 'text-white/40'}`}>Yüklənir...</p>
+            ) : listsError ? (
+              <p className="text-sm text-red-400">{listsError}</p>
+            ) : (
+              [
+                { title: 'Kapitan olduğum komandalar', teams: captainTeams },
+                { title: 'Üzv olduğum komandalar', teams: memberTeams },
+              ].map(({ title, teams }) => (
+                <div key={title}>
+                  <h3 className={`font-display text-xl font-700 mb-3 ${light ? 'text-gray-900' : 'text-white'}`}>
+                    {title}
+                  </h3>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    {teams.length > 0 ? (
+                      teams.map((team) => (
+                        <div
+                          key={team.id}
+                          className={`rounded-2xl p-4 flex items-center gap-3 cursor-pointer ${
+                            light
+                              ? 'bg-white/70 backdrop-blur-sm border border-gray-200 hover:shadow-md hover:-translate-y-0.5 transition-all'
+                              : 'bg-[#101017] card-border hover-card'
+                          }`}
+                          onClick={() => navigate(`/teams/${team.id}`)}
+                        >
+                          <TeamLogo src={team.logo} name={team.name} light={light} />
+                          <div>
+                            <div className={`font-semibold ${light ? 'text-gray-900' : 'text-white'}`}>
+                              {team.name}
+                            </div>
+                            <div className={`text-xs ${light ? 'text-gray-400' : 'text-white/40'}`}>
+                              {team.city ? `${team.city} · ` : ''}
+                              {team._count?.players ?? 0} üzv
+                            </div>
                           </div>
                         </div>
+                      ))
+                    ) : (
+                      <div className={`text-sm col-span-2 ${light ? 'text-gray-400' : 'text-white/30'}`}>
+                        Yoxdur
                       </div>
-                    ))
-                  ) : (
-                    <div className="text-white/30 text-sm col-span-2">Yoxdur</div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         )}
 
         {tab === 'Liqalar' && (
-          <div className="space-y-3">
-            {LEAGUES.map((league) => (
-              <div
-                key={league.id}
-                className="bg-[#101017] card-border rounded-2xl p-4 flex items-center gap-3 hover-card cursor-pointer"
-                onClick={() => league.isPublic && navigate('/leagues/l1')}
-              >
-                <img src={league.logo} alt={league.name} className="w-10 h-10 rounded-xl object-cover" />
-                <div className="flex-1">
-                  <div className="text-white font-medium">{league.name}</div>
-                  <div className="text-white/40 text-xs">
-                    {league.sport} · {league.season}
+          <div className="space-y-6">
+            {listsLoading ? (
+              <p className={`text-sm ${light ? 'text-gray-400' : 'text-white/40'}`}>Yüklənir...</p>
+            ) : listsError ? (
+              <p className="text-sm text-red-400">{listsError}</p>
+            ) : (
+              [
+                { title: 'Public liqalar', leagues: publicLeagues },
+                { title: 'Private liqalar', leagues: privateLeagues },
+              ].map(({ title, leagues }) => (
+                <div key={title}>
+                  <h3 className={`font-display text-xl font-700 mb-3 ${light ? 'text-gray-900' : 'text-white'}`}>
+                    {title}
+                  </h3>
+                  <div className="space-y-3">
+                    {leagues.length > 0 ? (
+                      leagues.map((league) => {
+                        const isPublic = league.visibility === 'PUBLIC'
+                        return (
+                          <div
+                            key={league.id}
+                            className={`rounded-2xl p-4 flex items-center gap-3 cursor-pointer ${
+                              light
+                                ? 'bg-white/70 backdrop-blur-sm border border-gray-200 hover:shadow-md hover:-translate-y-0.5 transition-all'
+                                : 'bg-[#101017] card-border hover-card'
+                            }`}
+                            onClick={() => navigate(`/leagues/${league.id}`)}
+                          >
+                            <TeamLogo src={league.logo} name={league.name} light={light} size="sm" />
+                            <div className="flex-1 min-w-0">
+                              <div className={`font-medium truncate ${light ? 'text-gray-900' : 'text-white'}`}>
+                                {league.name}
+                              </div>
+                              <div className={`text-xs ${light ? 'text-gray-400' : 'text-white/40'}`}>
+                                {league.sport?.name ?? 'Liqa'}
+                                {league.season ? ` · ${league.season}` : ''}
+                              </div>
+                            </div>
+                            <Badge variant={isPublic ? 'public' : 'private'}>
+                              {isPublic ? 'Public' : 'Private'}
+                            </Badge>
+                          </div>
+                        )
+                      })
+                    ) : (
+                      <div className={`text-sm ${light ? 'text-gray-400' : 'text-white/30'}`}>Yoxdur</div>
+                    )}
                   </div>
                 </div>
-                <Badge variant={league.isPublic ? 'public' : 'private'}>
-                  {league.isPublic ? 'Public' : 'Private'}
-                </Badge>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         )}
 
@@ -442,17 +607,17 @@ export default function MyProfilePage() {
           <div className="space-y-8">
             {INCOMING_REQUESTS.length > 0 && (
               <div>
-                <h3 className="text-white font-display text-xl font-700 mb-3 flex items-center gap-2">
+                <h3 className={`font-display text-xl font-700 mb-3 flex items-center gap-2 ${light ? "text-gray-900" : "text-white"}`}>
                   Gələn sorğular
                   <Badge variant="lime">{INCOMING_REQUESTS.length}</Badge>
                 </h3>
                 <div className="space-y-3">
                   {INCOMING_REQUESTS.map((req) => (
-                    <div key={req.id} className="bg-[#101017] card-border rounded-2xl p-4 flex items-center gap-3">
+                    <div key={req.id} className={`rounded-2xl p-4 flex items-center gap-3 ${cardCls}`}>
                       <img src={req.avatar} alt={req.name} className="w-10 h-10 rounded-full object-cover" />
                       <div className="flex-1">
-                        <div className="text-white font-medium">{req.name}</div>
-                        <div className="text-white/40 text-xs">
+                        <div className={`font-medium ${light ? "text-gray-900" : "text-white"}`}>{req.name}</div>
+                        <div className={`text-xs ${light ? "text-gray-400" : "text-white/40"}`}>
                           {req.city} · {req.sport}
                         </div>
                       </div>
@@ -469,25 +634,25 @@ export default function MyProfilePage() {
             )}
 
             <div>
-              <h3 className="text-white font-display text-xl font-700 mb-3">Dostlar ({FRIENDS.length})</h3>
+              <h3 className={`font-display text-xl font-700 mb-3 ${light ? "text-gray-900" : "text-white"}`}>Dostlar ({FRIENDS.length})</h3>
               <div className="grid sm:grid-cols-2 gap-3">
                 {FRIENDS.map((f) => (
-                  <div key={f.id} className="bg-[#101017] card-border rounded-2xl p-4 flex items-center gap-3">
+                  <div key={f.id} className={`rounded-2xl p-4 flex items-center gap-3 ${cardCls}`}>
                     <img src={f.avatar} alt={f.name} className="w-10 h-10 rounded-full object-cover" />
                     <div className="flex-1 min-w-0">
-                      <div className="text-white font-medium truncate">{f.name}</div>
-                      <div className="text-white/40 text-xs">
+                      <div className={`font-medium truncate ${light ? "text-gray-900" : "text-white"}`}>{f.name}</div>
+                      <div className={`text-xs ${light ? "text-gray-400" : "text-white/40"}`}>
                         {f.city} · {f.sport}
                       </div>
                     </div>
                     <div className="flex gap-1">
                       <button
                         onClick={() => navigate('/chat')}
-                        className="p-2 text-white/40 hover:text-[#c5f135] hover:bg-[#c5f135]/10 rounded-lg transition-all"
+                        className={`p-2 rounded-lg transition-all ${light ? "text-gray-400 hover:text-emerald-600 hover:bg-emerald-500/10" : "text-white/40 hover:text-[#c5f135] hover:bg-[#c5f135]/10"}`}
                       >
                         <MessageCircle size={14} />
                       </button>
-                      <button className="p-2 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all">
+                      <button className={`p-2 rounded-lg transition-all ${light ? "text-gray-400 hover:text-red-500 hover:bg-red-500/10" : "text-white/40 hover:text-red-400 hover:bg-red-400/10"}`}>
                         <UserMinus size={14} />
                       </button>
                     </div>
@@ -498,24 +663,7 @@ export default function MyProfilePage() {
           </div>
         )}
 
-        {tab === 'Tənzimləmələr' && (
-          <div className="max-w-xl space-y-6">
-            <div className="bg-[#101017] card-border rounded-2xl p-5">
-              <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-                <Shield size={16} className="text-[#c5f135]" />
-                Hesab görünürlüyü
-              </h3>
-              <div className="flex gap-3">
-                <button className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-[#c5f135]/10 border border-[#c5f135]/40 text-[#c5f135]">
-                  Public
-                </button>
-                <button className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-[#18181f] border border-white/10 text-white/50">
-                  Private
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+    
       </div>
     </div>
   )

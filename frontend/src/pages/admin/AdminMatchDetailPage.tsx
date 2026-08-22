@@ -220,7 +220,9 @@ export function AdminMatchDetailPage() {
     setBusy(true);
     try {
       await deleteMatch(match.id);
-      navigate("/admin/matches");
+      navigate(
+        `/admin/football/matches?leagueId=${match.league.id}`,
+      );
     } catch (err) {
       alert(err instanceof Error ? err.message : "Silinmədi");
       setBusy(false);
@@ -327,7 +329,7 @@ export function AdminMatchDetailPage() {
     return (
       <div className="py-16 text-center">
         <p className="mb-4 text-sm text-rose-600">{error || "Oyun tapılmadı"}</p>
-        <Link to="/admin/matches" className="text-sm font-semibold text-brand">
+        <Link to="/admin/football/matches" className="text-sm font-semibold text-brand">
           ← Oyunlara qayıt
         </Link>
       </div>
@@ -403,7 +405,14 @@ export function AdminMatchDetailPage() {
       }
     >
       <nav className="mb-5 flex items-center gap-1.5 text-sm text-slate-500">
-        <Link to="/admin/matches" className="hover:text-brand">
+        <Link
+          to={
+            match.league.id
+              ? `/admin/football/matches?leagueId=${match.league.id}`
+              : "/admin/football/matches"
+          }
+          className="hover:text-brand"
+        >
           Oyunlar
         </Link>
         <ChevronRight className="h-3.5 w-3.5" />

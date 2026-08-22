@@ -71,10 +71,11 @@ export const createChallenge = async (req, res) => {
     }
 
     const when = new Date(scheduledAt);
-    if (when <= new Date()) {
+    const minWhen = new Date(Date.now() + 60 * 60 * 1000);
+    if (when < minWhen) {
       return res.status(400).json({
         success: false,
-        message: "scheduledAt must be in the future",
+        message: "Matç ən azı 1 saat sonra yaradıla bilər",
       });
     }
 
@@ -111,14 +112,67 @@ export const createChallenge = async (req, res) => {
 export const listChallenges = async (req, res) => {
   try {
     await expirePastListings();
+    const uid = req.user.id;
 
     const challenges = await prisma.challenge.findMany({
-      where: { status: "OPEN" },
+      where: {
+        scheduledAt: { gt: new Date() },
+        OR: [
+          { status: "OPEN" },
+          {
+            status: "ACCEPTED",
+            OR: [
+              { createdById: uid },
+              { team: { captainId: uid } },
+              { acceptedTeam: { captainId: uid } },
+              { team: { players: { some: { userId: uid } } } },
+              { acceptedTeam: { players: { some: { userId: uid } } } },
+            ],
+          },
+        ],
+      },
       include: challengeInclude,
       orderBy: { scheduledAt: "asc" },
     });
 
-    return res.status(200).json({ success: true, data: challenges });
+    const ids = challenges.map((c) => c.id);
+    const myRequests =
+      ids.length === 0
+        ? []
+        : await prisma.challengeRequest.findMany({
+            where: {
+              challengeId: { in: ids },
+              team: { captainId: uid },
+            },
+            select: {
+              id: true,
+              status: true,
+              challengeId: true,
+              teamId: true,
+            },
+            orderBy: { createdAt: "desc" },
+          });
+
+    const rank = (status) =>
+      status === "PENDING" ? 3 : status === "ACCEPTED" ? 2 : 1;
+    const myByChallenge = new Map();
+    for (const r of myRequests) {
+      const prev = myByChallenge.get(r.challengeId);
+      if (!prev || rank(r.status) > rank(prev.status)) {
+        myByChallenge.set(r.challengeId, {
+          id: r.id,
+          status: r.status,
+          teamId: r.teamId,
+        });
+      }
+    }
+
+    const data = challenges.map((c) => ({
+      ...c,
+      myRequest: myByChallenge.get(c.id) ?? null,
+    }));
+
+    return res.status(200).json({ success: true, data });
   } catch (error) {
     console.log("Error in listChallenges:", error);
     return res.status(500).json({
@@ -173,19 +227,61 @@ export const requestChallenge = async (req, res) => {
       });
     }
 
-    const request = await prisma.challengeRequest.create({
-      data: {
+    const alreadyPending = await prisma.challengeRequest.findFirst({
+      where: {
         challengeId,
-        teamId: tid,
-        requestedById: req.user.id,
-        message: message?.trim() || null,
-      },
-      include: {
-        team: { select: teamSelect },
-        requestedBy: { select: userBriefSelect },
-        challenge: { include: challengeInclude },
+        status: "PENDING",
+        team: { captainId: req.user.id },
       },
     });
+
+    if (alreadyPending) {
+      return res.status(409).json({
+        success: false,
+        message: "Sorğu artıq göndərilib və gözləyir",
+      });
+    }
+
+    const existing = await prisma.challengeRequest.findUnique({
+      where: {
+        challengeId_teamId: { challengeId, teamId: tid },
+      },
+    });
+
+    if (existing?.status === "ACCEPTED") {
+      return res.status(400).json({
+        success: false,
+        message: "Bu challenge üçün artıq qəbul olunmusunuz",
+      });
+    }
+
+    const include = {
+      team: { select: teamSelect },
+      requestedBy: { select: userBriefSelect },
+      challenge: { include: challengeInclude },
+    };
+
+    const request = existing
+      ? await prisma.challengeRequest.update({
+          where: { id: existing.id },
+          data: {
+            status: "PENDING",
+            message: message?.trim() || null,
+            requestedById: req.user.id,
+            respondedAt: null,
+            createdAt: new Date(),
+          },
+          include,
+        })
+      : await prisma.challengeRequest.create({
+          data: {
+            challengeId,
+            teamId: tid,
+            requestedById: req.user.id,
+            message: message?.trim() || null,
+          },
+          include,
+        });
 
     return res.status(201).json({
       success: true,

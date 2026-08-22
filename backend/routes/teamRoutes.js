@@ -16,6 +16,7 @@ import {
   getTeamById,
   listTeams,
   removeTeamPlayer,
+  uploadPublicImage,
 } from "../controllers/userTeamController.js";
 import {
   invitePlayerToTeam,
@@ -25,11 +26,28 @@ import {
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { adminMiddleware } from "../middlewares/adminMiddleware.js";
 import { permissionMiddleware } from "../middlewares/permissionMiddleware.js";
+import { uploadImage } from "../middlewares/uploadMiddleware.js";
 
 const router = express.Router();
 
 // —— User teams ——
 router.get("/teams", authMiddleware, listTeams);
+router.post(
+  "/uploads/image",
+  authMiddleware,
+  (req, res, next) => {
+    uploadImage(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({
+          success: false,
+          message: err.message || "Image upload failed",
+        });
+      }
+      return next();
+    });
+  },
+  uploadPublicImage,
+);
 router.post("/teams", authMiddleware, createUserTeam);
 router.get("/teams/:teamId", authMiddleware, getTeamById);
 router.post("/teams/:teamId/players/by-username", authMiddleware, addPlayerByUsername);
