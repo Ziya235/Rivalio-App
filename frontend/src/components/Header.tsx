@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { Menu, X, Bell, ChevronDown, LogOut, User, Moon, Sun, Shield } from 'lucide-react'
+import { Menu, X, ChevronDown, LogOut, User, Moon, Sun, Shield } from 'lucide-react'
 import { Button, Avatar } from './ui'
 import { useAuth } from '../context/AuthContext'
+import NotificationBell from './NotificationBell'
 
 const NAV_LINKS = [
   { label: 'Ana Səhifə', to: '/' },
@@ -35,7 +36,6 @@ export default function Header({
   const navLinks = NAV_LINKS.filter((link) => !(isAdmin && link.to === '/sports'))
 
   const accentText = isLightMode ? 'text-[#4d6b0b]' : 'text-[#c5f135]'
-  const accentDot = isLightMode ? 'bg-[#4d6b0b]' : 'bg-[#c5f135]'
   const strongText = isLightMode ? 'text-slate-900' : 'text-white'
   const mutedText = isLightMode ? 'text-slate-500' : 'text-white/40'
   const iconButton = isLightMode
@@ -146,13 +146,7 @@ export default function Header({
                       Admin Panel
                     </Button>
                   )}
-                  <button
-                    onClick={() => navigate('/notifications')}
-                    className={`relative p-2 rounded-lg transition-all ${iconButton}`}
-                  >
-                    <Bell size={18} />
-                    <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${accentDot}`} />
-                  </button>
+                  <NotificationBell isLightMode={isLightMode} />
                   <button
                     onClick={() => navigate('/chat')}
                     className={`hidden sm:flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-all ${iconButton}`}

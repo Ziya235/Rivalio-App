@@ -28,9 +28,21 @@ import {
   type ChallengeNotificationRequest,
   type PlayerSearchNotificationRequest,
 } from "../api/social";
+import {
+  acceptFriendRequest,
+  rejectFriendRequest,
+} from "../api/friends";
+import {
+  fetchNotifications,
+  markNotificationRead,
+  type AppNotification,
+} from "../api/notifications";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import type { AppOutletContext } from "../App";
+import { Avatar } from "../components/ui";
+import { MessageCircle } from "lucide-react";
 
 export default function NotificationsPage() {
   const { user } = useAuth();
@@ -71,9 +83,13 @@ export default function NotificationsPage() {
   const [teamPlayerOutcomes, setTeamPlayerOutcomes] = useState<
     TeamPlayerInvite[]
   >([]);
+  const [socialNotifications, setSocialNotifications] = useState<
+    AppNotification[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const { refreshNotifications } = useSocket();
 
   const load = useCallback(async () => {
     if (!user) {
@@ -88,11 +104,13 @@ export default function NotificationsPage() {
         playerSearchNotifications,
         challengeNotifications,
         teamPlayerNotifications,
+        socialData,
       ] = await Promise.all([
         fetchMyTeamInvites(),
         fetchMyPlayerSearchNotifications(),
         fetchMyChallengeNotifications(),
         fetchMyTeamPlayerInviteNotifications(),
+        fetchNotifications(100),
       ]);
       setInvites(teamInvites);
       setIncoming(playerSearchNotifications.incoming);
@@ -101,6 +119,7 @@ export default function NotificationsPage() {
       setChallengeOutcomes(challengeNotifications.outcomes);
       setTeamPlayerIncoming(teamPlayerNotifications.incoming);
       setTeamPlayerOutcomes(teamPlayerNotifications.outcomes);
+      setSocialNotifications(socialData.notifications);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Yüklənmədi");
     } finally {
@@ -169,7 +188,51 @@ export default function NotificationsPage() {
     }
   };
 
+  const respondToFriendRequest = async (
+    notification: AppNotification,
+    action: "accept" | "reject",
+  ) => {
+    if (!notification.entityId) return;
+    setBusyKey(`friend-${notification.id}`);
+    try {
+      if (action === "accept") {
+        await acceptFriendRequest(Number(notification.entityId));
+      } else {
+        await rejectFriendRequest(Number(notification.entityId));
+      }
+      await markNotificationRead(notification.id);
+      await load();
+      await refreshNotifications();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Əməliyyat alınmadı");
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const friendIncoming = socialNotifications.filter(
+    (item) =>
+      item.type === "FRIEND_REQUEST" &&
+      (item.friendRequestStatus === "PENDING" || item.friendRequestStatus == null),
+  );
+  const friendResolved = socialNotifications.filter(
+    (item) =>
+      item.type === "FRIEND_REQUEST" &&
+      (item.friendRequestStatus === "ACCEPTED" ||
+        item.friendRequestStatus === "REJECTED"),
+  );
+  const friendAcceptedNotifications = socialNotifications.filter(
+    (item) => item.type === "FRIEND_ACCEPTED",
+  );
+  const messageNotifications = socialNotifications.filter(
+    (item) => item.type === "NEW_MESSAGE",
+  );
+
   const hasNotifications =
+    friendIncoming.length > 0 ||
+    friendResolved.length > 0 ||
+    friendAcceptedNotifications.length > 0 ||
+    messageNotifications.length > 0 ||
     invites.length > 0 ||
     incoming.length > 0 ||
     outcomes.length > 0 ||
@@ -195,7 +258,7 @@ export default function NotificationsPage() {
             Bildirişlər
           </h1>
           <p className={`${muted} text-sm mt-1`}>
-            Liqa dəvətləri və digər sorğular
+            Dostluq sorğuları, liqa dəvətləri və digər sorğular
           </p>
         </div>
 
@@ -217,6 +280,249 @@ export default function NotificationsPage() {
           </div>
         ) : (
           <div className="space-y-6">
+            {friendIncoming.length > 0 ? (
+              <section>
+                <h2
+                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
+                >
+                  Dostluq sorğuları
+                </h2>
+                <div className="space-y-3">
+                  {friendIncoming.map((notification) => {
+                    const actorName = notification.actor
+                      ? `${notification.actor.firstName} ${notification.actor.lastName}`.trim()
+                      : "İstifadəçi";
+
+                    return (
+                      <div
+                        key={notification.id}
+                        className={`rounded-2xl border p-4 ${card} ${pendingBorder}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <Avatar
+                            name={actorName}
+                            src={notification.actor?.image || undefined}
+                            size="md"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <h3 className={`font-semibold ${title}`}>
+                              Yeni dostluq sorğusu
+                            </h3>
+                            <p className={`mt-1 text-sm ${body}`}>
+                              <span className={title}>{actorName}</span>{" "}
+                              sizə dostluq sorğusu göndərdi.
+                            </p>
+                            <p className={`mt-2 text-xs ${soft}`}>
+                              {new Date(notification.createdAt).toLocaleString("az")}
+                            </p>
+                            <div className="mt-4 flex gap-2">
+                              <button
+                                type="button"
+                                disabled={busyKey === `friend-${notification.id}`}
+                                onClick={() =>
+                                  void respondToFriendRequest(notification, "accept")
+                                }
+                                className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                              >
+                                <Check size={14} />
+                                Qəbul et
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busyKey === `friend-${notification.id}`}
+                                onClick={() =>
+                                  void respondToFriendRequest(notification, "reject")
+                                }
+                                className="inline-flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
+                              >
+                                <X size={14} />
+                                Rədd et
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+
+            {friendResolved.length > 0 ? (
+              <section>
+                <h2
+                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
+                >
+                  Cavablandırdığınız dostluq sorğuları
+                </h2>
+                <div className="space-y-3">
+                  {friendResolved.map((notification) => {
+                    const actorName = notification.actor
+                      ? `${notification.actor.firstName} ${notification.actor.lastName}`.trim()
+                      : "İstifadəçi";
+                    const accepted =
+                      notification.friendRequestStatus === "ACCEPTED";
+
+                    return (
+                      <div
+                        key={notification.id}
+                        className={`rounded-2xl border p-4 ${card} ${
+                          accepted ? "border-emerald-500/20" : "border-rose-500/20"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`mt-0.5 rounded-xl p-2 ${
+                              accepted
+                                ? "bg-emerald-500/10 text-emerald-400"
+                                : "bg-rose-500/10 text-rose-400"
+                            }`}
+                          >
+                            {accepted ? (
+                              <CheckCircle2 size={16} />
+                            ) : (
+                              <XCircle size={16} />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h3 className={`font-semibold ${title}`}>
+                              {accepted
+                                ? "Dostluq sorğusunu qəbul etdiniz"
+                                : "Dostluq sorğusunu rədd etdiniz"}
+                            </h3>
+                            <p className={`mt-1 text-sm ${body}`}>
+                              <span className={title}>{actorName}</span>
+                            </p>
+                            {accepted && notification.actor ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  navigate(`/chat?user=${notification.actor!.id}`)
+                                }
+                                className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-500"
+                              >
+                                <MessageCircle size={13} />
+                                Mesaj yaz
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+
+            {friendAcceptedNotifications.length > 0 ? (
+              <section>
+                <h2
+                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
+                >
+                  Dostluq sorğularınız qəbul olundu
+                </h2>
+                <div className="space-y-3">
+                  {friendAcceptedNotifications.map((notification) => {
+                    const actorName = notification.actor
+                      ? `${notification.actor.firstName} ${notification.actor.lastName}`.trim()
+                      : "İstifadəçi";
+
+                    return (
+                      <div
+                        key={notification.id}
+                        className={`rounded-2xl border p-4 ${card} border-emerald-500/20`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <Avatar
+                            name={actorName}
+                            src={notification.actor?.image || undefined}
+                            size="md"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <h3 className={`font-semibold ${title}`}>
+                              Dostluq sorğusu qəbul olundu
+                            </h3>
+                            <p className={`mt-1 text-sm ${body}`}>
+                              <span className={title}>{actorName}</span>{" "}
+                              dostluq sorğunuzu qəbul etdi.
+                            </p>
+                            {notification.actor ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  navigate(`/chat?user=${notification.actor!.id}`)
+                                }
+                                className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-500"
+                              >
+                                <MessageCircle size={13} />
+                                Mesaj yaz
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+
+            {messageNotifications.length > 0 ? (
+              <section>
+                <h2
+                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
+                >
+                  Yeni mesajlar
+                </h2>
+                <div className="space-y-3">
+                  {messageNotifications.map((notification) => {
+                    const actorName = notification.actor
+                      ? `${notification.actor.firstName} ${notification.actor.lastName}`.trim()
+                      : "İstifadəçi";
+
+                    return (
+                      <div
+                        key={notification.id}
+                        className={`rounded-2xl border p-4 ${card} ${pendingBorder}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <Avatar
+                            name={actorName}
+                            src={notification.actor?.image || undefined}
+                            size="md"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <h3 className={`font-semibold ${title}`}>
+                              Yeni mesaj
+                            </h3>
+                            <p className={`mt-1 text-sm ${body}`}>
+                              <span className={title}>{actorName}</span> sizə mesaj
+                              göndərdi.
+                            </p>
+                            {notification.entityId ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void markNotificationRead(notification.id);
+                                  navigate(
+                                    `/chat?conversation=${notification.entityId}`,
+                                  );
+                                }}
+                                className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-500"
+                              >
+                                <MessageCircle size={13} />
+                                Mesaja keç
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+
             {teamPlayerIncoming.length > 0 ? (
               <section>
                 <h2

@@ -32,6 +32,9 @@ import { AdminTeamPage } from './pages/admin/AdminTeamPage'
 import { AdminMatchesPage } from './pages/admin/AdminMatchesPage'
 import { AdminMatchDetailPage } from './pages/admin/AdminMatchDetailPage'
 import { AdminChampionshipsPage } from './pages/admin/AdminChampionshipsPage'
+import { AdminChampionshipDetailPage } from './pages/admin/AdminChampionshipDetailPage'
+import ChampionshipDetailPage from './pages/ChampionshipDetailPage'
+import ChampionshipMatchPage from './pages/ChampionshipMatchPage'
 import PlayerProfilePage from './pages/PlayerProfilePage'
 import AboutUsPage from './pages/AboutUsPage'
 import FaqPage from './pages/FaqPage'
@@ -85,6 +88,7 @@ function AppLayout() {
     location.pathname.startsWith('/leagues') ||
     location.pathname === '/profile' ||
     location.pathname === '/notifications' ||
+    location.pathname === '/chat' ||
     location.pathname === '/about-us' ||
     location.pathname === '/faq'
   const isLightMode = supportsTheme && !isDarkMode
@@ -181,6 +185,7 @@ export default function App() {
           <Route path="football/matches" element={<AdminMatchesPage />} />
           <Route path="football/matches/:matchId" element={<AdminMatchDetailPage />} />
           <Route path="football/championships" element={<AdminChampionshipsPage />} />
+          <Route path="football/championships/:championshipId" element={<AdminChampionshipDetailPage />} />
           <Route path="matches" element={<Navigate to="/admin/football/matches" replace />} />
           <Route path="matches/:matchId" element={<AdminLegacyMatchRedirect />} />
           <Route path="leagues/:leagueId" element={<AdminLegacyLeagueRedirect />} />
@@ -202,6 +207,22 @@ export default function App() {
             element={
               <BlockAdminFromSports>
                 <SportRoute />
+              </BlockAdminFromSports>
+            }
+          />
+          <Route
+            path="sports/football/championships/:championshipId"
+            element={
+              <BlockAdminFromSports>
+                <ChampionshipDetailPage />
+              </BlockAdminFromSports>
+            }
+          />
+          <Route
+            path="sports/football/championships/:championshipId/matches/:matchId"
+            element={
+              <BlockAdminFromSports>
+                <ChampionshipMatchPage />
               </BlockAdminFromSports>
             }
           />

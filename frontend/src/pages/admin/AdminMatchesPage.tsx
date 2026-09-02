@@ -82,7 +82,8 @@ function TeamMark({
   );
 }
 
-function formatWhen(iso: string): string {
+function formatWhen(iso: string | null | undefined): string {
+  if (!iso) return "Vaxt təyin edilməyib";
   const d = new Date(iso);
   return d.toLocaleString("az-AZ", {
     day: "numeric",
@@ -293,7 +294,7 @@ export function AdminMatchesPage() {
         .filter((m) => isUpcoming(m.status))
         .sort(
           (a, b) =>
-            new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
+            new Date(a.scheduledAt ?? 0).getTime() - new Date(b.scheduledAt ?? 0).getTime(),
         ),
     [filtered],
   );
@@ -304,7 +305,7 @@ export function AdminMatchesPage() {
         .filter((m) => !isUpcoming(m.status))
         .sort(
           (a, b) =>
-            new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime(),
+            new Date(b.scheduledAt ?? 0).getTime() - new Date(a.scheduledAt ?? 0).getTime(),
         ),
     [filtered],
   );

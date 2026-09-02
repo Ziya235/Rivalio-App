@@ -4,6 +4,7 @@ import { Briefcase, Calendar, MapPin, Trophy } from "lucide-react";
 import { Badge } from "../components/ui";
 import { fetchPlayerProfile, type PlayerProfile } from "../api/players";
 import { useAuth } from "../context/AuthContext";
+import FriendActions from "../components/FriendActions";
 import type { AppOutletContext } from "../App";
 
 function calculateAge(dateOfBirth: string | null) {
@@ -112,6 +113,13 @@ export default function PlayerProfilePage() {
               <p className={`mt-5 max-w-2xl text-sm leading-relaxed ${light ? "text-gray-500" : "text-white/55"}`}>
                 {player.description}
               </p>
+            ) : null}
+            {player.userId ? (
+              <FriendActions
+                targetUserId={player.userId}
+                isSelf={player.userId === user.id}
+                light={light}
+              />
             ) : null}
           </div>
         </div>

@@ -3,7 +3,12 @@ import { prisma } from "../config/db.js";
 /**
  * Aggregate goals/assists for players from MatchEvents in a league (or any matches).
  */
-export const getPlayerStatsMap = async ({ leagueId, teamId, playerIds } = {}) => {
+export const getPlayerStatsMap = async ({
+  leagueId,
+  championshipId,
+  teamId,
+  playerIds,
+} = {}) => {
   const eventWhere = {
     OR: [
       { type: "GOAL", playerId: { not: null } },
@@ -12,7 +17,14 @@ export const getPlayerStatsMap = async ({ leagueId, teamId, playerIds } = {}) =>
     ],
   };
 
-  if (leagueId) {
+  if (championshipId) {
+    eventWhere.match = {
+      championshipId,
+      ...(teamId
+        ? { OR: [{ homeTeamId: teamId }, { awayTeamId: teamId }] }
+        : {}),
+    };
+  } else if (leagueId) {
     eventWhere.match = {
       leagueId,
       ...(teamId

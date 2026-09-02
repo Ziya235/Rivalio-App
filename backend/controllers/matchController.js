@@ -4,6 +4,7 @@ import {
   applyGoalAssistToUsers,
   applyGamesPlayedForMatch,
 } from "../utils/userStats.js";
+import { onChampionshipMatchFinished } from "../services/championshipService.js";
 
 const MATCH_STATUSES = [
   "SCHEDULED",
@@ -58,6 +59,13 @@ const matchInclude = {
       name: true,
       logo: true,
       season: true,
+      createdById: true,
+    },
+  },
+  championship: {
+    select: {
+      id: true,
+      name: true,
       createdById: true,
     },
   },
@@ -122,6 +130,17 @@ const assertMatchOwner = async (req, res, matchId) => {
   if (!match) {
     res.status(404).json({ success: false, message: "Match not found" });
     return null;
+  }
+
+  if (match.championshipId) {
+    if (!match.championship || match.championship.createdById !== req.user.id) {
+      res.status(403).json({
+        success: false,
+        message: "You can only manage matches in your own championship",
+      });
+      return null;
+    }
+    return match;
   }
 
   if (!match.league || match.league.createdById !== req.user.id) {
@@ -296,6 +315,16 @@ export const getMatchById = async (req, res) => {
       const { allowed } = await canViewLeague(userId, match.leagueId);
 
       if (!allowed) {
+        return res.status(403).json({
+          success: false,
+          message: "You do not have access to this match",
+        });
+      }
+    } else if (match.championshipId) {
+      if (
+        !req.user?.id ||
+        match.championship?.createdById !== req.user.id
+      ) {
         return res.status(403).json({
           success: false,
           message: "You do not have access to this match",
@@ -499,6 +528,18 @@ export const updateMatch = async (req, res) => {
         if (existing.minute == null && minute === undefined) {
           data.minute = 90;
         }
+        if (existing.championshipId) {
+          const hs =
+            homeScore !== undefined ? Number(homeScore) : existing.homeScore;
+          const as =
+            awayScore !== undefined ? Number(awayScore) : existing.awayScore;
+          data.winnerTeamId =
+            hs > as
+              ? existing.homeTeamId
+              : as > hs
+                ? existing.awayTeamId
+                : null;
+        }
       }
 
       if (nextStatus === "SCHEDULED") {
@@ -586,6 +627,14 @@ export const updateMatch = async (req, res) => {
       include: matchDetailInclude,
     });
 
+    if (
+      match?.championshipId &&
+      match.status === "FINISHED" &&
+      existing.status !== "FINISHED"
+    ) {
+      await onChampionshipMatchFinished(match.id);
+    }
+
     return res.status(200).json({
       success: true,
       message: "Match updated successfully",
@@ -631,6 +680,13 @@ export const addMatchEvent = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Cannot add events to cancelled or postponed matches",
+      });
+    }
+
+    if (match.status === "SCHEDULED") {
+      return res.status(400).json({
+        success: false,
+        message: "Əvvəlcə oyun başladılmalıdır",
       });
     }
 

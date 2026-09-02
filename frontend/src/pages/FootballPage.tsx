@@ -7,7 +7,7 @@ import {
   type ChangeEvent,
   type ReactNode,
 } from "react";
-import { useNavigate, useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 import {
   Check,
   Clock,
@@ -46,15 +46,29 @@ import {
   type PlayerSearch,
 } from "../api/social";
 import type { League } from "../types/league";
+import { ChampionshipList } from "../components/championship/ChampionshipList";
 
 const TABS = [
-  "Mənim komandam",
+  "Komanda profilim",
   "Oyunçu axtarışı",
   "Challenge",
   "Public liqalar",
+  "Çempionatlar",
 ] as const;
 
 type Tab = (typeof TABS)[number];
+
+const TAB_SLUG: Record<Tab, string> = {
+  "Komanda profilim": "team",
+  "Oyunçu axtarışı": "players",
+  Challenge: "challenge",
+  "Public liqalar": "leagues",
+  Çempionatlar: "championships",
+};
+
+const SLUG_TAB = Object.fromEntries(
+  Object.entries(TAB_SLUG).map(([label, slug]) => [slug, label]),
+) as Record<string, Tab>;
 type ModalKind = "team" | "playerSearch" | "challenge" | null;
 
 const MIN_MATCH_LEAD_MS = 60 * 60 * 1000;
@@ -142,9 +156,11 @@ function Modal({
 export default function FootballPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { isDarkMode } = useOutletContext<AppOutletContext>();
   const light = !isDarkMode;
-  const [tab, setTab] = useState<Tab>("Mənim komandam");
+  const tabFromUrl = SLUG_TAB[searchParams.get("tab") ?? ""];
+  const [tab, setTab] = useState<Tab>(tabFromUrl ?? "Komanda profilim");
   const [myTeams, setMyTeams] = useState<TeamSummary[]>([]);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [searches, setSearches] = useState<PlayerSearch[]>([]);
@@ -223,6 +239,15 @@ export default function FootballPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (tabFromUrl && tabFromUrl !== tab) setTab(tabFromUrl);
+  }, [tabFromUrl, tab]);
+
+  const setActiveTab = (next: Tab) => {
+    setTab(next);
+    setSearchParams({ tab: TAB_SLUG[next] }, { replace: true });
+  };
 
   useEffect(() => {
     if (primaryCaptainTeam) {
@@ -432,7 +457,7 @@ export default function FootballPage() {
         <div className="mb-8">
           <h1 className={`font-display text-5xl font-bold ${light ? "text-gray-900" : "text-white"}`}>Futbol</h1>
           <p className={`mt-1 ${light ? "text-gray-500" : "text-white/45"}`}>
-            Komandanız, oyunçu axtarışı, challenge və public liqalar
+            Komandanız, oyunçu axtarışı, challenge, public liqalar və çempionatlar
           </p>
         </div>
 
@@ -455,18 +480,18 @@ export default function FootballPage() {
         <Tabs
           tabs={[...TABS]}
           active={tab}
-          onChange={(t) => setTab(t as Tab)}
+          onChange={(t) => setActiveTab(t as Tab)}
           light={light}
         />
 
-        {loading ? (
+        {tab !== "Çempionatlar" && loading ? (
           <p className={`text-center py-16 ${light ? "text-gray-400" : "text-white/40"}`}>Yüklənir...</p>
-        ) : error ? (
+        ) : tab !== "Çempionatlar" && error ? (
           <p className="text-rose-400 text-center py-16">{error}</p>
         ) : null}
 
         {/* ── Mənim komandam ── */}
-        {!loading && !error && tab === "Mənim komandam" ? (
+        {!loading && !error && tab === "Komanda profilim" ? (
           <div className="mt-6">
             <div className="flex items-center justify-between gap-3 mb-4">
               <p className={`text-sm ${light ? "text-gray-500" : "text-white/45"}`}>
@@ -486,6 +511,9 @@ export default function FootballPage() {
               <div className="grid sm:grid-cols-2 gap-4">
                 {myTeams.map((team) => {
                   const captain = team.captainId === user.id;
+                  const teamLeagues = (team.leagueMemberships ?? [])
+                    .map((m) => m.league)
+                    .filter((l) => !l.sport || l.sport.code === "FOOTBALL");
                   return (
                     <Card
                       key={team.id}
@@ -533,6 +561,37 @@ export default function FootballPage() {
                               {team._count?.players ?? "—"} oyunçu
                             </span>
                           </div>
+                          {teamLeagues.length > 0 ? (
+                            <div
+                              className="flex flex-wrap gap-1.5 mt-3"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {teamLeagues.map((league) => (
+                                <button
+                                  key={league.id}
+                                  type="button"
+                                  onClick={() => navigate(`/leagues/${league.id}`)}
+                                  className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] ${
+                                    light
+                                      ? "border-gray-200 text-gray-600 hover:border-emerald-500/40 hover:text-emerald-700"
+                                      : "border-white/10 text-white/70 hover:border-[#c5f135]/40 hover:text-[#c5f135]"
+                                  }`}
+                                >
+                                  <Trophy size={11} className={light ? "text-emerald-500" : "text-[#c5f135]"} />
+                                  {league.name}
+                                  {league.season ? (
+                                    <span className={light ? "text-gray-400" : "text-white/35"}>
+                                      {league.season}
+                                    </span>
+                                  ) : null}
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className={`text-[11px] mt-3 ${light ? "text-gray-400" : "text-white/35"}`}>
+                              Hələ liqada iştirak etmir
+                            </p>
+                          )}
                         </div>
                       </div>
                     </Card>
@@ -1299,6 +1358,20 @@ export default function FootballPage() {
                 ))}
               </div>
             )}
+          </div>
+        ) : null}
+
+        {tab === "Çempionatlar" ? (
+          <div className="mt-6">
+            <p className={`mb-4 text-sm ${light ? "text-gray-500" : "text-white/45"}`}>
+              Komandanızın iştirak etdiyi çempionatlar
+            </p>
+            <ChampionshipList
+              onCreateTeam={() => {
+                setActiveTab("Komanda profilim");
+                setModal("team");
+              }}
+            />
           </div>
         ) : null}
       </div>

@@ -41,7 +41,8 @@ function formatDiff(value: number): string {
   return String(value);
 }
 
-function formatWhen(iso: string): string {
+function formatWhen(iso: string | null | undefined): string {
+  if (!iso) return "Vaxt təyin edilməyib";
   return new Date(iso).toLocaleString("az-AZ", {
     day: "numeric",
     month: "short",
@@ -133,7 +134,7 @@ export default function LeagueDetailPage() {
         .filter((m) => m.status === "LIVE")
         .sort(
           (a, b) =>
-            new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
+            new Date(a.scheduledAt ?? 0).getTime() - new Date(b.scheduledAt ?? 0).getTime(),
         ),
     [matches],
   );
@@ -143,7 +144,7 @@ export default function LeagueDetailPage() {
         .filter((m) => m.status === "SCHEDULED")
         .sort(
           (a, b) =>
-            new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
+            new Date(a.scheduledAt ?? 0).getTime() - new Date(b.scheduledAt ?? 0).getTime(),
         ),
     [matches],
   );
@@ -153,7 +154,7 @@ export default function LeagueDetailPage() {
         .filter((m) => m.status === "FINISHED")
         .sort(
           (a, b) =>
-            new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime(),
+            new Date(b.scheduledAt ?? 0).getTime() - new Date(a.scheduledAt ?? 0).getTime(),
         ),
     [matches],
   );

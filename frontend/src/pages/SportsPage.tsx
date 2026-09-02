@@ -70,10 +70,15 @@ export default function SportsPage() {
 
         {/* Sports */}
         <div className="flex flex-col gap-6">
-          {SPORTS1.map((sport) => (
+          {SPORTS1.map((sport) => {
+            const isAvailable = sport.id === 'football'
+
+            return (
             <div
               key={sport.id}
-              className={`group rounded-3xl overflow-hidden transition-all duration-300 hover:-translate-y-1 ${
+              className={`group rounded-3xl overflow-hidden transition-all duration-300 ${
+                isAvailable ? 'hover:-translate-y-1' : 'opacity-75'
+              } ${
                 light
                   ? 'bg-white/70 backdrop-blur-sm border border-white/80 shadow-[0_10px_40px_rgba(15,23,42,0.06)] hover:shadow-[0_20px_60px_rgba(15,23,42,0.1)]'
                   : 'bg-[#101017] border border-white/5 hover:border-white/10'
@@ -104,7 +109,9 @@ export default function SportsPage() {
                           {sport.name}
                         </h2>
 
-                        <Badge variant="lime">{sport.status}</Badge>
+                        <Badge variant={isAvailable ? 'lime' : 'orange'}>
+                          {isAvailable ? sport.status : 'Tezliklə'}
+                        </Badge>
                       </div>
 
                       <p
@@ -194,11 +201,18 @@ export default function SportsPage() {
 
                   {/* CTA */}
                   <Button
-                    onClick={() => navigate(`/sports/${sport.id}`)}
+                    onClick={isAvailable ? () => navigate(`/sports/${sport.id}`) : undefined}
+                    disabled={!isAvailable}
                     size="lg"
                   >
-                    {sport.name} bölməsinə keç
-                    <ArrowRight size={18} />
+                    {isAvailable ? (
+                      <>
+                        {sport.name} bölməsinə keç
+                        <ArrowRight size={18} />
+                      </>
+                    ) : (
+                      'Tezliklə'
+                    )}
                   </Button>
                 </div>
 
@@ -241,7 +255,7 @@ export default function SportsPage() {
                 </div>
               </div>
             </div>
-          ))}
+          )})}
         </div>
       </div>
     </div>

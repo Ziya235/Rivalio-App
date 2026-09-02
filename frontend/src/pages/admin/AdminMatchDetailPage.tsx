@@ -29,6 +29,7 @@ import {
   updateMatch,
 } from "../../api/admin";
 import { fetchTeam } from "../../api/leagues";
+import { fetchTeam as fetchTeamDetail } from "../../api/teams";
 import type { TeamPlayer } from "../../types/league";
 import type {
   Match,
@@ -150,12 +151,36 @@ export function AdminMatchDetailPage() {
     try {
       const data = await fetchMatch(matchId);
       setMatch(data);
-      const [home, away] = await Promise.all([
-        fetchTeam(data.leagueId, data.homeTeamId),
-        fetchTeam(data.leagueId, data.awayTeamId),
-      ]);
-      setHomePlayers(home.players);
-      setAwayPlayers(away.players);
+      if (data.leagueId) {
+        const [home, away] = await Promise.all([
+          fetchTeam(data.leagueId, data.homeTeamId),
+          fetchTeam(data.leagueId, data.awayTeamId),
+        ]);
+        setHomePlayers(home.players);
+        setAwayPlayers(away.players);
+      } else {
+        const [home, away] = await Promise.all([
+          fetchTeamDetail(data.homeTeamId),
+          fetchTeamDetail(data.awayTeamId),
+        ]);
+        const toPlayers = (
+          players: Awaited<ReturnType<typeof fetchTeamDetail>>["players"],
+        ): TeamPlayer[] =>
+          players.map((p) => ({
+            id: p.id,
+            firstName: p.firstName,
+            lastName: p.lastName,
+            position: p.position,
+            shirtNumber: p.shirtNumber,
+            photo: p.photo,
+            goals: 0,
+            assists: 0,
+            matchesPlayed: 0,
+            minutes: 0,
+          }));
+        setHomePlayers(toPlayers(home.players));
+        setAwayPlayers(toPlayers(away.players));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Oyun yüklənmədi");
       setMatch(null);
@@ -191,6 +216,10 @@ export function AdminMatchDetailPage() {
   };
 
   const openEventModal = (kind: EventModalKind) => {
+    if (match?.status !== "LIVE") {
+      alert("Əvvəlcə oyun başladılmalıdır");
+      return;
+    }
     resetEventForm(kind);
     setEventKind(kind);
   };
@@ -221,7 +250,11 @@ export function AdminMatchDetailPage() {
     try {
       await deleteMatch(match.id);
       navigate(
-        `/admin/football/matches?leagueId=${match.league.id}`,
+        match.league?.id
+          ? `/admin/football/matches?leagueId=${match.league.id}`
+          : match.championshipId
+            ? `/admin/football/championships/${match.championshipId}`
+            : "/admin/football/matches",
       );
     } catch (err) {
       alert(err instanceof Error ? err.message : "Silinmədi");
@@ -354,9 +387,11 @@ export function AdminMatchDetailPage() {
   return (
     <AdminPageShell
       title={`${match.homeTeam.name} — ${match.awayTeam.name}`}
-      subtitle={`${match.league.name}${
-        match.round ? ` · ${match.round}-ci tur` : ""
-      }${match.venue ? ` · ${match.venue}` : ""}`}
+      subtitle={`${
+        match.league?.name ?? match.championship?.name ?? "Çempionat"
+      }${match.round ? ` · ${match.round}-ci tur` : ""}${
+        match.venue ? ` · ${match.venue}` : ""
+      }`}
       action={
         <div className="flex flex-wrap items-center gap-2">
           {match.status === "SCHEDULED" ? (
@@ -407,9 +442,11 @@ export function AdminMatchDetailPage() {
       <nav className="mb-5 flex items-center gap-1.5 text-sm text-slate-500">
         <Link
           to={
-            match.league.id
+            match.league?.id
               ? `/admin/football/matches?leagueId=${match.league.id}`
-              : "/admin/football/matches"
+              : match.championshipId
+                ? `/admin/football/championships/${match.championshipId}`
+                : "/admin/football/matches"
           }
           className="hover:text-brand"
         >
@@ -439,7 +476,11 @@ export function AdminMatchDetailPage() {
               : ""}
           </span>
           <span className="text-xs text-slate-400">
-            {match.matchType === "FRIENDLY" ? "Yoldaşlıq" : "Liqa oyunu"}
+            {match.matchType === "FRIENDLY"
+              ? "Yoldaşlıq"
+              : match.matchType === "CHAMPIONSHIP"
+                ? "Çempionat"
+                : "Liqa oyunu"}
           </span>
         </div>
 
@@ -452,12 +493,14 @@ export function AdminMatchDetailPage() {
               {match.awayScore}
             </p>
             <p className="mt-2 text-xs text-slate-400">
-              {new Date(match.scheduledAt).toLocaleString("az-AZ", {
-                day: "numeric",
-                month: "long",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
+              {match.scheduledAt
+                ? new Date(match.scheduledAt).toLocaleString("az-AZ", {
+                    day: "numeric",
+                    month: "long",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : "Vaxt təyin edilməyib"}
             </p>
           </div>
           <TeamMark name={match.awayTeam.name} logo={match.awayTeam.logo} />

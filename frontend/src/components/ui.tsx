@@ -257,12 +257,12 @@ interface TabsProps {
 
 export function Tabs({ tabs, active, onChange, className = '', light = false }: TabsProps) {
   return (
-    <div className={`flex gap-0 border-b ${light ? 'border-gray-200' : 'border-white/8'} ${className}`}>
+    <div className={`flex gap-0 overflow-x-auto border-b ${light ? 'border-gray-200' : 'border-white/8'} ${className}`}>
       {tabs.map((tab) => (
         <button
           key={tab}
           onClick={() => onChange(tab)}
-          className={`px-5 py-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
+          className={`shrink-0 whitespace-nowrap px-5 py-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
             active === tab
               ? light
                 ? 'border-emerald-500 text-emerald-600'

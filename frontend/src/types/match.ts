@@ -5,7 +5,15 @@ export type MatchStatus =
   | "CANCELLED"
   | "POSTPONED";
 
-export type MatchType = "LEAGUE" | "FRIENDLY";
+export type MatchType = "LEAGUE" | "FRIENDLY" | "CHAMPIONSHIP";
+
+export type MatchStage =
+  | "GROUP_STAGE"
+  | "PRELIMINARY"
+  | "ROUND_OF_16"
+  | "QUARTER_FINAL"
+  | "SEMI_FINAL"
+  | "FINAL";
 
 export type MatchEventType =
   | "GOAL"
@@ -60,13 +68,18 @@ export type MatchEvent = {
 
 export type Match = {
   id: number;
-  leagueId: number;
+  leagueId: number | null;
+  championshipId?: number | null;
+  groupId?: number | null;
   homeTeamId: number;
   awayTeamId: number;
+  winnerTeamId?: number | null;
   round: number | null;
+  stage?: MatchStage | null;
   matchType: MatchType;
   status: MatchStatus;
-  scheduledAt: string;
+  scheduledAt: string | null;
+  location?: string | null;
   venue: string | null;
   notes: string | null;
   homeScore: number;
@@ -76,9 +89,12 @@ export type Match = {
   finishedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  league: MatchLeagueInfo;
+  championship?: { id: number; name: string } | null;
+  league?: MatchLeagueInfo | null;
+  group?: { id: number; name: string } | null;
   homeTeam: MatchTeam;
   awayTeam: MatchTeam;
+  winnerTeam?: MatchTeam | null;
   events?: MatchEvent[];
 };
 
