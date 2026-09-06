@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "main": "backend/server.js",
   "scripts": {
-    "dev": "nodemon backend/server.js"
+    "dev": "nodemon backend/server.js",
+    "start": "node backend/server.js",
+    "build": "prisma generate",
+    "postinstall": "prisma generate"
   },
   "keywords": [],
   "author": "",
@@ -24,12 +27,11 @@
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.11.0",
     "multer": "^2.2.0",
+    "prisma": "^7.8.0",
     "socket.io": "^4.8.3",
     "tailwindcss": "^4.3.2"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14",
-    "prisma": "^7.8.0",
-    "@prisma/client": "^7.8.0"
+    "nodemon": "^3.1.14"
   }
 }
