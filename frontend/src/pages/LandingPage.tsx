@@ -375,7 +375,7 @@ export default function LandingPage() {
         </div>
 
         <h1 className="font-display text-6xl sm:text-7xl lg:text-8xl font-bold text-white leading-[0.95] mb-6">
-          Rəqibini tap.
+          Rəqibini tap. salam
           <br />
           <span className="text-gradient-lime glow-lime-text">
             Komandanı qur.
