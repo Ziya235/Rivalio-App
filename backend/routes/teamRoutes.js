@@ -23,6 +23,10 @@ import {
   listMyTeamPlayerInviteNotifications,
   respondTeamPlayerInvite,
 } from "../controllers/teamPlayerInviteController.js";
+import {
+  listMyChampionshipInvitesHandler,
+  respondChampionshipInviteHandler,
+} from "../controllers/championshipController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { adminMiddleware } from "../middlewares/adminMiddleware.js";
 import { permissionMiddleware } from "../middlewares/permissionMiddleware.js";
@@ -71,6 +75,17 @@ router.post(
 // —— League invites / join requests ——
 router.get("/me/team-invites", authMiddleware, listMyTeamInvites);
 router.post("/team-invites/:inviteId/respond", authMiddleware, respondTeamInvite);
+
+router.get(
+  "/me/championship-invites",
+  authMiddleware,
+  listMyChampionshipInvitesHandler,
+);
+router.post(
+  "/championship-invites/:inviteId/respond",
+  authMiddleware,
+  respondChampionshipInviteHandler,
+);
 
 router.post(
   "/leagues/:leagueId/team-invites",

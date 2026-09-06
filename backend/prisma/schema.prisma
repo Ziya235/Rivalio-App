@@ -44,6 +44,7 @@ model User {
   playerSearchRequests      PlayerSearchRequest[] @relation("PlayerSearchRequester")
   friendliesCreated         Match[]               @relation("FriendlyCreator")
   championshipsCreated      Championship[]        @relation("ChampionshipCreator")
+  championshipTeamInvitesSent ChampionshipTeamInvite[] @relation("ChampionshipTeamInviteSender")
   teamPlayerInvitesReceived TeamPlayerInvite[]    @relation("TeamPlayerInvitee")
   teamPlayerInvitesSent     TeamPlayerInvite[]    @relation("TeamPlayerInviter")
 
@@ -71,6 +72,7 @@ enum NotificationType {
   LEAGUE_INVITE
   MATCH_INVITE
   JOIN_REQUEST
+  CHAMPIONSHIP_INVITE
 }
 
 enum ConversationType {
@@ -272,8 +274,9 @@ model Team {
 
   players           Player[]
   leagueMemberships LeagueTeam[]
-  championshipTeams ChampionshipTeam[]
-  groupTeams        ChampionshipGroupTeam[]
+  championshipTeams   ChampionshipTeam[]
+  championshipInvites ChampionshipTeamInvite[]
+  groupTeams          ChampionshipGroupTeam[]
   wonMatches        Match[] @relation("MatchWinner")
 
   homeMatches Match[]      @relation("HomeTeam")
@@ -411,9 +414,10 @@ model Championship {
   sport     Sport @relation(fields: [sportId], references: [id], onDelete: Cascade)
   createdBy User  @relation("ChampionshipCreator", fields: [createdById], references: [id], onDelete: Cascade)
 
-  teams   ChampionshipTeam[]
-  groups  ChampionshipGroup[]
-  matches Match[]
+  teams       ChampionshipTeam[]
+  teamInvites ChampionshipTeamInvite[]
+  groups      ChampionshipGroup[]
+  matches     Match[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -434,6 +438,26 @@ model ChampionshipTeam {
 
   @@unique([championshipId, teamId])
   @@index([teamId])
+}
+
+model ChampionshipTeamInvite {
+  id          Int           @id @default(autoincrement())
+  championshipId Int
+  teamId      Int
+  invitedById Int
+  status      RequestStatus @default(PENDING)
+  message     String?
+  respondedAt DateTime?
+
+  championship Championship @relation(fields: [championshipId], references: [id], onDelete: Cascade)
+  team         Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  invitedBy    User         @relation("ChampionshipTeamInviteSender", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([teamId, status])
+  @@index([championshipId, status])
 }
 
 model ChampionshipGroup {

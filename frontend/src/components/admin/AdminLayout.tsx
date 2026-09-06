@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import NotificationBell from "../NotificationBell";
 
 type SportModule = {
   to: string;
@@ -214,7 +215,7 @@ export function AdminLayout() {
       </aside>
 
       <div className="flex min-h-screen flex-1 flex-col lg:ml-64">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-6">
           <button
             type="button"
             className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
@@ -226,6 +227,7 @@ export function AdminLayout() {
             <span className="text-ink">Admin paneli</span>
           </div>
           <div className="ml-auto flex items-center gap-3">
+            <NotificationBell isLightMode />
             <div className="text-right">
               <p className="text-sm font-semibold text-ink">
                 {user.firstName} {user.lastName}

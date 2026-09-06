@@ -5,6 +5,7 @@ import { permissionMiddleware } from "../middlewares/permissionMiddleware.js";
 import {
   addGroupTeamHandler,
   addTeamHandler,
+  cancelTeamInviteHandler,
   championshipStandingsHandler,
   createChampionshipHandler,
   createGroupsHandler,
@@ -80,6 +81,11 @@ router.post(
 
 router.get("/:championshipId/teams", ...adminRead, listTeamsHandler);
 router.post("/:championshipId/teams", ...adminWrite, addTeamHandler);
+router.delete(
+  "/:championshipId/team-invites/:inviteId",
+  ...adminWrite,
+  cancelTeamInviteHandler,
+);
 router.delete(
   "/:championshipId/teams/:teamId",
   ...adminWrite,

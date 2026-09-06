@@ -13,6 +13,11 @@ import {
 } from "lucide-react";
 import { Button } from "../components/ui";
 import {
+  fetchMyChampionshipInvites,
+  respondChampionshipInvite,
+} from "../api/championships";
+import type { ChampionshipTeamInvite } from "../types/championship";
+import {
   fetchMyTeamPlayerInviteNotifications,
   fetchMyTeamInvites,
   respondTeamPlayerInvite,
@@ -39,7 +44,7 @@ import {
 } from "../api/notifications";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
-import { useNavigate, useOutletContext } from "react-router-dom";
+import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import type { AppOutletContext } from "../App";
 import { Avatar } from "../components/ui";
 import { MessageCircle } from "lucide-react";
@@ -47,7 +52,10 @@ import { MessageCircle } from "lucide-react";
 export default function NotificationsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { isDarkMode } = useOutletContext<AppOutletContext>();
+  const location = useLocation();
+  const ctx = useOutletContext<AppOutletContext | undefined>();
+  const isAdminView = location.pathname.startsWith("/admin");
+  const isDarkMode = isAdminView ? false : Boolean(ctx?.isDarkMode);
   const light = !isDarkMode;
   const bg = light
     ? "[background:linear-gradient(135deg,#E8FFF3_0%,#EAF8FF_48%,#F2EDFF_100%)]"
@@ -65,6 +73,9 @@ export default function NotificationsPage() {
     : "bg-[#c5f135]/15 text-[#c5f135]";
   const pendingBorder = light ? "border-emerald-500/25" : "border-[#c5f135]/20";
   const [invites, setInvites] = useState<TeamInvite[]>([]);
+  const [championshipInvites, setChampionshipInvites] = useState<
+    ChampionshipTeamInvite[]
+  >([]);
   const [incoming, setIncoming] = useState<PlayerSearchNotificationRequest[]>(
     [],
   );
@@ -101,18 +112,21 @@ export default function NotificationsPage() {
     try {
       const [
         teamInvites,
+        championshipInviteRows,
         playerSearchNotifications,
         challengeNotifications,
         teamPlayerNotifications,
         socialData,
       ] = await Promise.all([
         fetchMyTeamInvites(),
+        fetchMyChampionshipInvites(),
         fetchMyPlayerSearchNotifications(),
         fetchMyChallengeNotifications(),
         fetchMyTeamPlayerInviteNotifications(),
         fetchNotifications(100),
       ]);
       setInvites(teamInvites);
+      setChampionshipInvites(championshipInviteRows);
       setIncoming(playerSearchNotifications.incoming);
       setOutcomes(playerSearchNotifications.outcomes);
       setChallengeIncoming(challengeNotifications.incoming);
@@ -130,6 +144,22 @@ export default function NotificationsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const respondChampionship = async (
+    id: number,
+    action: "accept" | "reject",
+  ) => {
+    setBusyKey(`champ-invite-${id}`);
+    try {
+      await respondChampionshipInvite(id, action);
+      await load();
+      await refreshNotifications();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Əməliyyat alınmadı");
+    } finally {
+      setBusyKey(null);
+    }
+  };
 
   const respond = async (id: number, action: "accept" | "reject") => {
     setBusyKey(`invite-${id}`);
@@ -228,12 +258,21 @@ export default function NotificationsPage() {
     (item) => item.type === "NEW_MESSAGE",
   );
 
+  const championshipInviteOutcomes = socialNotifications.filter(
+    (item) =>
+      item.type === "CHAMPIONSHIP_INVITE" &&
+      (item.championshipInviteStatus === "ACCEPTED" ||
+        item.championshipInviteStatus === "REJECTED"),
+  );
+
   const hasNotifications =
     friendIncoming.length > 0 ||
     friendResolved.length > 0 ||
     friendAcceptedNotifications.length > 0 ||
     messageNotifications.length > 0 ||
     invites.length > 0 ||
+    championshipInvites.length > 0 ||
+    championshipInviteOutcomes.length > 0 ||
     incoming.length > 0 ||
     outcomes.length > 0 ||
     challengeIncoming.length > 0 ||
@@ -243,7 +282,7 @@ export default function NotificationsPage() {
 
   if (!user) {
     return (
-      <div className={`${bg} min-h-screen pt-24 text-center`}>
+      <div className={`${bg} min-h-screen ${isAdminView ? "pt-8" : "pt-24"} text-center`}>
         <p className={`${muted} mb-4`}>Daxil olun</p>
         <Button onClick={() => navigate("/login")}>Giriş</Button>
       </div>
@@ -251,14 +290,26 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className={`${bg} min-h-screen pt-24 pb-20`}>
-      <div className="max-w-[700px] mx-auto px-4 sm:px-6">
+    <div
+      className={`${isAdminView ? "" : bg} ${
+        isAdminView ? "pb-8" : "min-h-screen pt-24 pb-20"
+      }`}
+    >
+      <div className={`mx-auto px-4 sm:px-6 ${isAdminView ? "max-w-3xl" : "max-w-[700px]"}`}>
         <div className="mb-8">
-          <h1 className={`font-display text-5xl font-bold ${title}`}>
+          <h1
+            className={
+              isAdminView
+                ? "text-2xl font-extrabold tracking-tight text-ink"
+                : `font-display text-5xl font-bold ${title}`
+            }
+          >
             Bildirişlər
           </h1>
           <p className={`${muted} text-sm mt-1`}>
-            Dostluq sorğuları, liqa dəvətləri və digər sorğular
+            {isAdminView
+              ? "Komanda dəvətlərinin cavabları və digər bildirişlər"
+              : "Dostluq sorğuları, liqa dəvətləri və digər sorğular"}
           </p>
         </div>
 
@@ -1013,6 +1064,153 @@ export default function NotificationsPage() {
                                 {request.playerSearch.venue}
                               </span>
                             </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+
+            {championshipInvites.length > 0 ? (
+              <section>
+                <h2
+                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
+                >
+                  Çempionat dəvətləri
+                </h2>
+                <div className="space-y-3">
+                  {championshipInvites.map((invite) => (
+                    <div
+                      key={invite.id}
+                      className={`rounded-2xl border p-4 ${card} ${pendingBorder}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`mt-0.5 rounded-xl p-2 ${accentIcon}`}
+                        >
+                          <Trophy size={16} />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className={`font-semibold ${title}`}>
+                            Çempionat dəvəti
+                          </h3>
+                          <p className={`mt-1 text-sm ${body}`}>
+                            <span className={title}>
+                              {invite.championship?.name ?? "Çempionat"}
+                            </span>{" "}
+                            çempionatı{" "}
+                            <span className={title}>{invite.team.name}</span>{" "}
+                            komandanızı dəvət etdi.
+                          </p>
+                          {invite.message ? (
+                            <p className={`mt-2 text-xs italic ${soft}`}>
+                              “{invite.message}”
+                            </p>
+                          ) : null}
+                          <div className="mt-4 flex gap-2">
+                            <button
+                              type="button"
+                              disabled={busyKey === `champ-invite-${invite.id}`}
+                              onClick={() =>
+                                void respondChampionship(invite.id, "accept")
+                              }
+                              className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                            >
+                              <Check size={14} />
+                              Qəbul et
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busyKey === `champ-invite-${invite.id}`}
+                              onClick={() =>
+                                void respondChampionship(invite.id, "reject")
+                              }
+                              className="inline-flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
+                            >
+                              <X size={14} />
+                              Rədd et
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {championshipInviteOutcomes.length > 0 ? (
+              <section>
+                <h2
+                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
+                >
+                  Çempionat dəvət cavabları
+                </h2>
+                <div className="space-y-3">
+                  {championshipInviteOutcomes.map((notification) => {
+                    const accepted =
+                      notification.championshipInviteStatus === "ACCEPTED";
+                    const teamName =
+                      notification.championshipInvite?.team.name ?? "Komanda";
+                    const champName =
+                      notification.championshipInvite?.championship.name ??
+                      "çempionat";
+                    const isCaptain =
+                      user != null &&
+                      notification.championshipInvite?.team.captainId ===
+                        user.id;
+                    return (
+                      <div
+                        key={notification.id}
+                        className={`rounded-2xl border p-4 ${card}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`mt-0.5 rounded-xl p-2 ${
+                              accepted
+                                ? accentIcon
+                                : light
+                                  ? "bg-rose-500/15 text-rose-600"
+                                  : "bg-rose-500/15 text-rose-400"
+                            }`}
+                          >
+                            {accepted ? (
+                              <CheckCircle2 size={16} />
+                            ) : (
+                              <XCircle size={16} />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <h3 className={`font-semibold ${title}`}>
+                              {accepted
+                                ? isCaptain
+                                  ? "Dəvəti qəbul etdiniz"
+                                  : "Dəvət qəbul edildi"
+                                : isCaptain
+                                  ? "Dəvəti rədd etdiniz"
+                                  : "Dəvət rədd edildi"}
+                            </h3>
+                            <p className={`mt-1 text-sm ${body}`}>
+                              <span className={title}>{teamName}</span> ·{" "}
+                              <span className={title}>{champName}</span>
+                            </p>
+                            {!isCaptain &&
+                            notification.championshipInvite?.championship
+                              .id ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  navigate(
+                                    `/admin/football/championships/${notification.championshipInvite!.championship.id}`,
+                                  )
+                                }
+                                className="mt-3 text-xs font-semibold text-emerald-600"
+                              >
+                                Çempionata keç
+                              </button>
+                            ) : null}
                           </div>
                         </div>
                       </div>

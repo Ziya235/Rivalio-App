@@ -36,7 +36,8 @@ export type NotificationType =
   | "TEAM_INVITE"
   | "LEAGUE_INVITE"
   | "MATCH_INVITE"
-  | "JOIN_REQUEST";
+  | "JOIN_REQUEST"
+  | "CHAMPIONSHIP_INVITE";
 
 export type AppNotification = {
   id: number;
@@ -48,6 +49,23 @@ export type AppNotification = {
   createdAt: string;
   actor: UserBrief | null;
   friendRequestStatus?: "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED" | null;
+  championshipInviteStatus?:
+    | "PENDING"
+    | "ACCEPTED"
+    | "REJECTED"
+    | "CANCELLED"
+    | null;
+  championshipInvite?: {
+    id: number;
+    status: "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED";
+    championship: { id: number; name: string; logo: string | null };
+    team: {
+      id: number;
+      name: string;
+      logo: string | null;
+      captainId: number;
+    };
+  } | null;
 };
 
 export type NotificationsResponse = {

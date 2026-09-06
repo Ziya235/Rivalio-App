@@ -26,6 +26,7 @@ import {
   GROUP_COUNT_MIN,
   validateGroupSlots,
 } from "../utils/championshipGroups.js";
+import { createNotification } from "./notificationService.js";
 
 const MATCH_FORMATS = ["SINGLE", "HOME_AWAY"];
 
@@ -127,6 +128,25 @@ const championshipInclude = {
     },
     orderBy: { sortOrder: "asc" },
   },
+  teamInvites: {
+    where: { status: "PENDING" },
+    include: { team: { select: teamBrief } },
+    orderBy: { createdAt: "desc" },
+  },
+};
+
+const championshipInviteInclude = {
+  championship: {
+    select: { id: true, name: true, logo: true, status: true, format: true },
+  },
+  team: {
+    select: {
+      ...teamBrief,
+      captainId: true,
+      captain: { select: userBrief },
+    },
+  },
+  invitedBy: { select: userBrief },
 };
 
 export function formatChampionship(c) {
@@ -155,9 +175,34 @@ export function formatChampionship(c) {
       joinedAt: ct.joinedAt,
       team: ct.team,
     })),
+    pendingInvites: (c.teamInvites ?? [])
+      .filter((invite) => !invite.status || invite.status === "PENDING")
+      .map((invite) => ({
+        id: invite.id,
+        teamId: invite.teamId,
+        status: invite.status ?? "PENDING",
+        createdAt: invite.createdAt,
+        team: invite.team,
+      })),
     groups: (c.groups ?? []).map(formatGroup),
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
+  };
+}
+
+export function formatChampionshipInvite(invite) {
+  return {
+    id: invite.id,
+    championshipId: invite.championshipId,
+    teamId: invite.teamId,
+    invitedById: invite.invitedById,
+    status: invite.status,
+    message: invite.message,
+    respondedAt: invite.respondedAt,
+    createdAt: invite.createdAt,
+    championship: invite.championship,
+    team: invite.team,
+    invitedBy: invite.invitedBy,
   };
 }
 
@@ -439,7 +484,43 @@ export async function transitionChampionshipStatus(championshipId, userId, nextS
   return formatChampionship(updated);
 }
 
-export async function addTeamToChampionship(championshipId, userId, teamIdRaw) {
+function championshipTeamLimit(c) {
+  if (c.format === "PLAYOFF_ONLY" && c.maxTeams != null) return c.maxTeams;
+  return GROUP_CHAMP_TEAM_MAX;
+}
+
+function occupiedChampionshipSlots(c) {
+  const pending = (c.teamInvites ?? []).filter(
+    (invite) => !invite.status || invite.status === "PENDING",
+  ).length;
+  return (c.teams?.length ?? 0) + pending;
+}
+
+async function markChampionshipInviteNotificationsRead(userId, inviteId) {
+  await prisma.notification.updateMany({
+    where: {
+      userId,
+      type: "CHAMPIONSHIP_INVITE",
+      entityId: String(inviteId),
+    },
+    data: { isRead: true },
+  });
+}
+
+async function notifyChampionshipInvite(userId, actorId, inviteId) {
+  try {
+    await createNotification({
+      userId,
+      actorId,
+      type: "CHAMPIONSHIP_INVITE",
+      entityId: inviteId,
+    });
+  } catch (error) {
+    console.log("Error notifying championship invite:", error);
+  }
+}
+
+export async function addTeamToChampionship(championshipId, userId, teamIdRaw, message) {
   const c = await getOwnedChampionship(championshipId, userId);
   if (!["DRAFT", "REGISTRATION"].includes(c.status)) {
     throw httpError("Teams can only be added in DRAFT or REGISTRATION");
@@ -449,12 +530,13 @@ export async function addTeamToChampionship(championshipId, userId, teamIdRaw) {
   const team = await prisma.team.findUnique({ where: { id: teamId } });
   if (!team) throw httpError("Team not found", 404);
 
-  if (c.format === "PLAYOFF_ONLY") {
-    if (c.maxTeams != null && c.teams.length >= c.maxTeams) {
-      throw httpError(`Championship is limited to ${c.maxTeams} teams`);
-    }
-  } else if (c.teams.length >= GROUP_CHAMP_TEAM_MAX) {
-    throw httpError(`Maksimum ${GROUP_CHAMP_TEAM_MAX} komanda ola bilər`);
+  const limit = championshipTeamLimit(c);
+  if (occupiedChampionshipSlots(c) >= limit) {
+    throw httpError(
+      c.format === "PLAYOFF_ONLY" && c.maxTeams != null
+        ? `Championship is limited to ${c.maxTeams} teams`
+        : `Maksimum ${GROUP_CHAMP_TEAM_MAX} komanda ola bilər`,
+    );
   }
 
   const existing = await prisma.championshipTeam.findUnique({
@@ -464,11 +546,153 @@ export async function addTeamToChampionship(championshipId, userId, teamIdRaw) {
   });
   if (existing) throw httpError("Team is already in this championship", 409);
 
-  await prisma.championshipTeam.create({
-    data: { championshipId: c.id, teamId },
+  const pending = await prisma.championshipTeamInvite.findFirst({
+    where: { championshipId: c.id, teamId, status: "PENDING" },
+  });
+  if (pending) {
+    throw httpError("Bu komandaya artıq dəvət göndərilib", 409);
+  }
+
+  const inviteMessage = String(message || "").trim() || null;
+
+  const invite = await prisma.championshipTeamInvite.create({
+    data: {
+      championshipId: c.id,
+      teamId,
+      invitedById: userId,
+      message: inviteMessage,
+    },
+  });
+
+  await notifyChampionshipInvite(team.captainId, userId, invite.id);
+  return getChampionship(c.id, userId);
+}
+
+export async function cancelChampionshipTeamInvite(
+  championshipId,
+  userId,
+  inviteIdRaw,
+) {
+  const c = await getOwnedChampionship(championshipId, userId, {
+    include: undefined,
+  });
+  if (!["DRAFT", "REGISTRATION"].includes(c.status)) {
+    throw httpError("Invites can only be cancelled in DRAFT or REGISTRATION");
+  }
+  const inviteId = parseId(inviteIdRaw, "inviteId");
+  const invite = await prisma.championshipTeamInvite.findFirst({
+    where: { id: inviteId, championshipId: c.id },
+  });
+  if (!invite) throw httpError("Invite not found", 404);
+  if (invite.status !== "PENDING") {
+    throw httpError("Invite is no longer pending");
+  }
+
+  await prisma.championshipTeamInvite.update({
+    where: { id: inviteId },
+    data: { status: "CANCELLED", respondedAt: new Date() },
   });
 
   return getChampionship(c.id, userId);
+}
+
+export async function listMyChampionshipInvites(userId) {
+  const invites = await prisma.championshipTeamInvite.findMany({
+    where: {
+      status: "PENDING",
+      team: { captainId: userId },
+    },
+    include: championshipInviteInclude,
+    orderBy: { createdAt: "desc" },
+  });
+  return invites.map(formatChampionshipInvite);
+}
+
+export async function respondChampionshipTeamInvite(inviteIdRaw, userId, actionRaw) {
+  const inviteId = parseId(inviteIdRaw, "inviteId");
+  const action = String(actionRaw || "").toLowerCase();
+  if (!["accept", "reject"].includes(action)) {
+    throw httpError("action must be accept or reject");
+  }
+
+  const invite = await prisma.championshipTeamInvite.findUnique({
+    where: { id: inviteId },
+    include: {
+      team: { select: { id: true, captainId: true } },
+      championship: {
+        select: {
+          id: true,
+          status: true,
+          format: true,
+          maxTeams: true,
+        },
+      },
+    },
+  });
+  if (!invite) throw httpError("Invite not found", 404);
+  if (invite.team.captainId !== userId) {
+    throw httpError("Only the team captain can respond", 403);
+  }
+  if (invite.status !== "PENDING") {
+    throw httpError("Invite is no longer pending");
+  }
+
+  if (action === "reject") {
+    const updated = await prisma.championshipTeamInvite.update({
+      where: { id: inviteId },
+      data: { status: "REJECTED", respondedAt: new Date() },
+      include: championshipInviteInclude,
+    });
+    await markChampionshipInviteNotificationsRead(userId, inviteId);
+    if (invite.invitedById !== userId) {
+      await notifyChampionshipInvite(invite.invitedById, userId, invite.id);
+    }
+    return formatChampionshipInvite(updated);
+  }
+
+  if (!["DRAFT", "REGISTRATION"].includes(invite.championship.status)) {
+    throw httpError("Çempionat artıq komanda qəbul etmir");
+  }
+
+  const teamCount = await prisma.championshipTeam.count({
+    where: { championshipId: invite.championshipId },
+  });
+  const limit = championshipTeamLimit(invite.championship);
+  if (teamCount >= limit) {
+    throw httpError(
+      invite.championship.format === "PLAYOFF_ONLY" &&
+        invite.championship.maxTeams != null
+        ? `Championship is limited to ${invite.championship.maxTeams} teams`
+        : `Maksimum ${GROUP_CHAMP_TEAM_MAX} komanda ola bilər`,
+    );
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.championshipTeam.upsert({
+      where: {
+        championshipId_teamId: {
+          championshipId: invite.championshipId,
+          teamId: invite.teamId,
+        },
+      },
+      create: {
+        championshipId: invite.championshipId,
+        teamId: invite.teamId,
+      },
+      update: {},
+    });
+    return tx.championshipTeamInvite.update({
+      where: { id: inviteId },
+      data: { status: "ACCEPTED", respondedAt: new Date() },
+      include: championshipInviteInclude,
+    });
+  });
+
+  await markChampionshipInviteNotificationsRead(userId, inviteId);
+  if (invite.invitedById !== userId) {
+    await notifyChampionshipInvite(invite.invitedById, userId, invite.id);
+  }
+  return formatChampionshipInvite(updated);
 }
 
 export async function removeTeamFromChampionship(championshipId, userId, teamIdRaw) {
@@ -1761,12 +1985,13 @@ async function getVisibleChampionshipRecord(championshipId) {
 }
 
 function withViewerFields(championship, userTeamIds, matchRows) {
-  const myTeams = (championship.teams ?? [])
+  const { pendingInvites: _pendingInvites, ...rest } = championship;
+  const myTeams = (rest.teams ?? [])
     .filter((row) => userTeamIds.has(row.teamId))
     .map((row) => row.team);
   return {
-    ...championship,
-    currentStage: deriveCurrentStage(championship.status, matchRows),
+    ...rest,
+    currentStage: deriveCurrentStage(rest.status, matchRows),
     progress: progressFromMatches(matchRows),
     myTeams,
   };

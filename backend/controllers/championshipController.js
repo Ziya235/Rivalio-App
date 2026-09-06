@@ -1,6 +1,7 @@
 import {
   addTeamToChampionship,
   addTeamToGroup,
+  cancelChampionshipTeamInvite,
   createChampionship,
   createChampionshipMatch,
   createGroups,
@@ -16,8 +17,10 @@ import {
   listChampionships,
   listChampionshipTeams,
   listGroups,
+  listMyChampionshipInvites,
   removeTeamFromChampionship,
   removeTeamFromGroup,
+  respondChampionshipTeamInvite,
   setMatchResult,
   startGroupStage,
   startPlayoff,
@@ -139,10 +142,60 @@ export const addTeamHandler = async (req, res) => {
       req.params.championshipId,
       req.user.id,
       req.body.teamId,
+      req.body.message,
     );
-    return res.status(201).json({ success: true, data });
+    return res.status(201).json({
+      success: true,
+      message: "Dəvət komanda kapitanına göndərildi",
+      data,
+    });
   } catch (error) {
     console.log("Error in addTeam:", error);
+    return handleServiceError(res, error);
+  }
+};
+
+export const cancelTeamInviteHandler = async (req, res) => {
+  try {
+    const data = await cancelChampionshipTeamInvite(
+      req.params.championshipId,
+      req.user.id,
+      req.params.inviteId,
+    );
+    return res.json({ success: true, data });
+  } catch (error) {
+    console.log("Error in cancelTeamInvite:", error);
+    return handleServiceError(res, error);
+  }
+};
+
+export const listMyChampionshipInvitesHandler = async (req, res) => {
+  try {
+    const data = await listMyChampionshipInvites(req.user.id);
+    return res.json({ success: true, data });
+  } catch (error) {
+    console.log("Error in listMyChampionshipInvites:", error);
+    return handleServiceError(res, error);
+  }
+};
+
+export const respondChampionshipInviteHandler = async (req, res) => {
+  try {
+    const data = await respondChampionshipTeamInvite(
+      req.params.inviteId,
+      req.user.id,
+      req.body.action,
+    );
+    return res.json({
+      success: true,
+      message:
+        String(req.body.action || "").toLowerCase() === "accept"
+          ? "Çempionat dəvəti qəbul edildi"
+          : "Çempionat dəvəti rədd edildi",
+      data,
+    });
+  } catch (error) {
+    console.log("Error in respondChampionshipInvite:", error);
     return handleServiceError(res, error);
   }
 };

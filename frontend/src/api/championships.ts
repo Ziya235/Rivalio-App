@@ -8,6 +8,7 @@ import type {
   ChampionshipListItem,
   ChampionshipMatchFormat,
   ChampionshipStatus,
+  ChampionshipTeamInvite,
   GroupStandingsBlock,
   PlayerStatistics,
   PlayoffTieGroup,
@@ -141,6 +142,33 @@ export function addChampionshipTeam(
     {
       method: "POST",
       body: JSON.stringify({ teamId }),
+    },
+  );
+}
+
+export function cancelChampionshipTeamInvite(
+  championshipId: number,
+  inviteId: number,
+): Promise<Championship> {
+  return champFetch<Championship>(
+    `/api/championships/${championshipId}/team-invites/${inviteId}`,
+    { method: "DELETE" },
+  );
+}
+
+export function fetchMyChampionshipInvites(): Promise<ChampionshipTeamInvite[]> {
+  return champFetch<ChampionshipTeamInvite[]>("/api/me/championship-invites");
+}
+
+export function respondChampionshipInvite(
+  inviteId: number,
+  action: "accept" | "reject",
+): Promise<ChampionshipTeamInvite> {
+  return champFetch<ChampionshipTeamInvite>(
+    `/api/championship-invites/${inviteId}/respond`,
+    {
+      method: "POST",
+      body: JSON.stringify({ action }),
     },
   );
 }

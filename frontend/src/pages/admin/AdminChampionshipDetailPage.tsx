@@ -27,6 +27,7 @@ import {
 import {
   addChampionshipTeam,
   addTeamToGroup,
+  cancelChampionshipTeamInvite,
   ChampApiError,
   createChampionshipGroups,
   deleteChampionshipGroup,
@@ -1084,14 +1085,27 @@ export function AdminChampionshipDetailPage() {
     }
   }, [addTeamModalOpen, addToGroupModal, teamSearch, loadTeamPicker]);
 
+  const pendingInvites = championship?.pendingInvites ?? [];
+
   const enrolledTeamIds = useMemo(
     () => new Set(championship?.teams.map((t) => t.teamId) ?? []),
     [championship?.teams],
   );
 
+  const pendingTeamIds = useMemo(
+    () => new Set(pendingInvites.map((invite) => invite.teamId)),
+    [pendingInvites],
+  );
+
+  const rosterCount =
+    (championship?.teams.length ?? 0) + pendingInvites.length;
+
   const availablePickerTeams = useMemo(
-    () => allTeams.filter((t) => !enrolledTeamIds.has(t.id)),
-    [allTeams, enrolledTeamIds],
+    () =>
+      allTeams.filter(
+        (t) => !enrolledTeamIds.has(t.id) && !pendingTeamIds.has(t.id),
+      ),
+    [allTeams, enrolledTeamIds, pendingTeamIds],
   );
 
   const teamsInGroups = useMemo(() => {
@@ -1297,9 +1311,17 @@ export function AdminChampionshipDetailPage() {
     if (
       championship &&
       championship.format !== "PLAYOFF_ONLY" &&
-      championship.teams.length >= GROUP_CHAMP_TEAM_MAX
+      rosterCount >= GROUP_CHAMP_TEAM_MAX
     ) {
       setModalError(`Maksimum ${GROUP_CHAMP_TEAM_MAX} komanda ola biler`);
+      return;
+    }
+    if (
+      championship?.format === "PLAYOFF_ONLY" &&
+      championship.maxTeams != null &&
+      rosterCount >= championship.maxTeams
+    ) {
+      setModalError(`Maksimum ${championship.maxTeams} komanda ola biler`);
       return;
     }
     setModalSubmitting(true);
@@ -1320,6 +1342,17 @@ export function AdminChampionshipDetailPage() {
     if (!window.confirm("Komandani cempionatdan cixarmaq isteyirsiniz?")) return;
     await runAction(async () => {
       const updated = await removeChampionshipTeam(championshipId, teamId);
+      setChampionship(updated);
+    });
+  };
+
+  const handleCancelInvite = async (inviteId: number) => {
+    if (!window.confirm("Dəvəti ləğv etmək istəyirsiniz?")) return;
+    await runAction(async () => {
+      const updated = await cancelChampionshipTeamInvite(
+        championshipId,
+        inviteId,
+      );
       setChampionship(updated);
     });
   };
@@ -1617,6 +1650,9 @@ export function AdminChampionshipDetailPage() {
                 <h2 className="text-sm font-bold text-ink">Komandalar</h2>
                 <span className="text-xs text-slate-400">
                   {championship.teams.length}
+                  {pendingInvites.length > 0
+                    ? ` + ${pendingInvites.length} gözləmə`
+                    : ""}
                   {isPlayoffOnlyFormat
                     ? championship.maxTeams
                       ? ` / ${championship.maxTeams}`
@@ -1630,8 +1666,8 @@ export function AdminChampionshipDetailPage() {
                   busy ||
                   (isPlayoffOnlyFormat
                     ? championship.maxTeams != null &&
-                      championship.teams.length >= championship.maxTeams
-                    : championship.teams.length >= GROUP_CHAMP_TEAM_MAX)
+                      rosterCount >= championship.maxTeams
+                    : rosterCount >= GROUP_CHAMP_TEAM_MAX)
                 }
                 onClick={() => {
                   setPickerTeamId("");
@@ -1641,7 +1677,7 @@ export function AdminChampionshipDetailPage() {
                 className="inline-flex items-center gap-1 rounded-lg bg-brand px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-brand-dark disabled:opacity-50"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Elave et
+                Dəvət et
               </button>
             </div>
             {isPlayoffOnlyFormat ? (
@@ -1651,16 +1687,40 @@ export function AdminChampionshipDetailPage() {
               </p>
             ) : (
               <p className="border-b border-slate-100 px-4 py-2 text-xs text-slate-500">
-                {GROUP_CHAMP_TEAM_MIN}–{GROUP_CHAMP_TEAM_MAX} komanda. Baslatmaq
-                ucun minimum {GROUP_CHAMP_TEAM_MIN} komanda lazimdir.
+                {GROUP_CHAMP_TEAM_MIN}–{GROUP_CHAMP_TEAM_MAX} komanda. Komanda
+                kapitanı dəvəti qəbul etdikdən sonra qrupa əlavə edə
+                bilərsiniz. Başlatmaq üçün minimum {GROUP_CHAMP_TEAM_MIN}{" "}
+                qəbul olunmuş komanda lazımdır.
               </p>
             )}
-            {championship.teams.length === 0 ? (
+            {championship.teams.length === 0 && pendingInvites.length === 0 ? (
               <p className="px-4 py-10 text-center text-sm text-slate-500">
-                Hele komanda yoxdur. Sistemden komanda elave edin.
+                Hələ komanda yoxdur. Sistemdən komanda dəvət edin.
               </p>
             ) : (
               <ul className="divide-y divide-slate-100">
+                {pendingInvites.map((invite) => (
+                  <li
+                    key={`invite-${invite.id}`}
+                    className="flex items-center justify-between gap-3 px-4 py-3"
+                  >
+                    <div className="min-w-0">
+                      <TeamMark name={invite.team.name} logo={invite.team.logo} />
+                      <p className="mt-1 text-[11px] font-medium text-amber-600">
+                        Kapitanın təsdiqi gözlənilir
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void handleCancelInvite(invite.id)}
+                      className="rounded-lg p-1.5 text-slate-300 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                      title="Dəvəti ləğv et"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </li>
+                ))}
                 {championship.teams.map((row) => (
                   <li
                     key={row.id}
@@ -2193,7 +2253,7 @@ export function AdminChampionshipDetailPage() {
 
       <AdminModal
         open={addTeamModalOpen}
-        title="Komanda elave et"
+        title="Komandanı dəvət et"
         onClose={() => setAddTeamModalOpen(false)}
         footer={
           <>
@@ -2202,7 +2262,7 @@ export function AdminChampionshipDetailPage() {
               disabled={modalSubmitting}
             />
             <ModalSubmitButton
-              label="Elave et"
+              label="Dəvət göndər"
               loading={modalSubmitting}
               formId="add-champ-team"
             />
@@ -2210,6 +2270,10 @@ export function AdminChampionshipDetailPage() {
         }
       >
         <ModalForm id="add-champ-team" onSubmit={handleAddTeam}>
+          <p className="mb-3 text-xs text-slate-500">
+            Dəvət komandanın kapitanına gedəcək. Qəbul etdikdən sonra komandanı
+            qrupa əlavə edə bilərsiniz.
+          </p>
           <Field label="Axtar">
             <input
               className={inputClass}
@@ -2376,6 +2440,9 @@ export function AdminChampionshipDetailPage() {
         }
       >
         <ModalForm id="add-to-group" onSubmit={handleAddToGroup}>
+          <p className="mb-3 text-xs text-slate-500">
+            Yalnız dəvəti qəbul etmiş komandalar qrupa əlavə oluna bilər.
+          </p>
           <Field label="Komanda" required>
             <select
               className={inputClass}

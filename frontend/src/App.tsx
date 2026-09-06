@@ -187,6 +187,7 @@ export default function App() {
           <Route path="football/matches/:matchId" element={<AdminMatchDetailPage />} />
           <Route path="football/championships" element={<AdminChampionshipsPage />} />
           <Route path="football/championships/:championshipId" element={<AdminChampionshipDetailPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
           <Route path="matches" element={<Navigate to="/admin/football/matches" replace />} />
           <Route path="matches/:matchId" element={<AdminLegacyMatchRedirect />} />
           <Route path="leagues/:leagueId" element={<AdminLegacyLeagueRedirect />} />

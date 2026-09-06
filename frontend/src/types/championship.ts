@@ -52,6 +52,31 @@ export type ChampionshipTeamRow = {
   team: ChampionshipTeamBrief;
 };
 
+export type ChampionshipTeamInvite = {
+  id: number;
+  championshipId?: number;
+  teamId: number;
+  invitedById?: number;
+  status: "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED";
+  message?: string | null;
+  respondedAt?: string | null;
+  createdAt: string;
+  championship?: {
+    id: number;
+    name: string;
+    logo?: string | null;
+    status?: ChampionshipStatus;
+    format?: ChampionshipFormat;
+  };
+  team: ChampionshipTeamBrief & { captainId?: number };
+  invitedBy?: {
+    id: number;
+    username: string;
+    firstName: string;
+    lastName: string;
+  };
+};
+
 export type ChampionshipProgress = {
   total: number;
   finished: number;
@@ -83,6 +108,7 @@ export type Championship = {
   groupCount: number;
   matchCount: number;
   teams: ChampionshipTeamRow[];
+  pendingInvites?: ChampionshipTeamInvite[];
   groups: ChampionshipGroup[];
   currentStage?: MatchStage | null;
   progress?: ChampionshipProgress;

@@ -129,6 +129,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       }) => {
         prependNotification(payload.notification);
         setUnreadCount(payload.unreadCount);
+        if (payload.notification.type === "CHAMPIONSHIP_INVITE") {
+          void refreshNotifications();
+        }
       }),
       subscribeSocketEvent("friend_request_received", () => {
         refreshNotifications();

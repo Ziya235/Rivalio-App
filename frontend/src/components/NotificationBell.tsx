@@ -10,6 +10,7 @@ import {
   markNotificationRead,
   type AppNotification,
 } from "../api/notifications";
+import { respondChampionshipInvite } from "../api/championships";
 import {
   fetchMyChallengeNotifications,
   fetchMyPlayerSearchNotifications,
@@ -48,6 +49,29 @@ function notificationLabel(notification: AppNotification) {
     return "dostluq sorğusunu rədd etdiniz";
   }
 
+  const champName =
+    notification.championshipInvite?.championship.name ?? "çempionata";
+  const teamName = notification.championshipInvite?.team.name;
+
+  if (notification.type === "CHAMPIONSHIP_INVITE") {
+    if (notification.championshipInviteStatus === "ACCEPTED") {
+      return teamName
+        ? `${teamName} komandası ${champName} dəvətini qəbul etdi`
+        : `${champName} dəvətini qəbul etdi`;
+    }
+    if (notification.championshipInviteStatus === "REJECTED") {
+      return teamName
+        ? `${teamName} komandası ${champName} dəvətini rədd etdi`
+        : `${champName} dəvətini rədd etdi`;
+    }
+    if (notification.championshipInviteStatus === "CANCELLED") {
+      return `${champName} dəvəti ləğv edildi`;
+    }
+    return teamName
+      ? `${teamName} komandanızı ${champName} çempionatına dəvət etdi`
+      : `komandanızı ${champName} çempionatına dəvət etdi`;
+  }
+
   switch (notification.type) {
     case "FRIEND_REQUEST":
       return "sizə dostluq sorğusu göndərdi";
@@ -65,6 +89,13 @@ function isPendingFriendRequest(notification: AppNotification) {
     notification.type === "FRIEND_REQUEST" &&
     (notification.friendRequestStatus === "PENDING" ||
       notification.friendRequestStatus == null)
+  );
+}
+
+function isPendingChampionshipInvite(notification: AppNotification) {
+  return (
+    notification.type === "CHAMPIONSHIP_INVITE" &&
+    notification.championshipInviteStatus === "PENDING"
   );
 }
 
@@ -146,7 +177,7 @@ export default function NotificationBell({
   isLightMode = false,
 }: NotificationBellProps) {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const {
     notifications,
     unreadCount,
@@ -297,6 +328,27 @@ export default function NotificationBell({
       await rejectFriendRequest(Number(notification.entityId));
       patchNotification(notification.id, {
         friendRequestStatus: "REJECTED",
+        isRead: true,
+      });
+      if (!notification.isRead) {
+        markLocalNotificationRead(notification.id);
+      }
+      await refreshNotifications();
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const handleChampionshipRespond = async (
+    notification: AppNotification,
+    action: "accept" | "reject",
+  ) => {
+    if (!notification.entityId) return;
+    setBusyKey(`champ-${notification.id}`);
+    try {
+      await respondChampionshipInvite(Number(notification.entityId), action);
+      patchNotification(notification.id, {
+        championshipInviteStatus: action === "accept" ? "ACCEPTED" : "REJECTED",
         isRead: true,
       });
       if (!notification.isRead) {
@@ -597,14 +649,22 @@ export default function NotificationBell({
 
                 const notification = entry.notification;
                 const actorName = personName(notification.actor);
-                const busy = busyKey === `friend-${notification.id}`;
-                const pending = isPendingFriendRequest(notification);
+                const champPending = isPendingChampionshipInvite(notification);
+                const busy = champPending
+                  ? busyKey === `champ-${notification.id}`
+                  : busyKey === `friend-${notification.id}`;
+                const pending =
+                  isPendingFriendRequest(notification) || champPending;
                 const accepted =
-                  notification.type === "FRIEND_REQUEST" &&
-                  notification.friendRequestStatus === "ACCEPTED";
+                  (notification.type === "FRIEND_REQUEST" &&
+                    notification.friendRequestStatus === "ACCEPTED") ||
+                  (notification.type === "CHAMPIONSHIP_INVITE" &&
+                    notification.championshipInviteStatus === "ACCEPTED");
                 const rejected =
-                  notification.type === "FRIEND_REQUEST" &&
-                  notification.friendRequestStatus === "REJECTED";
+                  (notification.type === "FRIEND_REQUEST" &&
+                    notification.friendRequestStatus === "REJECTED") ||
+                  (notification.type === "CHAMPIONSHIP_INVITE" &&
+                    notification.championshipInviteStatus === "REJECTED");
 
                 return (
                   <div
@@ -635,7 +695,14 @@ export default function NotificationBell({
                             <button
                               type="button"
                               disabled={busy}
-                              onClick={() => handleAccept(notification)}
+                              onClick={() =>
+                                champPending
+                                  ? void handleChampionshipRespond(
+                                      notification,
+                                      "accept",
+                                    )
+                                  : handleAccept(notification)
+                              }
                               className="px-3 py-1.5 rounded-lg bg-[#c5f135] text-[#08080e] text-xs font-semibold disabled:opacity-50"
                             >
                               Qəbul et
@@ -643,7 +710,14 @@ export default function NotificationBell({
                             <button
                               type="button"
                               disabled={busy}
-                              onClick={() => handleReject(notification)}
+                              onClick={() =>
+                                champPending
+                                  ? void handleChampionshipRespond(
+                                      notification,
+                                      "reject",
+                                    )
+                                  : handleReject(notification)
+                              }
                               className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
                                 isLightMode
                                   ? "border-slate-900/15 text-slate-700"
@@ -700,6 +774,27 @@ export default function NotificationBell({
                             Mesaja keç
                           </button>
                         ) : null}
+
+                        {notification.type === "CHAMPIONSHIP_INVITE" &&
+                        notification.championshipInvite?.championship.id &&
+                        isAdmin &&
+                        notification.championshipInviteStatus !== "PENDING" ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleRead(notification);
+                              navigate(
+                                `/admin/football/championships/${notification.championshipInvite!.championship.id}`,
+                              );
+                              setOpen(false);
+                            }}
+                            className={`mt-2 text-xs font-semibold ${
+                              isLightMode ? "text-emerald-600" : "text-[#c5f135]"
+                            }`}
+                          >
+                            Çempionata keç
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -712,7 +807,7 @@ export default function NotificationBell({
             type="button"
             onClick={() => {
               setOpen(false);
-              navigate("/notifications");
+              navigate(isAdmin ? "/admin/notifications" : "/notifications");
             }}
             className={`w-full px-4 py-3 text-xs font-medium border-t ${
               isLightMode

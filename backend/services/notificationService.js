@@ -77,30 +77,62 @@ export const listNotifications = async (userId, { limit = 50 } = {}) => {
     .map((item) => Number(item.entityId))
     .filter((id) => Number.isInteger(id) && id > 0);
 
-  const friendRequests =
+  const championshipInviteIds = notifications
+    .filter((item) => item.type === "CHAMPIONSHIP_INVITE" && item.entityId)
+    .map((item) => Number(item.entityId))
+    .filter((id) => Number.isInteger(id) && id > 0);
+
+  const [friendRequests, championshipInvites] = await Promise.all([
     friendRequestIds.length > 0
-      ? await prisma.friendRequest.findMany({
+      ? prisma.friendRequest.findMany({
           where: { id: { in: friendRequestIds } },
           select: { id: true, status: true },
         })
-      : [];
+      : Promise.resolve([]),
+    championshipInviteIds.length > 0
+      ? prisma.championshipTeamInvite.findMany({
+          where: { id: { in: championshipInviteIds } },
+          select: {
+            id: true,
+            status: true,
+            championship: { select: { id: true, name: true, logo: true } },
+            team: {
+              select: {
+                id: true,
+                name: true,
+                logo: true,
+                captainId: true,
+              },
+            },
+          },
+        })
+      : Promise.resolve([]),
+  ]);
 
   const friendRequestStatusMap = new Map(
     friendRequests.map((request) => [request.id, request.status]),
   );
+  const championshipInviteMap = new Map(
+    championshipInvites.map((invite) => [invite.id, invite]),
+  );
 
   return {
     notifications: notifications.map((notification) => {
-      const extra =
-        notification.type === "FRIEND_REQUEST" && notification.entityId
-          ? {
-              friendRequestStatus:
-                friendRequestStatusMap.get(Number(notification.entityId)) ??
-                null,
-            }
-          : {};
-
-      return formatNotification(notification, extra);
+      if (notification.type === "FRIEND_REQUEST" && notification.entityId) {
+        return formatNotification(notification, {
+          friendRequestStatus:
+            friendRequestStatusMap.get(Number(notification.entityId)) ?? null,
+        });
+      }
+      if (notification.type === "CHAMPIONSHIP_INVITE" && notification.entityId) {
+        const invite =
+          championshipInviteMap.get(Number(notification.entityId)) ?? null;
+        return formatNotification(notification, {
+          championshipInviteStatus: invite?.status ?? null,
+          championshipInvite: invite,
+        });
+      }
+      return formatNotification(notification);
     }),
     unreadCount,
   };
