@@ -47,6 +47,7 @@ import {
 } from "../api/social";
 import type { League } from "../types/league";
 import { ChampionshipList } from "../components/championship/ChampionshipList";
+import { UserSearch } from "../components/UserSearch";
 
 const TABS = [
   "Komanda profilim",
@@ -454,11 +455,14 @@ export default function FootballPage() {
   return (
     <div className={`min-h-screen pt-24 pb-20 ${light ? "[background:linear-gradient(135deg,#E8FFF3_0%,#EAF8FF_48%,#F2EDFF_100%)]" : "bg-[#08080e]"}`}>
       <div className="max-w-[1100px] mx-auto px-4 sm:px-6">
-        <div className="mb-8">
-          <h1 className={`font-display text-5xl font-bold ${light ? "text-gray-900" : "text-white"}`}>Futbol</h1>
-          <p className={`mt-1 ${light ? "text-gray-500" : "text-white/45"}`}>
-            Komandanız, oyunçu axtarışı, challenge, public liqalar və çempionatlar
-          </p>
+        <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className={`font-display text-5xl font-bold ${light ? "text-gray-900" : "text-white"}`}>Futbol</h1>
+            <p className={`mt-1 ${light ? "text-gray-500" : "text-white/45"}`}>
+              Komandanız, oyunçu axtarışı, challenge, public liqalar və çempionatlar
+            </p>
+          </div>
+          <UserSearch light={light} />
         </div>
 
         {toast ? (

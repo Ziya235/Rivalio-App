@@ -3,6 +3,7 @@ import { Link, Navigate, useOutletContext, useParams } from "react-router-dom";
 import { Briefcase, Calendar, MapPin, Trophy } from "lucide-react";
 import { Badge } from "../components/ui";
 import { fetchPlayerProfile, type PlayerProfile } from "../api/players";
+import { fetchUserProfile } from "../api/users";
 import { useAuth } from "../context/AuthContext";
 import FriendActions from "../components/FriendActions";
 import type { AppOutletContext } from "../App";
@@ -19,8 +20,12 @@ function calculateAge(dateOfBirth: string | null) {
 }
 
 export default function PlayerProfilePage() {
-  const { playerId: playerIdParam } = useParams<{ playerId: string }>();
+  const { playerId: playerIdParam, userId: userIdParam } = useParams<{
+    playerId?: string;
+    userId?: string;
+  }>();
   const playerId = Number(playerIdParam);
+  const profileUserId = Number(userIdParam);
   const { user, isLoading: authLoading } = useAuth();
   const { isDarkMode } = useOutletContext<AppOutletContext>();
   const light = !isDarkMode;
@@ -31,20 +36,25 @@ export default function PlayerProfilePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user || !Number.isInteger(playerId) || playerId <= 0) {
+    const byPlayer = Number.isInteger(playerId) && playerId > 0;
+    const byUser = Number.isInteger(profileUserId) && profileUserId > 0;
+    if (!user || (!byPlayer && !byUser)) {
       setLoading(false);
       return;
     }
 
     setLoading(true);
     setError(null);
-    fetchPlayerProfile(playerId)
+    const request = byPlayer
+      ? fetchPlayerProfile(playerId)
+      : fetchUserProfile(profileUserId);
+    request
       .then(setPlayer)
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Oyunçu profili yüklənmədi"),
       )
       .finally(() => setLoading(false));
-  }, [playerId, user]);
+  }, [playerId, profileUserId, user]);
 
   if (authLoading) {
     return (

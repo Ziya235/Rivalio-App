@@ -1,4 +1,5 @@
 import { prisma } from "../config/db.js";
+import { getSportByCode } from "../utils/sports.js";
 
 export const createLeague = async (req, res) => {
   try {
@@ -18,11 +19,7 @@ export const createLeague = async (req, res) => {
       });
     }
 
-    const footballSport = await prisma.sport.findUnique({
-      where: {
-        code: "FOOTBALL",
-      },
-    });
+    const footballSport = await getSportByCode("FOOTBALL");
 
     if (!footballSport) {
       return res.status(404).json({

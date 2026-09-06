@@ -25,6 +25,7 @@ type SocketContextValue = {
   unreadCount: number;
   refreshNotifications: () => Promise<void>;
   markLocalNotificationRead: (id: number) => void;
+  markAllLocalNotificationsRead: () => void;
   patchNotification: (
     id: number,
     patch: Partial<AppNotification>,
@@ -62,6 +63,15 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       ),
     );
     setUnreadCount((count) => Math.max(0, count - 1));
+  }, []);
+
+  const markAllLocalNotificationsRead = useCallback(() => {
+    setNotifications((current) =>
+      current.map((item) =>
+        item.isRead ? item : { ...item, isRead: true },
+      ),
+    );
+    setUnreadCount(0);
   }, []);
 
   const patchNotification = useCallback(
@@ -174,6 +184,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       unreadCount,
       refreshNotifications,
       markLocalNotificationRead,
+      markAllLocalNotificationsRead,
       patchNotification,
       prependNotification,
       onlineUsers,
@@ -185,6 +196,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       unreadCount,
       refreshNotifications,
       markLocalNotificationRead,
+      markAllLocalNotificationsRead,
       patchNotification,
       prependNotification,
       onlineUsers,

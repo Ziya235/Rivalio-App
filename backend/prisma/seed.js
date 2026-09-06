@@ -1,4 +1,5 @@
 import { prisma } from "../config/db.js";
+import { DEFAULT_SPORTS } from "../utils/sports.js";
 
 const permissions = [
   {
@@ -15,34 +16,6 @@ const permissions = [
   },
 ];
 
-const sports = [
-  {
-    name: "Football",
-    code: "FOOTBALL",
-    isEnabled: true,
-  },
-  {
-    name: "Basketball",
-    code: "BASKETBALL",
-    isEnabled: false,
-  },
-  {
-    name: "Tennis",
-    code: "TENNIS",
-    isEnabled: false,
-  },
-  {
-    name: "Volleyball",
-    code: "VOLLEYBALL",
-    isEnabled: false,
-  },
-  {
-    name: "Padel",
-    code: "PADEL",
-    isEnabled: false,
-  },
-];
-
 async function main() {
   for (const permission of permissions) {
     await prisma.permission.upsert({
@@ -54,7 +27,7 @@ async function main() {
     });
   }
 
-  for (const sport of sports) {
+  for (const sport of DEFAULT_SPORTS) {
     await prisma.sport.upsert({
       where: {
         code: sport.code,

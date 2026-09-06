@@ -85,6 +85,7 @@ function AppLayout() {
     location.pathname.startsWith('/sports') ||
     location.pathname.startsWith('/teams') ||
     location.pathname.startsWith('/players') ||
+    location.pathname.startsWith('/users') ||
     location.pathname.startsWith('/leagues') ||
     location.pathname === '/profile' ||
     location.pathname === '/notifications' ||
@@ -231,6 +232,7 @@ export default function App() {
           <Route path="find-opponent" element={<FindOpponentPage />} />
           <Route path="leagues/:leagueId" element={<LeagueDetailPage />} />
           <Route path="players/:playerId" element={<PlayerProfilePage />} />
+          <Route path="users/:userId" element={<PlayerProfilePage />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />

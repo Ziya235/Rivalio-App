@@ -1,4 +1,5 @@
 import { prisma } from "../config/db.js";
+import { getSportByCode } from "../utils/sports.js";
 import {
   attachPlayerStats,
   getPlayerStatsMap,
@@ -230,7 +231,7 @@ export async function createChampionship(userId, body) {
   }
 
   const sportCode = body.sportCode || "FOOTBALL";
-  const sport = await prisma.sport.findUnique({ where: { code: sportCode } });
+  const sport = await getSportByCode(sportCode);
   if (!sport || !sport.isEnabled) {
     throw httpError("Sport is not available", 400);
   }

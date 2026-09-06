@@ -17,8 +17,10 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import conversationRoutes from "./routes/conversationRoutes.js";
 import championshipPublicRoutes from "./routes/championshipPublicRoutes.js";
 import championshipRoutes from "./routes/championshipRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
 import { uploadsDir } from "./middlewares/uploadMiddleware.js";
 import { startExpireJob } from "./utils/expireListings.js";
+import { ensureDefaultSports } from "./utils/sports.js";
 import { initSocketServer } from "./socket/socket.server.js";
 
 dotenv.config();
@@ -42,6 +44,7 @@ app.use("/api", teamRoutes);
 app.use("/api", playerRoutes);
 app.use("/api", matchRoutes);
 app.use("/api", socialMatchRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/friends", friendRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/conversations", conversationRoutes);
@@ -60,4 +63,7 @@ initSocketServer(server);
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   startExpireJob();
+  ensureDefaultSports().catch((error) => {
+    console.log("Failed to ensure default sports:", error);
+  });
 });
