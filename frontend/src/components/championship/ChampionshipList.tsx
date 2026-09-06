@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Calendar, ChevronRight, Trophy, Users } from "lucide-react";
 import { fetchVisibleChampionships } from "../../api/championships";
+import { mediaUrl } from "../../api/base";
 import {
   currentStageLabel,
   FORMAT_LABEL,
@@ -43,7 +44,7 @@ function ChampionshipCard({
       <div className="flex items-start gap-3">
         {item.logo ? (
           <img
-            src={item.logo}
+            src={mediaUrl(item.logo)}
             alt=""
             className="h-14 w-14 shrink-0 rounded-2xl object-cover ring-1 ring-gray-200"
           />

@@ -31,6 +31,7 @@ import {
   type LeagueInvite,
   type LeagueJoinRequest,
 } from "../../api/admin";
+import { mediaUrl } from "../../api/base";
 import {
   fetchLeaguePlayers,
   fetchLeagueStandings,
@@ -100,7 +101,7 @@ function TeamMark({
   align?: "left" | "right";
 }) {
   const mark = logo ? (
-    <img src={logo} alt="" className="h-8 w-8 rounded-full object-cover" />
+    <img src={mediaUrl(logo)} alt="" className="h-8 w-8 rounded-full object-cover" />
   ) : (
     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft text-xs font-bold text-brand">
       {name.slice(0, 1).toUpperCase()}
@@ -249,7 +250,7 @@ function PlayerStatTable({
                     <div className="flex items-center gap-2.5">
                       {row.photo ? (
                         <img
-                          src={row.photo}
+                          src={mediaUrl(row.photo)}
                           alt=""
                           className="h-8 w-8 rounded-full object-cover"
                         />
@@ -675,7 +676,7 @@ export function AdminLeagueDetailPage() {
                         >
                           {row.logo ? (
                             <img
-                              src={row.logo}
+                              src={mediaUrl(row.logo)}
                               alt=""
                               className="h-7 w-7 rounded-full object-cover"
                             />

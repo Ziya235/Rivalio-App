@@ -5,6 +5,7 @@ import { Button, Badge, Tabs, Input, Avatar } from '../components/ui'
 import { PLAYERS } from '../data'
 import { fetchLeagues } from '../api/leagues'
 import { fetchTeams, type TeamSummary } from '../api/teams'
+import { mediaUrl } from '../api/base'
 import type { League } from '../types/league'
 import { useAuth } from '../context/AuthContext'
 import type { User } from '../types/auth'
@@ -63,7 +64,7 @@ function TeamLogo({
 }) {
   const box = size === 'sm' ? 'w-10 h-10' : 'w-12 h-12'
   if (src) {
-    return <img src={src} alt={name} className={`${box} rounded-xl object-cover`} />
+    return <img src={mediaUrl(src)} alt={name} className={`${box} rounded-xl object-cover`} />
   }
   return (
     <div

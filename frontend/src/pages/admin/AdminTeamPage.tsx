@@ -12,6 +12,7 @@ import {
 } from "../../components/admin/AdminModal";
 import { createPlayer } from "../../api/admin";
 import { fetchTeam } from "../../api/leagues";
+import { mediaUrl } from "../../api/base";
 import type { TeamDetail, TeamPlayer } from "../../types/league";
 
 const POSITIONS = [
@@ -32,7 +33,7 @@ function PlayerAvatar({ player }: { player: TeamPlayer }) {
   if (player.photo) {
     return (
       <img
-        src={player.photo}
+        src={mediaUrl(player.photo)}
         alt=""
         className="h-9 w-9 rounded-full object-cover"
       />
@@ -189,7 +190,7 @@ export function AdminTeamPage() {
       <div className="mb-6 flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         {team.logo ? (
           <img
-            src={team.logo}
+            src={mediaUrl(team.logo)}
             alt=""
             className="h-14 w-14 rounded-full object-cover"
           />

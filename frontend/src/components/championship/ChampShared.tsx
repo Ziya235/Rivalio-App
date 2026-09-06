@@ -1,3 +1,5 @@
+import { mediaUrl } from "../../api/base";
+
 export function TeamCrest({
   name,
   logo,
@@ -11,10 +13,11 @@ export function TeamCrest({
 }) {
   const dim =
     size === "lg" ? "h-12 w-12 text-base" : size === "sm" ? "h-7 w-7 text-[10px]" : "h-9 w-9 text-xs";
-  if (logo) {
+  const imageSrc = mediaUrl(logo);
+  if (imageSrc) {
     return (
       <img
-        src={logo}
+        src={imageSrc}
         alt=""
         className={`${dim} shrink-0 rounded-full object-cover ${className}`}
       />

@@ -1,4 +1,5 @@
 import { getToken } from "./auth";
+import { apiUrl } from "./base";
 import type { ApiSuccess } from "../types/league";
 import type {
   Championship,
@@ -45,7 +46,7 @@ async function champFetch<T>(
     (headers as Record<string, string>).Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(path, { ...options, headers });
+  const res = await fetch(apiUrl(path), { ...options, headers });
   const data = await res.json();
 
   if (!res.ok) {

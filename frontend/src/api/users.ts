@@ -1,11 +1,12 @@
 import { getToken } from "./auth";
+import { apiUrl } from "./base";
 import type { PlayerProfile } from "./players";
 
 type ApiSuccess<T> = { success: boolean; data: T; message?: string };
 
 async function apiFetch<T>(path: string, signal?: AbortSignal): Promise<T> {
   const token = getToken();
-  const res = await fetch(path, {
+  const res = await fetch(apiUrl(path), {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     signal,
   });

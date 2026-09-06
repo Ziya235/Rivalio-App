@@ -22,6 +22,7 @@ import {
 import { createLeague } from "../../api/admin";
 import { fetchLeagues } from "../../api/leagues";
 import { uploadImage } from "../../api/teams";
+import { mediaUrl } from "../../api/base";
 import { useAuth } from "../../context/AuthContext";
 import type { League } from "../../types/league";
 
@@ -49,7 +50,7 @@ function LeagueAvatar({ league }: { league: League }) {
   if (league.logo) {
     return (
       <img
-        src={league.logo}
+        src={mediaUrl(league.logo)}
         alt=""
         className="h-9 w-9 rounded-full object-cover"
       />

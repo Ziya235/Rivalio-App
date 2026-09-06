@@ -4,6 +4,7 @@ import { Briefcase, Calendar, MapPin, Trophy } from "lucide-react";
 import { Badge } from "../components/ui";
 import { fetchPlayerProfile, type PlayerProfile } from "../api/players";
 import { fetchUserProfile } from "../api/users";
+import { mediaUrl } from "../api/base";
 import { useAuth } from "../context/AuthContext";
 import FriendActions from "../components/FriendActions";
 import type { AppOutletContext } from "../App";
@@ -94,7 +95,7 @@ export default function PlayerProfilePage() {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
               {player.image ? (
                 <img
-                  src={player.image}
+                  src={mediaUrl(player.image)}
                   alt={fullName}
                   className={`h-20 w-20 rounded-2xl border-4 object-cover ${light ? "border-white" : "border-[#101017]"}`}
                 />
@@ -173,7 +174,7 @@ export default function PlayerProfilePage() {
                 >
                   {team.logo ? (
                     <img
-                      src={team.logo}
+                      src={mediaUrl(team.logo)}
                       alt=""
                       className="h-11 w-11 rounded-xl object-cover"
                     />

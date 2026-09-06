@@ -19,6 +19,7 @@ import {
 } from "../../components/admin/AdminModal";
 import { createMatch, fetchMyMatches } from "../../api/admin";
 import { fetchLeagueTeams, fetchLeagues } from "../../api/leagues";
+import { mediaUrl } from "../../api/base";
 import { useAuth } from "../../context/AuthContext";
 import type { League } from "../../types/league";
 import type {
@@ -63,7 +64,7 @@ function TeamMark({
   align?: "left" | "right";
 }) {
   const mark = logo ? (
-    <img src={logo} alt="" className="h-8 w-8 rounded-full object-cover" />
+    <img src={mediaUrl(logo)} alt="" className="h-8 w-8 rounded-full object-cover" />
   ) : (
     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft text-xs font-bold text-brand">
       {name.slice(0, 1).toUpperCase()}

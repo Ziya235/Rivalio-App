@@ -32,6 +32,7 @@ import {
   uploadImage,
   type TeamSummary,
 } from "../api/teams";
+import { mediaUrl } from "../api/base";
 import { fetchLeagues } from "../api/leagues";
 import {
   createChallenge,
@@ -529,7 +530,7 @@ export default function FootballPage() {
                       <div className="flex items-start gap-3">
                         {team.logo ? (
                           <img
-                            src={team.logo}
+                            src={mediaUrl(team.logo)}
                             alt=""
                             className="w-12 h-12 rounded-xl object-cover"
                           />
@@ -813,7 +814,7 @@ export default function FootballPage() {
                                     >
                                       {r.user.image ? (
                                         <img
-                                          src={r.user.image}
+                                          src={mediaUrl(r.user.image)}
                                           alt=""
                                           className="h-8 w-8 shrink-0 rounded-full object-cover"
                                         />
@@ -1173,13 +1174,13 @@ export default function FootballPage() {
                                   >
                                     {r.team.logo ? (
                                       <img
-                                        src={r.team.logo}
+                                        src={mediaUrl(r.team.logo)}
                                         alt=""
                                         className="h-8 w-8 shrink-0 rounded-lg object-cover"
                                       />
                                     ) : requester?.image ? (
                                       <img
-                                        src={requester.image}
+                                        src={mediaUrl(requester.image)}
                                         alt=""
                                         className="h-8 w-8 shrink-0 rounded-full object-cover"
                                       />

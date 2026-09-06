@@ -14,6 +14,7 @@ import {
   fetchLeagueStandings,
   fetchLeagues,
 } from "../api/leagues";
+import { mediaUrl } from "../api/base";
 import type { League, LeaguePlayerRow, StandingRow } from "../types/league";
 import type { Match, MatchStatus } from "../types/match";
 import type { AppOutletContext } from "../App";
@@ -288,7 +289,7 @@ export default function LeagueDetailPage() {
                 <div className="flex min-w-0 flex-row-reverse items-center gap-2 text-right">
                   {match.homeTeam.logo ? (
                     <img
-                      src={match.homeTeam.logo}
+                      src={mediaUrl(match.homeTeam.logo)}
                       alt=""
                       className="h-8 w-8 rounded-full object-cover"
                     />
@@ -331,7 +332,7 @@ export default function LeagueDetailPage() {
                 <div className="flex min-w-0 items-center gap-2">
                   {match.awayTeam.logo ? (
                     <img
-                      src={match.awayTeam.logo}
+                      src={mediaUrl(match.awayTeam.logo)}
                       alt=""
                       className="h-8 w-8 rounded-full object-cover"
                     />
@@ -408,7 +409,7 @@ export default function LeagueDetailPage() {
                     >
                       {row.photo ? (
                         <img
-                          src={row.photo}
+                          src={mediaUrl(row.photo)}
                           alt=""
                           className="h-8 w-8 rounded-full object-cover"
                         />
@@ -574,7 +575,7 @@ export default function LeagueDetailPage() {
                           >
                             {row.logo ? (
                               <img
-                                src={row.logo}
+                                src={mediaUrl(row.logo)}
                                 alt=""
                                 className="h-7 w-7 rounded-full object-cover"
                               />

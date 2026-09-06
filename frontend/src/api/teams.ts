@@ -1,4 +1,5 @@
 import { getToken } from "./auth";
+import { apiUrl } from "./base";
 
 type ApiSuccess<T> = { success: boolean; data: T; message?: string };
 
@@ -15,7 +16,7 @@ async function apiFetch<T>(
     (headers as Record<string, string>).Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(path, { ...options, headers });
+  const res = await fetch(apiUrl(path), { ...options, headers });
   const data = await res.json();
 
   if (!res.ok) {
@@ -153,7 +154,7 @@ export async function uploadImage(file: File): Promise<string> {
   const body = new FormData();
   body.append("image", file);
 
-  const res = await fetch("/api/uploads/image", {
+  const res = await fetch(apiUrl("/api/uploads/image"), {
     method: "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body,

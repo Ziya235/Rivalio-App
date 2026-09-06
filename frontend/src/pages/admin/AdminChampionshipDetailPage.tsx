@@ -41,6 +41,7 @@ import {
   updateChampionshipMatch,
 } from "../../api/championships";
 import { fetchTeams, type TeamSummary } from "../../api/teams";
+import { mediaUrl } from "../../api/base";
 import {
   GROUP_CAPACITY_MAX,
   GROUP_CAPACITY_MIN,
@@ -353,7 +354,7 @@ function TeamMark({
 }) {
   const dim = size === "sm" ? "h-7 w-7 text-[10px]" : "h-8 w-8 text-xs";
   const mark = logo ? (
-    <img src={logo} alt="" className={`${dim} rounded-full object-cover`} />
+    <img src={mediaUrl(logo)} alt="" className={`${dim} rounded-full object-cover`} />
   ) : (
     <span
       className={`flex ${dim} items-center justify-center rounded-full bg-brand-soft font-bold text-brand`}
@@ -703,7 +704,7 @@ function PlayoffTeamRow({
       }`}
     >
       {logo ? (
-        <img src={logo} alt="" className="h-8 w-8 rounded-full object-cover" />
+        <img src={mediaUrl(logo)} alt="" className="h-8 w-8 rounded-full object-cover" />
       ) : (
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">
           {name.slice(0, 1).toUpperCase()}
@@ -850,7 +851,7 @@ function ChampionshipScorerTable({
                     <div className="flex items-center gap-2.5">
                       {row.photo ? (
                         <img
-                          src={row.photo}
+                          src={mediaUrl(row.photo)}
                           alt=""
                           className="h-8 w-8 rounded-full object-cover"
                         />
@@ -875,7 +876,7 @@ function ChampionshipScorerTable({
                     <div className="flex items-center gap-2">
                       {row.teamLogo ? (
                         <img
-                          src={row.teamLogo}
+                          src={mediaUrl(row.teamLogo)}
                           alt=""
                           className="h-5 w-5 rounded-full object-cover"
                         />
@@ -2094,7 +2095,7 @@ export function AdminChampionshipDetailPage() {
                         >
                           {row.team.logo ? (
                             <img
-                              src={row.team.logo}
+                              src={mediaUrl(row.team.logo)}
                               alt=""
                               className="h-8 w-8 rounded-full object-cover"
                             />

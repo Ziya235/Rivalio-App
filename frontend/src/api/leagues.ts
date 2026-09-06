@@ -1,4 +1,5 @@
 import { getToken } from "./auth";
+import { apiUrl } from "./base";
 import type {
   ApiSuccess,
   League,
@@ -15,7 +16,7 @@ async function apiFetch<T>(path: string): Promise<T> {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(path, { headers });
+  const res = await fetch(apiUrl(path), { headers });
   const data = await res.json();
 
   if (!res.ok) {

@@ -1,4 +1,5 @@
 import { getToken } from "./auth";
+import { apiUrl } from "./base";
 
 export type PlayerProfile = {
   id: number;
@@ -42,7 +43,7 @@ export async function fetchPlayerProfile(
   playerId: number,
 ): Promise<PlayerProfile> {
   const token = getToken();
-  const res = await fetch(`/api/players/${playerId}`, {
+  const res = await fetch(apiUrl(`/api/players/${playerId}`), {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   const body = (await res.json()) as {

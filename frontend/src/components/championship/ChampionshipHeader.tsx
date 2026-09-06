@@ -7,6 +7,7 @@ import {
   toUserFacingStatus,
 } from "../../lib/championshipUi";
 import type { ChampionshipListItem } from "../../types/championship";
+import { mediaUrl } from "../../api/base";
 
 function statusClass(status: ChampionshipListItem["status"]) {
   const label = toUserFacingStatus(status);
@@ -53,7 +54,7 @@ export function ChampionshipHeader({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           {championship.logo ? (
             <img
-              src={championship.logo}
+              src={mediaUrl(championship.logo)}
               alt=""
               className="h-16 w-16 rounded-2xl object-cover ring-1 ring-gray-200"
             />

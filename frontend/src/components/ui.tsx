@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react'
+import { mediaUrl } from '../api/base'
 
 interface ButtonProps {
   children: ReactNode
@@ -119,10 +120,11 @@ export function Avatar({ src, name, size = 'md', className = '' }: AvatarProps) 
     .slice(0, 2)
     .toUpperCase()
 
-  if (src) {
+  const imageSrc = mediaUrl(src)
+  if (imageSrc) {
     return (
       <img
-        src={src}
+        src={imageSrc}
         alt={name}
         className={`${sizes[size]} rounded-full object-cover flex-shrink-0 ${className}`}
       />

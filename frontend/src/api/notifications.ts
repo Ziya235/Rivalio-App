@@ -1,4 +1,5 @@
 import { getToken } from "./auth";
+import { apiUrl } from "./base";
 import type { UserBrief } from "./friends";
 
 type ApiSuccess<T> = { success: boolean; data: T; message?: string };
@@ -16,7 +17,7 @@ async function apiFetch<T>(
     (headers as Record<string, string>).Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(path, { ...options, headers });
+  const res = await fetch(apiUrl(path), { ...options, headers });
   const data = await res.json();
 
   if (!res.ok) {

@@ -1,4 +1,5 @@
 import { io, type Socket } from "socket.io-client";
+import { API_BASE } from "../api/base";
 import { getToken } from "../api/auth";
 
 let socket: Socket | null = null;
@@ -23,7 +24,7 @@ export function connectSocket(): Promise<Socket> {
   }
 
   connectPromise = new Promise((resolve, reject) => {
-    const instance = io(window.location.origin, {
+    const instance = io(API_BASE || window.location.origin, {
       auth: { token },
       transports: ["websocket", "polling"],
       autoConnect: true,

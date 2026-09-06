@@ -28,6 +28,7 @@ import {
   fetchMatch,
   updateMatch,
 } from "../../api/admin";
+import { mediaUrl } from "../../api/base";
 import { fetchTeam } from "../../api/leagues";
 import { fetchTeam as fetchTeamDetail } from "../../api/teams";
 import type { TeamPlayer } from "../../types/league";
@@ -96,7 +97,7 @@ function TeamMark({ name, logo }: { name: string; logo: string | null }) {
     <div className="flex flex-col items-center gap-2 text-center">
       {logo ? (
         <img
-          src={logo}
+          src={mediaUrl(logo)}
           alt=""
           className="h-14 w-14 rounded-full object-cover shadow ring-2 ring-white"
         />

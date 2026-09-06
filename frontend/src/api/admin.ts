@@ -1,4 +1,5 @@
 import { getToken } from "./auth";
+import { apiUrl } from "./base";
 import type { ApiSuccess, League, TeamDetail } from "../types/league";
 import type {
   Match,
@@ -32,7 +33,7 @@ async function adminFetch<T>(
     (headers as Record<string, string>).Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(path, { ...options, headers });
+  const res = await fetch(apiUrl(path), { ...options, headers });
   const data = await res.json();
 
   if (!res.ok) {

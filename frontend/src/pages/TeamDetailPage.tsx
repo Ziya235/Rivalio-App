@@ -8,6 +8,7 @@ import {
   removeTeamPlayer,
   type TeamDetail,
 } from "../api/teams";
+import { mediaUrl } from "../api/base";
 import { useAuth } from "../context/AuthContext";
 import type { AppOutletContext } from "../App";
 
@@ -124,7 +125,7 @@ export default function TeamDetailPage() {
         <div className="flex items-start gap-4 mb-8">
           {team.logo ? (
             <img
-              src={team.logo}
+              src={mediaUrl(team.logo)}
               alt=""
               className="w-16 h-16 rounded-2xl object-cover"
             />

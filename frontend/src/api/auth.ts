@@ -5,6 +5,7 @@ import type {
   UpdateProfilePayload,
   User,
 } from "../types/auth";
+import { apiUrl } from "./base";
 
 const TOKEN_KEY = "sport_token";
 
@@ -34,7 +35,7 @@ export async function loginRequest(
   email: string,
   password: string,
 ): Promise<{ user: User; token: string }> {
-  const res = await fetch("/api/auth/login", {
+  const res = await fetch(apiUrl("/api/auth/login"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -46,7 +47,7 @@ export async function loginRequest(
 export async function registerRequest(
   payload: RegisterPayload,
 ): Promise<{ user: User; token: string }> {
-  const res = await fetch("/api/auth/register", {
+  const res = await fetch(apiUrl("/api/auth/register"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -56,7 +57,7 @@ export async function registerRequest(
 }
 
 export async function meRequest(token: string): Promise<User> {
-  const res = await fetch("/api/auth/me", {
+  const res = await fetch(apiUrl("/api/auth/me"), {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await parseJson<MeResponse>(res);
@@ -71,7 +72,7 @@ export async function updateProfileRequest(
     throw new Error("Unauthorized");
   }
 
-  const res = await fetch("/api/auth/me", {
+  const res = await fetch(apiUrl("/api/auth/me"), {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -92,7 +93,7 @@ export async function updateProfileImageRequest(file: File): Promise<User> {
   const body = new FormData();
   body.append("image", file);
 
-  const res = await fetch("/api/auth/me/image", {
+  const res = await fetch(apiUrl("/api/auth/me/image"), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,

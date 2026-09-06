@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { playerFullName } from "../../lib/championshipUi";
 import type { PlayerStatistics } from "../../types/championship";
+import { mediaUrl } from "../../api/base";
 import { ChampEmpty, TeamCrest } from "./ChampShared";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -35,7 +36,7 @@ export function TopScorers({ rows }: { rows: PlayerStatistics[] }) {
         <div className="mt-3 flex items-center gap-3">
           {leader.photo ? (
             <img
-              src={leader.photo}
+              src={mediaUrl(leader.photo)}
               alt=""
               className="h-14 w-14 rounded-full object-cover ring-2 ring-emerald-200"
             />
@@ -96,7 +97,7 @@ export function TopScorers({ rows }: { rows: PlayerStatistics[] }) {
                     >
                       {row.photo ? (
                         <img
-                          src={row.photo}
+                          src={mediaUrl(row.photo)}
                           alt=""
                           className="h-8 w-8 rounded-full object-cover"
                         />
