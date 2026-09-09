@@ -1,4 +1,5 @@
 import { mediaUrl } from "../../api/base";
+import { teamInitialTone } from "../../lib/teamAvatar";
 
 export function TeamCrest({
   name,
@@ -25,7 +26,7 @@ export function TeamCrest({
   }
   return (
     <span
-      className={`${dim} inline-flex shrink-0 items-center justify-center rounded-full bg-emerald-50 font-bold text-emerald-600 ${className}`}
+      className={`${dim} inline-flex shrink-0 items-center justify-center rounded-full font-bold ${teamInitialTone(name)} ${className}`}
     >
       {name.slice(0, 1).toUpperCase()}
     </span>

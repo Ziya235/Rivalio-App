@@ -75,3 +75,18 @@ export const applyGamesPlayedForMatch = async (tx, match) => {
     data: { statsApplied: true },
   });
 };
+
+export const revertMatchUserGoalStats = async (tx, matchId) => {
+  const events = await tx.matchEvent.findMany({
+    where: { matchId, type: "GOAL" },
+    select: { playerId: true, assistPlayerId: true },
+  });
+
+  for (const event of events) {
+    await applyGoalAssistToUsers(tx, {
+      playerId: event.playerId,
+      assistPlayerId: event.assistPlayerId,
+      direction: "decrement",
+    });
+  }
+};

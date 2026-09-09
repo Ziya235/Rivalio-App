@@ -4,6 +4,7 @@ import {
   createMatch,
   deleteMatch,
   deleteMatchEvent,
+  generateLeagueMatches,
   getMatchById,
   listLeagueMatches,
   listMyMatches,
@@ -25,6 +26,14 @@ router.get(
 
 router.get("/leagues/:leagueId/matches", optionalAuthMiddleware, listLeagueMatches);
 router.get("/matches/:matchId", optionalAuthMiddleware, getMatchById);
+
+router.post(
+  "/leagues/:leagueId/matches/generate",
+  authMiddleware,
+  adminMiddleware,
+  permissionMiddleware("football", "create"),
+  generateLeagueMatches,
+);
 
 router.post(
   "/leagues/:leagueId/matches",

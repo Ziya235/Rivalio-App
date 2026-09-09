@@ -1,11 +1,14 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Calendar,
   Check,
   ChevronRight,
+  Loader2,
+  Pencil,
   Plus,
   Radio,
+  Search,
   Target,
   Trash2,
   Trophy,
@@ -26,12 +29,16 @@ import {
   fetchLeagueInvites,
   fetchLeagueJoinRequests,
   fetchMyMatches,
+  generateLeagueMatches,
   inviteTeamToLeague,
   respondJoinRequest,
+  updateMatch,
   type LeagueInvite,
   type LeagueJoinRequest,
 } from "../../api/admin";
+import { fetchTeams, type TeamSummary } from "../../api/teams";
 import { mediaUrl } from "../../api/base";
+import { teamInitialTone } from "../../lib/teamAvatar";
 import {
   fetchLeaguePlayers,
   fetchLeagueStandings,
@@ -65,12 +72,10 @@ function formatDiff(value: number): string {
 
 function formatWhen(iso: string | null | undefined): string {
   if (!iso) return "Vaxt təyin edilməyib";
-  return new Date(iso).toLocaleString("az-AZ", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Vaxt təyin edilməyib";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function statusBadgeClass(status: MatchStatus): string {
@@ -87,6 +92,16 @@ function statusBadgeClass(status: MatchStatus): string {
   }
 }
 
+function leagueFixturePreview(teamCount: number, homeAway: boolean) {
+  if (teamCount < 2) return { matches: 0, rounds: 0 };
+  const singles = (teamCount * (teamCount - 1)) / 2;
+  const slots = teamCount % 2 === 1 ? teamCount + 1 : teamCount;
+  const rounds = slots - 1;
+  return homeAway
+    ? { matches: singles * 2, rounds: rounds * 2 }
+    : { matches: singles, rounds };
+}
+
 function playerName(row: LeaguePlayerRow): string {
   return `${row.firstName} ${row.lastName}`.trim();
 }
@@ -101,9 +116,9 @@ function TeamMark({
   align?: "left" | "right";
 }) {
   const mark = logo ? (
-    <img src={mediaUrl(logo)} alt="" className="h-8 w-8 rounded-full object-cover" />
+    <img src={mediaUrl(logo)} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
   ) : (
-    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft text-xs font-bold text-brand">
+    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${teamInitialTone(name)}`}>
       {name.slice(0, 1).toUpperCase()}
     </span>
   );
@@ -120,48 +135,94 @@ function TeamMark({
   );
 }
 
-function MatchRow({ match }: { match: Match }) {
+function isFixtureReady(match: Match): boolean {
+  return Boolean(match.scheduledAt && match.venue?.trim());
+}
+
+function canEditSchedule(match: Match): boolean {
+  return match.status !== "LIVE" && match.status !== "FINISHED";
+}
+
+const MIN_KICKOFF_MS = 60 * 60 * 1000;
+
+function toDatetimeLocal(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function minKickoffLocal(): string {
+  return toDatetimeLocal(new Date(Date.now() + MIN_KICKOFF_MS).toISOString());
+}
+
+function isKickoffTooSoon(iso: string): boolean {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return true;
+  return d.getTime() < Date.now() + MIN_KICKOFF_MS - 1000;
+}
+
+function MatchRow({
+  match,
+  onSelect,
+  onEnter,
+}: {
+  match: Match;
+  onSelect: (match: Match) => void;
+  onEnter: (match: Match) => void;
+}) {
+  const ready = isFixtureReady(match);
+  const editable = canEditSchedule(match);
   return (
     <li>
-      <Link
-        to={`/admin/football/matches/${match.id}`}
-        className="flex flex-col gap-3 px-4 py-4 transition hover:bg-slate-50/80 sm:flex-row sm:items-center sm:gap-4"
-      >
-        <div className="flex w-full shrink-0 items-center gap-2 text-xs text-slate-500 sm:w-36 sm:flex-col sm:items-start sm:gap-1">
-          <span className="inline-flex items-center gap-1 font-medium text-slate-600">
-            <Calendar className="h-3.5 w-3.5" />
-            {formatWhen(match.scheduledAt)}
-          </span>
-          <span className="truncate">
-            {match.round ? `${match.round}-ci tur` : match.venue || "Meydan yoxdur"}
-          </span>
-        </div>
-        <div className="grid min-w-0 flex-1 grid-cols-[1fr_auto_1fr] items-center gap-3">
-          <TeamMark
-            name={match.homeTeam.name}
-            logo={match.homeTeam.logo}
-            align="right"
-          />
-          <div className="min-w-[4.5rem] text-center">
-            {match.status === "SCHEDULED" ? (
-              <span className="text-lg font-bold tracking-wide text-slate-300">
-                vs
-              </span>
-            ) : (
-              <span className="text-xl font-black tabular-nums text-ink">
-                {match.homeScore}:{match.awayScore}
-              </span>
-            )}
-            {match.status === "LIVE" && match.minute != null ? (
-              <span className="mt-0.5 flex items-center justify-center gap-1 text-[11px] font-semibold text-rose-600">
-                <Radio className="h-3 w-3 animate-pulse" />
-                {match.minute}&apos;
-              </span>
-            ) : null}
+      <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:gap-4">
+        <button
+          type="button"
+          onClick={() => (ready || !editable ? onEnter(match) : onSelect(match))}
+          className="flex min-w-0 flex-1 flex-col gap-2 text-left transition hover:opacity-90 sm:flex-row sm:items-center sm:gap-4"
+        >
+          <div className="flex w-full shrink-0 items-center gap-2 text-xs text-slate-500 sm:w-52 sm:flex-col sm:items-start sm:gap-1">
+            <span className="inline-flex items-center gap-1 font-medium text-slate-600">
+              <Calendar className="h-3.5 w-3.5" />
+              {formatWhen(match.scheduledAt)}
+            </span>
+            <span
+              className={`truncate ${
+                match.venue ? "text-slate-500" : "text-slate-400"
+              }`}
+            >
+              {match.round ? `${match.round}-ci tur · ` : ""}
+              {match.venue || "Məkan təyin edilməyib"}
+            </span>
           </div>
-          <TeamMark name={match.awayTeam.name} logo={match.awayTeam.logo} />
-        </div>
-        <div className="flex items-center justify-between gap-2 sm:w-28 sm:justify-end">
+          <div className="grid min-w-0 flex-1 grid-cols-[1fr_auto_1fr] items-center gap-3">
+            <TeamMark
+              name={match.homeTeam.name}
+              logo={match.homeTeam.logo}
+              align="right"
+            />
+            <div className="min-w-[4.5rem] text-center">
+              {match.status === "SCHEDULED" || match.status === "POSTPONED" ? (
+                <span className="text-lg font-bold tracking-wide text-slate-300">
+                  vs
+                </span>
+              ) : (
+                <span className="text-xl font-black tabular-nums text-ink">
+                  {match.homeScore}:{match.awayScore}
+                </span>
+              )}
+              {match.status === "LIVE" && match.minute != null ? (
+                <span className="mt-0.5 flex items-center justify-center gap-1 text-[11px] font-semibold text-rose-600">
+                  <Radio className="h-3 w-3 animate-pulse" />
+                  {match.minute}&apos;
+                </span>
+              ) : null}
+            </div>
+            <TeamMark name={match.awayTeam.name} logo={match.awayTeam.logo} />
+          </div>
+        </button>
+        <div className="flex items-center justify-end gap-1">
           <span
             className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ${statusBadgeClass(
               match.status,
@@ -169,9 +230,28 @@ function MatchRow({ match }: { match: Match }) {
           >
             {STATUS_LABEL[match.status]}
           </span>
-          <ChevronRight className="h-4 w-4 text-slate-300" />
+          {editable ? (
+            <button
+              type="button"
+              onClick={() => onSelect(match)}
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-ink"
+              title="Vaxt və məkan"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            disabled={!ready}
+            onClick={() => onEnter(match)}
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+            title={ready ? "Oyuna gir" : "Əvvəlcə vaxt və məkan seçin"}
+          >
+            Oyuna gir
+            <ChevronRight className="h-4 w-4 text-slate-300" />
+          </button>
         </div>
-      </Link>
+      </div>
     </li>
   );
 }
@@ -179,9 +259,13 @@ function MatchRow({ match }: { match: Match }) {
 function MatchGroup({
   title,
   rows,
+  onSelect,
+  onEnter,
 }: {
   title: string;
   rows: Match[];
+  onSelect: (match: Match) => void;
+  onEnter: (match: Match) => void;
 }) {
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -196,7 +280,12 @@ function MatchGroup({
       ) : (
         <ul className="divide-y divide-slate-100">
           {rows.map((match) => (
-            <MatchRow key={match.id} match={match} />
+            <MatchRow
+              key={match.id}
+              match={match}
+              onSelect={onSelect}
+              onEnter={onEnter}
+            />
           ))}
         </ul>
       )}
@@ -303,6 +392,7 @@ function PlayerStatTable({
 export function AdminLeagueDetailPage() {
   const { leagueId: leagueIdParam } = useParams();
   const leagueId = Number(leagueIdParam);
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const tabParam = searchParams.get("tab");
@@ -323,10 +413,27 @@ export function AdminLeagueDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    teamId: number;
+    name: string;
+  } | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [respondingId, setRespondingId] = useState<number | null>(null);
 
-  const [teamName, setTeamName] = useState("");
+  const [teamSearch, setTeamSearch] = useState("");
+  const [allTeams, setAllTeams] = useState<TeamSummary[]>([]);
+  const [teamSearchLoading, setTeamSearchLoading] = useState(false);
+  const [pickerTeamId, setPickerTeamId] = useState<number | "">("");
   const [message, setMessage] = useState("");
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [generateHomeAway, setGenerateHomeAway] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [scheduleMatch, setScheduleMatch] = useState<Match | null>(null);
+  const [scheduleAt, setScheduleAt] = useState("");
+  const [scheduleVenue, setScheduleVenue] = useState("");
+  const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!Number.isInteger(leagueId) || leagueId <= 0) {
@@ -405,6 +512,53 @@ export function AdminLeagueDetailPage() {
     [matches],
   );
 
+  const enrolledTeamIds = useMemo(
+    () => new Set(standings.map((row) => row.teamId)),
+    [standings],
+  );
+
+  const pendingTeamIds = useMemo(
+    () =>
+      new Set(
+        invites
+          .filter((invite) => invite.status === "PENDING")
+          .map((invite) => invite.team.id),
+      ),
+    [invites],
+  );
+
+  useEffect(() => {
+    if (!modalOpen) return;
+
+    const q = teamSearch.trim();
+    if (q.length < 1) {
+      setAllTeams([]);
+      setTeamSearchLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setTeamSearchLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const teams = await fetchTeams({ q }, controller.signal);
+        if (controller.signal.aborted) return;
+        setAllTeams(teams);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        if (err instanceof Error && err.name === "AbortError") return;
+        setAllTeams([]);
+      } finally {
+        if (!controller.signal.aborted) setTeamSearchLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [modalOpen, teamSearch]);
+
   const goalTable = useMemo(
     () =>
       [...players]
@@ -449,22 +603,31 @@ export function AdminLeagueDetailPage() {
   };
 
   const resetForm = () => {
-    setTeamName("");
+    setTeamSearch("");
+    setPickerTeamId("");
+    setAllTeams([]);
+    setTeamSearchLoading(false);
     setMessage("");
     setFormError(null);
   };
 
+  const closeInviteModal = () => {
+    if (submitting) return;
+    setModalOpen(false);
+    resetForm();
+  };
+
   const handleInvite = async (e: FormEvent) => {
     e.preventDefault();
-    if (!teamName.trim()) {
-      setFormError("Komanda adı mütləqdir");
+    if (!pickerTeamId) {
+      setFormError("Komanda seçin");
       return;
     }
     setSubmitting(true);
     setFormError(null);
     try {
       await inviteTeamToLeague(leagueId, {
-        teamName: teamName.trim(),
+        teamId: pickerTeamId,
         message: message.trim() || undefined,
       });
       setModalOpen(false);
@@ -479,20 +642,22 @@ export function AdminLeagueDetailPage() {
     }
   };
 
-  const handleDelete = async (teamId: number, name: string) => {
-    if (
-      !window.confirm(
-        `"${name}" komandasını liqadan çıxarmaq istəyirsiniz? Komanda silinməyəcək.`,
-      )
-    ) {
-      return;
-    }
-    setDeletingId(teamId);
+  const closeDeleteModal = () => {
+    if (deletingId != null) return;
+    setDeleteTarget(null);
+    setDeleteError(null);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeletingId(deleteTarget.teamId);
+    setDeleteError(null);
     try {
-      await deleteTeam(leagueId, teamId);
+      await deleteTeam(leagueId, deleteTarget.teamId);
+      setDeleteTarget(null);
       await load();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Silinmədi");
+      setDeleteError(err instanceof Error ? err.message : "Silinmədi");
     } finally {
       setDeletingId(null);
     }
@@ -510,6 +675,87 @@ export function AdminLeagueDetailPage() {
       alert(err instanceof Error ? err.message : "Əməliyyat alınmadı");
     } finally {
       setRespondingId(null);
+    }
+  };
+
+  const closeGenerateModal = () => {
+    if (generating) return;
+    setGenerateOpen(false);
+    setGenerateError(null);
+  };
+
+  const openSchedule = (match: Match) => {
+    if (!canEditSchedule(match)) return;
+    setScheduleMatch(match);
+    setScheduleAt(toDatetimeLocal(match.scheduledAt));
+    setScheduleVenue(match.venue ?? "");
+    setScheduleError(null);
+  };
+
+  const enterMatch = (match: Match) => {
+    if (canEditSchedule(match) && !isFixtureReady(match)) return;
+    navigate(`/admin/football/matches/${match.id}`);
+  };
+
+  const handleSaveSchedule = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!scheduleMatch || !canEditSchedule(scheduleMatch)) return;
+    if (!scheduleAt) {
+      setScheduleError("Oyun vaxtı mütləqdir");
+      return;
+    }
+    if (!scheduleVenue.trim()) {
+      setScheduleError("Məkan mütləqdir");
+      return;
+    }
+    if (isKickoffTooSoon(scheduleAt)) {
+      setScheduleError(
+        "Oyun vaxtı keçmişdə ola bilməz. Ən azı 1 saat sonra seçin.",
+      );
+      return;
+    }
+    setScheduleSubmitting(true);
+    setScheduleError(null);
+    try {
+      const updated = await updateMatch(scheduleMatch.id, {
+        scheduledAt: new Date(scheduleAt).toISOString(),
+        venue: scheduleVenue.trim(),
+      });
+      setMatches((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+      setScheduleMatch(null);
+    } catch (err) {
+      setScheduleError(err instanceof Error ? err.message : "Yenilənmədi");
+    } finally {
+      setScheduleSubmitting(false);
+    }
+  };
+
+  const handleGenerateMatches = async () => {
+    if (standings.length < 2) {
+      setGenerateError("Oyun yaratmaq üçün ən azı 2 komanda lazımdır");
+      return;
+    }
+    const started = matches.some(
+      (m) => m.status === "LIVE" || m.status === "FINISHED",
+    );
+    if (started) {
+      setGenerateError(
+        "Liqada artıq başlamış və ya bitmiş oyun var. Cədvəli yenidən yaratmaq olmaz.",
+      );
+      return;
+    }
+    setGenerating(true);
+    setGenerateError(null);
+    try {
+      await generateLeagueMatches(leagueId, { homeAway: generateHomeAway });
+      setGenerateOpen(false);
+      await load();
+    } catch (err) {
+      setGenerateError(
+        err instanceof Error ? err.message : "Oyunlar yaradılmadı",
+      );
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -655,6 +901,12 @@ export function AdminLeagueDetailPage() {
                     <th className="px-2 py-3 text-center">Q</th>
                     <th className="px-2 py-3 text-center">H</th>
                     <th className="px-2 py-3 text-center">M</th>
+                    <th className="px-2 py-3 text-center" title="Vurulan qollar">
+                      V
+                    </th>
+                    <th className="px-2 py-3 text-center" title="Buraxılan qollar">
+                      B
+                    </th>
                     <th className="px-2 py-3 text-center">TF</th>
                     <th className="px-2 py-3 text-center">X</th>
                     <th className="px-3 py-3 text-right">Əməliyyat</th>
@@ -681,7 +933,7 @@ export function AdminLeagueDetailPage() {
                               className="h-7 w-7 rounded-full object-cover"
                             />
                           ) : (
-                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-soft text-[10px] font-bold text-brand">
+                            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${teamInitialTone(row.teamName)}`}>
                               {row.teamName.slice(0, 1)}
                             </span>
                           )}
@@ -701,6 +953,12 @@ export function AdminLeagueDetailPage() {
                         {row.losses}
                       </td>
                       <td className="px-2 py-3 text-center text-slate-600">
+                        {row.goalsFor}
+                      </td>
+                      <td className="px-2 py-3 text-center text-slate-600">
+                        {row.goalsAgainst}
+                      </td>
+                      <td className="px-2 py-3 text-center text-slate-600">
                         {formatDiff(row.goalDifference)}
                       </td>
                       <td className="px-2 py-3 text-center font-bold text-ink">
@@ -718,9 +976,13 @@ export function AdminLeagueDetailPage() {
                           <button
                             type="button"
                             disabled={deletingId === row.teamId}
-                            onClick={() =>
-                              void handleDelete(row.teamId, row.teamName)
-                            }
+                            onClick={() => {
+                              setDeleteError(null);
+                              setDeleteTarget({
+                                teamId: row.teamId,
+                                name: row.teamName,
+                              });
+                            }}
                             className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
                             title="Liqadan çıxar"
                           >
@@ -739,9 +1001,47 @@ export function AdminLeagueDetailPage() {
 
       {activeTab === "matches" ? (
         <div className="space-y-5">
-          <MatchGroup title="Canlı" rows={liveMatches} />
-          <MatchGroup title="Planlı" rows={scheduledMatches} />
-          <MatchGroup title="Bitmiş" rows={finishedMatches} />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-slate-500">
+              {standings.length} komanda · {matches.length} oyun
+            </p>
+            <button
+              type="button"
+              disabled={standings.length < 2}
+              onClick={() => {
+                setGenerateError(null);
+                setGenerateHomeAway(false);
+                setGenerateOpen(true);
+              }}
+              className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-ink shadow-sm hover:bg-brand-dark disabled:opacity-50"
+              title={
+                standings.length < 2
+                  ? "Ən azı 2 komanda lazımdır"
+                  : "Liqa komandaları üçün oyun cədvəli yarat"
+              }
+            >
+              <Plus className="h-4 w-4" />
+              Oyunları yarat
+            </button>
+          </div>
+          <MatchGroup
+            title="Canlı"
+            rows={liveMatches}
+            onSelect={openSchedule}
+            onEnter={enterMatch}
+          />
+          <MatchGroup
+            title="Planlı"
+            rows={scheduledMatches}
+            onSelect={openSchedule}
+            onEnter={enterMatch}
+          />
+          <MatchGroup
+            title="Bitmiş"
+            rows={finishedMatches}
+            onSelect={openSchedule}
+            onEnter={enterMatch}
+          />
         </div>
       ) : null}
 
@@ -778,11 +1078,11 @@ export function AdminLeagueDetailPage() {
       <AdminModal
         open={modalOpen}
         title="Komandanı liqaya dəvət et"
-        onClose={() => !submitting && setModalOpen(false)}
+        onClose={closeInviteModal}
         footer={
           <>
             <ModalCancelButton
-              onClick={() => setModalOpen(false)}
+              onClick={closeInviteModal}
               disabled={submitting}
             />
             <ModalSubmitButton
@@ -795,18 +1095,140 @@ export function AdminLeagueDetailPage() {
       >
         <ModalForm id="invite-team-form" onSubmit={handleInvite}>
           <p className="mb-3 text-sm text-slate-500">
-            Mövcud komandanın unikal adını yazın. Dəvət komanda kapitanına
-            gedəcək.
+            Dəvət komandanın kapitanına gedəcək.
           </p>
-          <Field label="Komanda adı" required>
-            <input
-              className={inputClass}
-              value={teamName}
-              onChange={(e) => setTeamName(e.target.value)}
-              placeholder="məs. Bakı Strikerlər"
-              required
-            />
-          </Field>
+          <div className="mb-4">
+            <span className="mb-1.5 block text-sm font-medium text-slate-700">
+              Komanda <span className="text-rose-500">*</span>
+            </span>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className={`${inputClass} pl-9 pr-9`}
+                value={teamSearch}
+                onChange={(e) => {
+                  setTeamSearch(e.target.value);
+                  setPickerTeamId("");
+                  setFormError(null);
+                }}
+                placeholder="Komanda adını yazın..."
+                autoComplete="off"
+                autoFocus
+              />
+              {teamSearchLoading ? (
+                <Loader2 className="absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400" />
+              ) : teamSearch ? (
+                <button
+                  type="button"
+                  aria-label="Təmizlə"
+                  onClick={() => {
+                    setTeamSearch("");
+                    setPickerTeamId("");
+                    setAllTeams([]);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+            {teamSearch.trim().length === 0 ? (
+              <p className="mt-2 text-xs text-slate-400">
+                Hərf yazdıqca komandalar axtarılacaq
+              </p>
+            ) : (
+              <div className="mt-2 overflow-hidden rounded-xl border border-slate-200">
+                {teamSearchLoading && allTeams.length === 0 ? (
+                  <div className="flex items-center gap-2 px-3 py-4 text-sm text-slate-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Axtarılır...
+                  </div>
+                ) : allTeams.length === 0 ? (
+                  <p className="px-3 py-8 text-center text-sm text-slate-400">
+                    Nəticə tapılmadı
+                  </p>
+                ) : (
+                  <ul className="max-h-64 overflow-y-auto py-1">
+                    {allTeams.map((team) => {
+                      const enrolled = enrolledTeamIds.has(team.id);
+                      const pending = pendingTeamIds.has(team.id);
+                      const unavailable = enrolled || pending;
+                      const selected = pickerTeamId === team.id;
+                      const subtitle = [
+                        team.city,
+                        team.captain ? `@${team.captain.username}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ");
+                      const statusNote = enrolled
+                        ? "Bu komanda artıq liqadadır"
+                        : pending
+                          ? "Bu komanda dəvət gözləyir"
+                          : null;
+                      const rowClass = `flex w-full items-center gap-3 px-3 py-2.5 text-left ${
+                        unavailable
+                          ? "cursor-default opacity-70"
+                          : selected
+                            ? "bg-brand/20"
+                            : "hover:bg-slate-50"
+                      }`;
+                      const content = (
+                        <>
+                          {team.logo ? (
+                            <img
+                              src={mediaUrl(team.logo)}
+                              alt=""
+                              className="h-9 w-9 shrink-0 rounded-full object-cover"
+                            />
+                          ) : (
+                            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${teamInitialTone(team.name)}`}>
+                              {team.name.slice(0, 1).toUpperCase()}
+                            </span>
+                          )}
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold text-ink">
+                              {team.name}
+                            </span>
+                            {subtitle ? (
+                              <span className="block truncate text-xs text-slate-500">
+                                {subtitle}
+                              </span>
+                            ) : null}
+                            {statusNote ? (
+                              <span className="mt-0.5 block text-[11px] font-medium text-amber-600">
+                                {statusNote}
+                              </span>
+                            ) : null}
+                          </span>
+                          {selected && !unavailable ? (
+                            <Check className="h-4 w-4 shrink-0 text-brand-dark" />
+                          ) : null}
+                        </>
+                      );
+                      return (
+                        <li key={team.id}>
+                          {unavailable ? (
+                            <div className={rowClass}>{content}</div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPickerTeamId(team.id);
+                                setFormError(null);
+                              }}
+                              className={`${rowClass} transition`}
+                            >
+                              {content}
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
           <Field label="Mesaj (istəyə bağlı)">
             <input
               className={inputClass}
@@ -817,6 +1239,151 @@ export function AdminLeagueDetailPage() {
           </Field>
           {formError ? (
             <p className="mb-2 text-sm text-rose-600">{formError}</p>
+          ) : null}
+        </ModalForm>
+      </AdminModal>
+
+      <AdminModal
+        open={deleteTarget != null}
+        title="Komandanı sil"
+        onClose={closeDeleteModal}
+        footer={
+          <>
+            <ModalCancelButton
+              onClick={closeDeleteModal}
+              disabled={deletingId != null}
+            />
+            <button
+              type="button"
+              disabled={deletingId != null}
+              onClick={() => void handleDelete()}
+              className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-700 disabled:opacity-60"
+            >
+              {deletingId != null ? "Gözləyin..." : "Sil"}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm leading-relaxed text-slate-700">
+          <span className="font-semibold text-ink">{deleteTarget?.name}</span>{" "}
+          komandasını silməyə əminsiniz?
+        </p>
+        <p className="mt-2 text-xs text-slate-500">
+          Komanda liqadan çıxarılacaq, sistemdən silinməyəcək.
+        </p>
+        {deleteError ? (
+          <p className="mt-3 text-sm font-medium text-rose-600">{deleteError}</p>
+        ) : null}
+      </AdminModal>
+
+      <AdminModal
+        open={generateOpen}
+        title="Oyunları yarat"
+        onClose={closeGenerateModal}
+        footer={
+          <>
+            <ModalCancelButton
+              onClick={closeGenerateModal}
+              disabled={generating}
+            />
+            <button
+              type="button"
+              disabled={generating || standings.length < 2}
+              onClick={() => void handleGenerateMatches()}
+              className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-ink shadow-sm hover:bg-brand-dark disabled:opacity-60"
+            >
+              {generating ? "Yaradılır..." : "Yarat"}
+            </button>
+          </>
+        }
+      >
+        <p className="mb-3 text-sm leading-relaxed text-slate-700">
+          Liqadakı{" "}
+          <span className="font-semibold text-ink">{standings.length}</span>{" "}
+          komanda üçün turnir cədvəli yaradılacaq.
+        </p>
+        <Field label="Format">
+          <select
+            className={inputClass}
+            value={generateHomeAway ? "HOME_AWAY" : "SINGLE"}
+            onChange={(e) => setGenerateHomeAway(e.target.value === "HOME_AWAY")}
+          >
+            <option value="SINGLE">1 oyun (hər cüt bir dəfə)</option>
+            <option value="HOME_AWAY">Ev-səfər (iki oyun)</option>
+          </select>
+        </Field>
+        <p className="mb-2 text-xs text-slate-500">
+          {leagueFixturePreview(standings.length, generateHomeAway).rounds} tur ·{" "}
+          {leagueFixturePreview(standings.length, generateHomeAway).matches} oyun
+        </p>
+        {matches.some(
+          (m) => m.status === "SCHEDULED" || m.status === "POSTPONED",
+        ) ? (
+          <p className="mb-2 text-xs font-medium text-amber-600">
+            Mövcud planlı oyunlar silinib yeniləri ilə əvəz olunacaq.
+          </p>
+        ) : null}
+        {matches.some(
+          (m) => m.status === "LIVE" || m.status === "FINISHED",
+        ) ? (
+          <p className="mb-2 text-xs font-medium text-rose-600">
+            Başlamış və ya bitmiş oyun olduğu üçün cədvəli yenidən yaratmaq olmaz.
+          </p>
+        ) : null}
+        {generateError ? (
+          <p className="text-sm font-medium text-rose-600">{generateError}</p>
+        ) : null}
+      </AdminModal>
+
+      <AdminModal
+        open={scheduleMatch != null}
+        title="Oyun vaxtı və məkan"
+        onClose={() => !scheduleSubmitting && setScheduleMatch(null)}
+        footer={
+          <>
+            <ModalCancelButton
+              onClick={() => setScheduleMatch(null)}
+              disabled={scheduleSubmitting}
+            />
+            <ModalSubmitButton
+              label="Yadda saxla"
+              loading={scheduleSubmitting}
+              formId="schedule-league-match"
+              disabled={!scheduleAt.trim() || !scheduleVenue.trim()}
+            />
+          </>
+        }
+      >
+        <ModalForm
+          id="schedule-league-match"
+          onSubmit={(e) => void handleSaveSchedule(e)}
+        >
+          {scheduleMatch ? (
+            <p className="mb-3 text-sm font-semibold text-ink">
+              {scheduleMatch.homeTeam.name} — {scheduleMatch.awayTeam.name}
+            </p>
+          ) : null}
+          <Field label="Oyun vaxtı" required>
+            <input
+              type="datetime-local"
+              className={inputClass}
+              value={scheduleAt}
+              min={minKickoffLocal()}
+              onChange={(e) => setScheduleAt(e.target.value)}
+              required
+            />
+          </Field>
+          <Field label="Stadion / məkan" required>
+            <input
+              className={inputClass}
+              value={scheduleVenue}
+              onChange={(e) => setScheduleVenue(e.target.value)}
+              placeholder="Tofiq Bəhramov stadionu"
+              required
+            />
+          </Field>
+          {scheduleError ? (
+            <p className="text-sm font-medium text-rose-600">{scheduleError}</p>
           ) : null}
         </ModalForm>
       </AdminModal>

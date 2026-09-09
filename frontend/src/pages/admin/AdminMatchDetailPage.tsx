@@ -1,5 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
+import { toast } from "react-toastify";
 import {
   ArrowLeftRight,
   ChevronRight,
@@ -23,7 +24,6 @@ import {
 } from "../../components/admin/AdminModal";
 import {
   addMatchEvent,
-  deleteMatch,
   deleteMatchEvent,
   fetchMatch,
   updateMatch,
@@ -38,6 +38,11 @@ import type {
   MatchEventType,
   MatchStatus,
 } from "../../types/match";
+import {
+  MATCH_CLOCK_MAX_MINUTES,
+  computeMatchClock,
+} from "../../lib/matchClock";
+import { teamInitialTone } from "../../lib/teamAvatar";
 
 const STATUS_LABEL: Record<MatchStatus, string> = {
   SCHEDULED: "Planlaşdırılıb",
@@ -48,6 +53,14 @@ const STATUS_LABEL: Record<MatchStatus, string> = {
 };
 
 type EventModalKind = "GOAL" | "CARD" | "SUB" | "NOTE" | null;
+
+function formatKickoff(iso: string | null | undefined): string {
+  if (!iso) return "Vaxt təyin edilməyib";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Vaxt təyin edilməyib";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 function playerName(
   p: { firstName: string; lastName: string; shirtNumber?: number | null } | null,
@@ -76,6 +89,23 @@ function eventTitle(event: MatchEvent): string {
   }
 }
 
+function deleteEventPrompt(type: MatchEventType): string {
+  switch (type) {
+    case "GOAL":
+    case "OWN_GOAL":
+      return "Qolu silmək istədiyinizə əminsiniz?";
+    case "YELLOW_CARD":
+    case "RED_CARD":
+      return "Kartı silmək istədiyinizə əminsiniz?";
+    case "SUBSTITUTION":
+      return "Dəyişikliyi silmək istədiyinizə əminsiniz?";
+    case "NOTE":
+      return "Qeydi silmək istədiyinizə əminsiniz?";
+    default:
+      return "Bu hadisəni silmək istədiyinizə əminsiniz?";
+  }
+}
+
 function eventIcon(type: MatchEventType) {
   switch (type) {
     case "GOAL":
@@ -99,10 +129,12 @@ function TeamMark({ name, logo }: { name: string; logo: string | null }) {
         <img
           src={mediaUrl(logo)}
           alt=""
-          className="h-14 w-14 rounded-full object-cover shadow ring-2 ring-white"
+          className="h-14 w-14 shrink-0 rounded-full object-cover shadow ring-2 ring-white"
         />
       ) : (
-        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-lg font-bold text-brand shadow ring-2 ring-white">
+        <span
+          className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-bold shadow ring-2 ring-white ${teamInitialTone(name)}`}
+        >
           {name.slice(0, 1).toUpperCase()}
         </span>
       )}
@@ -116,7 +148,6 @@ function TeamMark({ name, logo }: { name: string; logo: string | null }) {
 export function AdminMatchDetailPage() {
   const { matchId: matchIdParam } = useParams();
   const matchId = Number(matchIdParam);
-  const navigate = useNavigate();
 
   const [match, setMatch] = useState<Match | null>(null);
   const [homePlayers, setHomePlayers] = useState<TeamPlayer[]>([]);
@@ -140,18 +171,25 @@ export function AdminMatchDetailPage() {
   );
   const [isOwnGoal, setIsOwnGoal] = useState(false);
   const [note, setNote] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<MatchEvent | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [fetchedAt, setFetchedAt] = useState(() => Date.now());
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!Number.isInteger(matchId) || matchId <= 0) {
       setError("Yanlış oyun");
       setLoading(false);
       return;
     }
-    setLoading(true);
-    setError(null);
+    if (!opts?.silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const data = await fetchMatch(matchId);
       setMatch(data);
+      setFetchedAt(Date.now());
       if (data.leagueId) {
         const [home, away] = await Promise.all([
           fetchTeam(data.leagueId, data.homeTeamId),
@@ -183,16 +221,50 @@ export function AdminMatchDetailPage() {
         setAwayPlayers(toPlayers(away.players));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Oyun yüklənmədi");
-      setMatch(null);
+      if (!opts?.silent) {
+        setError(err instanceof Error ? err.message : "Oyun yüklənmədi");
+        setMatch(null);
+      }
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [matchId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const clockOffset = useMemo(() => {
+    if (!match?.serverNow) return 0;
+    return new Date(match.serverNow).getTime() - fetchedAt;
+  }, [match?.serverNow, fetchedAt]);
+
+  const alignedNow = nowMs + clockOffset;
+  const clock = match ? computeMatchClock(match, alignedNow) : null;
+
+  useEffect(() => {
+    if (!match) return;
+    const shouldTick =
+      (match.status === "LIVE" && !clock?.frozen) ||
+      (match.status === "FINISHED" && !match.lockedAt && !match.reopenedAt);
+    if (!shouldTick) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [match?.id, match?.status, match?.lockedAt, match?.reopenedAt, clock?.frozen]);
+
+  useEffect(() => {
+    if (!match || match.lockedAt || !clock?.locked) return;
+    const id = window.setTimeout(() => {
+      void load({ silent: true });
+    }, 4000);
+    return () => window.clearTimeout(id);
+  }, [clock?.locked, match, load]);
+
+  const applyMatch = (data: Match) => {
+    setMatch(data);
+    setFetchedAt(Date.now());
+    setNowMs(Date.now());
+  };
 
   const playersForTeam = useMemo(() => {
     if (!match || !teamId) return [];
@@ -201,10 +273,9 @@ export function AdminMatchDetailPage() {
     return [];
   }, [match, teamId, homePlayers, awayPlayers]);
 
-  const resetEventForm = (kind: EventModalKind) => {
-    const defaultMinute =
-      match?.minute != null ? String(match.minute) : kind === "NOTE" ? "0" : "1";
-    setMinute(defaultMinute);
+  const resetEventForm = (_kind: EventModalKind) => {
+    const currentMinute = clock?.minute ?? 0;
+    setMinute(String(currentMinute));
     setTeamId(match?.homeTeamId ?? "");
     setPlayerId("");
     setAssistPlayerId("");
@@ -217,8 +288,13 @@ export function AdminMatchDetailPage() {
   };
 
   const openEventModal = (kind: EventModalKind) => {
-    if (match?.status !== "LIVE") {
-      alert("Əvvəlcə oyun başladılmalıdır");
+    if (!match || match.status !== "LIVE" || clock?.locked) {
+      toast.info(
+        clock?.locked
+          ? "Oyun kilidlənib"
+          : "Əvvəlcə oyun başladılmalıdır",
+        { toastId: "match-not-started" },
+      );
       return;
     }
     resetEventForm(kind);
@@ -227,38 +303,20 @@ export function AdminMatchDetailPage() {
 
   const patchStatus = async (status: MatchStatus) => {
     if (!match) return;
-    setBusy(true);
-    try {
-      const updated = await updateMatch(match.id, { status });
-      setMatch(updated);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Yenilənmədi");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleDeleteMatch = async () => {
-    if (!match) return;
     if (
-      !window.confirm(
-        `"${match.homeTeam.name} vs ${match.awayTeam.name}" oyununu silmək istəyirsiniz?`,
-      )
+      status === "LIVE" &&
+      match.status === "SCHEDULED" &&
+      !(match.scheduledAt && match.venue?.trim())
     ) {
       return;
     }
     setBusy(true);
     try {
-      await deleteMatch(match.id);
-      navigate(
-        match.league?.id
-          ? `/admin/football/matches?leagueId=${match.league.id}`
-          : match.championshipId
-            ? `/admin/football/championships/${match.championshipId}`
-            : "/admin/football/matches",
-      );
+      const updated = await updateMatch(match.id, { status });
+      applyMatch(updated);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Silinmədi");
+      toast.error(err instanceof Error ? err.message : "Yenilənmədi");
+    } finally {
       setBusy(false);
     }
   };
@@ -268,8 +326,8 @@ export function AdminMatchDetailPage() {
     if (!match || !eventKind) return;
 
     const minuteValue = Number(minute);
-    if (!Number.isInteger(minuteValue) || minuteValue < 0 || minuteValue > 130) {
-      setFormError("Dəqiqə 0–130 arası olmalıdır");
+    if (!Number.isInteger(minuteValue) || minuteValue < 0 || minuteValue > MATCH_CLOCK_MAX_MINUTES) {
+      setFormError(`Dəqiqə 0–${MATCH_CLOCK_MAX_MINUTES} arası olmalıdır`);
       return;
     }
 
@@ -283,11 +341,16 @@ export function AdminMatchDetailPage() {
           setSubmitting(false);
           return;
         }
+        if (!playerId) {
+          setFormError("Oyunçu seçin");
+          setSubmitting(false);
+          return;
+        }
         payload = {
           type: (isOwnGoal ? "OWN_GOAL" : "GOAL") as MatchEventType,
           minute: minuteValue,
           teamId: Number(teamId),
-          playerId: playerId ? Number(playerId) : undefined,
+          playerId: Number(playerId),
           assistPlayerId:
             !isOwnGoal && assistPlayerId
               ? Number(assistPlayerId)
@@ -299,11 +362,16 @@ export function AdminMatchDetailPage() {
           setSubmitting(false);
           return;
         }
+        if (!playerId) {
+          setFormError("Oyunçu seçin");
+          setSubmitting(false);
+          return;
+        }
         payload = {
           type: cardType,
           minute: minuteValue,
           teamId: Number(teamId),
-          playerId: playerId ? Number(playerId) : undefined,
+          playerId: Number(playerId),
         };
       } else if (eventKind === "SUB") {
         if (!teamId || !playerInId || !playerOutId) {
@@ -328,7 +396,7 @@ export function AdminMatchDetailPage() {
       }
 
       const result = await addMatchEvent(match.id, payload);
-      setMatch(result.match);
+      applyMatch(result.match);
       setEventKind(null);
     } catch (err) {
       setFormError(
@@ -339,15 +407,22 @@ export function AdminMatchDetailPage() {
     }
   };
 
-  const handleDeleteEvent = async (eventId: number) => {
-    if (!match) return;
-    if (!window.confirm("Bu hadisəni silmək istəyirsiniz?")) return;
+  const closeDeleteModal = () => {
+    if (busy) return;
+    setDeleteTarget(null);
+    setDeleteError(null);
+  };
+
+  const handleDeleteEvent = async () => {
+    if (!match || !deleteTarget) return;
     setBusy(true);
+    setDeleteError(null);
     try {
-      const updated = await deleteMatchEvent(match.id, eventId);
-      setMatch(updated);
+      const updated = await deleteMatchEvent(match.id, deleteTarget.id);
+      applyMatch(updated);
+      setDeleteTarget(null);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Silinmədi");
+      setDeleteError(err instanceof Error ? err.message : "Silinmədi");
     } finally {
       setBusy(false);
     }
@@ -371,10 +446,7 @@ export function AdminMatchDetailPage() {
   }
 
   const events = match.events ?? [];
-  const canManageEvents =
-    match.status === "SCHEDULED" ||
-    match.status === "LIVE" ||
-    match.status === "FINISHED";
+  const canManageEvents = match.status === "LIVE" && !clock?.locked;
 
   const eventModalTitle =
     eventKind === "GOAL"
@@ -384,6 +456,13 @@ export function AdminMatchDetailPage() {
         : eventKind === "SUB"
           ? "Dəyişiklik"
           : "Qeyd əlavə et";
+
+  const canSubmitEvent =
+    eventKind === "GOAL" || eventKind === "CARD"
+      ? Boolean(teamId && playerId)
+      : eventKind === "SUB"
+        ? Boolean(teamId && playerInId && playerOutId)
+        : true;
 
   return (
     <AdminPageShell
@@ -398,15 +477,20 @@ export function AdminMatchDetailPage() {
           {match.status === "SCHEDULED" ? (
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || !(match.scheduledAt && match.venue?.trim())}
               onClick={() => void patchStatus("LIVE")}
               className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+              title={
+                match.scheduledAt && match.venue?.trim()
+                  ? "Oyunu başlat"
+                  : "Əvvəlcə vaxt və məkan təyin edin"
+              }
             >
               <Play className="h-4 w-4" />
-              Başlat
+              Oyunu başlat
             </button>
           ) : null}
-          {match.status === "LIVE" ? (
+          {match.status === "LIVE" && !clock?.locked ? (
             <button
               type="button"
               disabled={busy}
@@ -414,10 +498,10 @@ export function AdminMatchDetailPage() {
               className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
             >
               <Square className="h-3.5 w-3.5" />
-              Bitir
+              Oyunu bitir
             </button>
           ) : null}
-          {match.status === "FINISHED" ? (
+          {clock?.canReopen ? (
             <button
               type="button"
               disabled={busy}
@@ -425,18 +509,9 @@ export function AdminMatchDetailPage() {
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               <Radio className="h-4 w-4" />
-              Yenidən aç
+              Yenidən başlat
             </button>
           ) : null}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void handleDeleteMatch()}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
-          >
-            <Trash2 className="h-4 w-4" />
-            Sil
-          </button>
         </div>
       }
     >
@@ -461,19 +536,25 @@ export function AdminMatchDetailPage() {
         <div className="flex items-center justify-between px-4 pt-4 sm:px-6">
           <span
             className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ${
-              match.status === "LIVE"
-                ? "bg-rose-50 text-rose-700"
-                : "bg-slate-100 text-slate-600"
+              clock?.locked
+                ? "bg-slate-100 text-slate-600"
+                : match.status === "LIVE"
+                  ? "bg-rose-50 text-rose-700"
+                  : "bg-slate-100 text-slate-600"
             }`}
           >
-            {match.status === "LIVE" ? (
+            {match.status === "LIVE" && !clock?.locked ? (
               <Radio className="h-3.5 w-3.5 animate-pulse" />
             ) : (
               <Flag className="h-3.5 w-3.5" />
             )}
-            {STATUS_LABEL[match.status]}
-            {match.status === "LIVE" && match.minute != null
-              ? ` · ${match.minute}'`
+            {clock?.locked
+              ? "Kilidlənib"
+              : clock?.frozen
+                ? "Düzəliş"
+                : STATUS_LABEL[match.status]}
+            {match.status === "LIVE" && clock && !clock.locked
+              ? ` · ${clock.label}`
               : ""}
           </span>
           <span className="text-xs text-slate-400">
@@ -493,15 +574,22 @@ export function AdminMatchDetailPage() {
               <span className="mx-1 text-slate-300">:</span>
               {match.awayScore}
             </p>
+            {match.status === "LIVE" && clock ? (
+              <p className="mt-2 text-lg font-bold tabular-nums text-rose-600">
+                {clock.label}
+                {clock.frozen ? (
+                  <span className="ml-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    180-ci dəqiqə
+                  </span>
+                ) : null}
+              </p>
+            ) : match.status === "FINISHED" && clock ? (
+              <p className="mt-2 text-sm font-semibold tabular-nums text-slate-500">
+                {clock.minute}&apos;
+              </p>
+            ) : null}
             <p className="mt-2 text-xs text-slate-400">
-              {match.scheduledAt
-                ? new Date(match.scheduledAt).toLocaleString("az-AZ", {
-                    day: "numeric",
-                    month: "long",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
-                : "Vaxt təyin edilməyib"}
+              {formatKickoff(match.scheduledAt)}
             </p>
           </div>
           <TeamMark name={match.awayTeam.name} logo={match.awayTeam.logo} />
@@ -588,15 +676,20 @@ export function AdminMatchDetailPage() {
                       : ""}
                   </p>
                 </div>
+                {canManageEvents ? (
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => void handleDeleteEvent(event.id)}
+                  onClick={() => {
+                    setDeleteError(null);
+                    setDeleteTarget(event);
+                  }}
                   className="rounded-lg p-1.5 text-slate-300 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
                   title="Sil"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -617,6 +710,7 @@ export function AdminMatchDetailPage() {
               formId="match-event-form"
               label="Əlavə et"
               loading={submitting}
+              disabled={!canSubmitEvent}
             />
           </>
         }
@@ -627,7 +721,7 @@ export function AdminMatchDetailPage() {
               <input
                 type="number"
                 min={0}
-                max={130}
+                max={MATCH_CLOCK_MAX_MINUTES}
                 className={inputClass}
                 value={minute}
                 onChange={(e) => setMinute(e.target.value)}
@@ -660,7 +754,21 @@ export function AdminMatchDetailPage() {
 
           {eventKind === "GOAL" ? (
             <>
-              <Field label="Oyunçu">
+              <Field label="Növ" required>
+                <select
+                  className={inputClass}
+                  value={isOwnGoal ? "OWN_GOAL" : "GOAL"}
+                  onChange={(e) => {
+                    const own = e.target.value === "OWN_GOAL";
+                    setIsOwnGoal(own);
+                    if (own) setAssistPlayerId("");
+                  }}
+                >
+                  <option value="GOAL">Qol</option>
+                  <option value="OWN_GOAL">Avtoqol</option>
+                </select>
+              </Field>
+              <Field label="Oyunçu" required>
                 <select
                   className={inputClass}
                   value={playerId}
@@ -668,8 +776,9 @@ export function AdminMatchDetailPage() {
                     setPlayerId(e.target.value ? Number(e.target.value) : "")
                   }
                   disabled={!teamId}
+                  required
                 >
-                  <option value="">Seçilməyib</option>
+                  <option value="">Seçin...</option>
                   {playersForTeam.map((p) => (
                     <option key={p.id} value={p.id}>
                       {playerName(p)}
@@ -700,15 +809,6 @@ export function AdminMatchDetailPage() {
                   </select>
                 </Field>
               ) : null}
-              <label className="mb-4 flex items-center gap-2 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={isOwnGoal}
-                  onChange={(e) => setIsOwnGoal(e.target.checked)}
-                  className="rounded border-slate-300"
-                />
-                Avtoqol (rəqib hesabına yazılır)
-              </label>
             </>
           ) : null}
 
@@ -726,7 +826,7 @@ export function AdminMatchDetailPage() {
                   <option value="RED_CARD">Qırmızı</option>
                 </select>
               </Field>
-              <Field label="Oyunçu">
+              <Field label="Oyunçu" required>
                 <select
                   className={inputClass}
                   value={playerId}
@@ -734,8 +834,9 @@ export function AdminMatchDetailPage() {
                     setPlayerId(e.target.value ? Number(e.target.value) : "")
                   }
                   disabled={!teamId}
+                  required
                 >
-                  <option value="">Seçilməyib</option>
+                  <option value="">Seçin...</option>
                   {playersForTeam.map((p) => (
                     <option key={p.id} value={p.id}>
                       {playerName(p)}
@@ -804,6 +905,32 @@ export function AdminMatchDetailPage() {
             <p className="mb-2 text-sm text-rose-600">{formError}</p>
           ) : null}
         </ModalForm>
+      </AdminModal>
+
+      <AdminModal
+        open={deleteTarget != null}
+        title="Hadisəni sil"
+        onClose={closeDeleteModal}
+        footer={
+          <>
+            <ModalCancelButton onClick={closeDeleteModal} disabled={busy} />
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void handleDeleteEvent()}
+              className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-700 disabled:opacity-60"
+            >
+              {busy ? "Gözləyin..." : "Sil"}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm leading-relaxed text-slate-700">
+          {deleteTarget ? deleteEventPrompt(deleteTarget.type) : null}
+        </p>
+        {deleteError ? (
+          <p className="mt-3 text-sm font-medium text-rose-600">{deleteError}</p>
+        ) : null}
       </AdminModal>
     </AdminPageShell>
   );

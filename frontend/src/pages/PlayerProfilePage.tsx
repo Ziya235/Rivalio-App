@@ -137,7 +137,7 @@ export default function PlayerProfilePage() {
 
         <div className={`mb-6 rounded-2xl border p-5 ${card}`}>
           <h2 className={`mb-3 text-sm font-semibold ${light ? "text-gray-600" : "text-white/70"}`}>
-            Bütün liqalar üzrə statistika
+            Bütün liqalar və çempionatlar üzrə statistika
           </h2>
           <div className="grid grid-cols-3 gap-3">
             {[
@@ -158,7 +158,7 @@ export default function PlayerProfilePage() {
             ))}
           </div>
           <p className={`mt-2 text-xs ${light ? "text-gray-400" : "text-white/30"}`}>
-            Public və private liqalardakı bitmiş oyunlar
+            Public və private liqalardakı, həmçinin çempionatlardakı bitmiş oyunlar
           </p>
         </div>
 

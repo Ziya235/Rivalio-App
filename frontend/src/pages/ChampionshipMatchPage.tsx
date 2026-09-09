@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, MapPin, Radio } from "lucide-react";
 import { fetchVisibleChampionshipMatch } from "../api/championships";
@@ -11,6 +11,7 @@ import {
   venueOf,
 } from "../lib/championshipUi";
 import type { Match, MatchEvent } from "../types/match";
+import { computeMatchClock } from "../lib/matchClock";
 
 function eventLine(event: MatchEvent): string {
   const who = event.player
@@ -39,6 +40,7 @@ export default function ChampionshipMatchPage() {
   const [match, setMatch] = useState<Match | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const load = useCallback(async (silent = false) => {
     if (!Number.isInteger(matchId) || matchId <= 0) {
@@ -75,6 +77,19 @@ export default function ChampionshipMatchPage() {
     }, 12_000);
     return () => window.clearInterval(timer);
   }, [load, match?.status]);
+
+  useEffect(() => {
+    if (match?.status !== "LIVE" || match.clockFrozen || match.reopenedAt) {
+      return;
+    }
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [match?.status, match?.clockFrozen, match?.reopenedAt]);
+
+  const clock = useMemo(
+    () => (match ? computeMatchClock(match, nowMs) : null),
+    [match, nowMs],
+  );
 
   const bg =
     "[background:linear-gradient(135deg,#E8FFF3_0%,#EAF8FF_48%,#F2EDFF_100%)]";
@@ -128,7 +143,7 @@ export default function ChampionshipMatchPage() {
             {match.status === "LIVE" ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-2.5 py-1 text-xs font-bold text-white">
                 <Radio size={12} className="animate-pulse" />
-                LIVE {match.minute != null ? `${match.minute}'` : ""}
+                LIVE {clock ? clock.label : ""}
               </span>
             ) : (
               <span className="rounded-md bg-gray-50 px-2 py-0.5 text-xs font-semibold text-gray-500">

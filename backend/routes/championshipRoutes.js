@@ -7,6 +7,7 @@ import {
   addTeamHandler,
   cancelTeamInviteHandler,
   championshipStandingsHandler,
+  championshipStatisticsHandler,
   createChampionshipHandler,
   createGroupsHandler,
   createMatchHandler,
@@ -99,6 +100,11 @@ router.get(
   "/:championshipId/standings",
   ...adminRead,
   championshipStandingsHandler,
+);
+router.get(
+  "/:championshipId/statistics",
+  ...adminRead,
+  championshipStatisticsHandler,
 );
 
 router.get("/:championshipId/matches", ...adminRead, listMatchesHandler);

@@ -547,6 +547,12 @@ export default function LeagueDetailPage() {
                       <th className="px-2 py-3 text-center">Q</th>
                       <th className="px-2 py-3 text-center">H</th>
                       <th className="px-2 py-3 text-center">M</th>
+                      <th className="px-2 py-3 text-center" title="Vurulan qollar">
+                        V
+                      </th>
+                      <th className="px-2 py-3 text-center" title="Buraxılan qollar">
+                        B
+                      </th>
                       <th className="px-2 py-3 text-center">TF</th>
                       <th className="px-2 py-3 text-center">X</th>
                     </tr>
@@ -612,6 +618,12 @@ export default function LeagueDetailPage() {
                         </td>
                         <td className={`px-2 py-3 text-center ${soft}`}>
                           {row.losses}
+                        </td>
+                        <td className={`px-2 py-3 text-center ${soft}`}>
+                          {row.goalsFor}
+                        </td>
+                        <td className={`px-2 py-3 text-center ${soft}`}>
+                          {row.goalsAgainst}
                         </td>
                         <td className={`px-2 py-3 text-center ${soft}`}>
                           {formatDiff(row.goalDifference)}

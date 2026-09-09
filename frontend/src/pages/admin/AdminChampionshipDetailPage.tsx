@@ -2,14 +2,17 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Calendar,
+  Check,
   ChevronRight,
   CircleDot,
   Handshake,
+  Loader2,
   Medal,
   Pencil,
   Play,
   Plus,
   Radio,
+  Search,
   Trash2,
   Trophy,
   Users,
@@ -33,6 +36,7 @@ import {
   deleteChampionshipGroup,
   fetchChampionship,
   fetchChampionshipMatches,
+  fetchChampionshipStatistics,
   fetchGroupStandings,
   removeChampionshipTeam,
   removeTeamFromGroup,
@@ -43,6 +47,7 @@ import {
 } from "../../api/championships";
 import { fetchTeams, type TeamSummary } from "../../api/teams";
 import { mediaUrl } from "../../api/base";
+import { teamInitialTone } from "../../lib/teamAvatar";
 import {
   GROUP_CAPACITY_MAX,
   GROUP_CAPACITY_MIN,
@@ -57,7 +62,9 @@ import { parsePlayoffNotes } from "../../lib/playoffBracket";
 import type {
   Championship,
   ChampionshipGroup,
+  ChampionshipStatistics,
   ChampionshipStatus,
+  ChampionshipTeamStatistics,
   MatchStage,
   PlayoffTieGroup,
   StandingRow,
@@ -134,55 +141,6 @@ function playerDisplayName(row: {
   return `${row.firstName} ${row.lastName}`.trim();
 }
 
-function collectChampionshipScorers(matches: Match[]): ChampScorerRow[] {
-  const rows = new Map<number, ChampScorerRow>();
-  const teamName = (match: Match, teamId: number | null) => {
-    if (teamId === match.homeTeamId) return match.homeTeam;
-    if (teamId === match.awayTeamId) return match.awayTeam;
-    return null;
-  };
-  const ensure = (
-    player: NonNullable<Match["events"]>[number]["player"],
-    team: { id: number; name: string; logo: string | null } | null,
-  ) => {
-    if (!player) return null;
-    const existing = rows.get(player.id);
-    if (existing) return existing;
-    const created: ChampScorerRow = {
-      id: player.id,
-      firstName: player.firstName,
-      lastName: player.lastName,
-      shirtNumber: player.shirtNumber,
-      photo: player.photo,
-      teamId: player.teamId,
-      teamName: team?.name ?? "—",
-      teamLogo: team?.logo ?? null,
-      goals: 0,
-      assists: 0,
-    };
-    rows.set(player.id, created);
-    return created;
-  };
-
-  for (const match of matches) {
-    for (const event of match.events ?? []) {
-      if (event.type === "GOAL" && event.player) {
-        const team =
-          teamName(match, event.teamId) ??
-          teamName(match, event.player.teamId);
-        const row = ensure(event.player, team);
-        if (row) row.goals += 1;
-      }
-      if (event.type === "GOAL" && event.assistPlayer) {
-        const team = teamName(match, event.assistPlayer.teamId);
-        const row = ensure(event.assistPlayer, team);
-        if (row) row.assists += 1;
-      }
-    }
-  }
-  return [...rows.values()];
-}
-
 function playoffPlaceholders(matches: Match[]): Map<MatchStage, PlayoffPlaceholder[]> {
   const map = new Map<MatchStage, PlayoffPlaceholder[]>();
   const existing = new Set(
@@ -253,21 +211,6 @@ function matchStatusClass(status: MatchStatus): string {
   }
 }
 
-const AZ_MONTHS = [
-  "yanvar",
-  "fevral",
-  "mart",
-  "aprel",
-  "may",
-  "iyun",
-  "iyul",
-  "avqust",
-  "sentyabr",
-  "oktyabr",
-  "noyabr",
-  "dekabr",
-];
-
 const MIN_KICKOFF_MS = 60 * 60 * 1000;
 
 function formatWhen(iso: string | null | undefined): string {
@@ -275,7 +218,7 @@ function formatWhen(iso: string | null | undefined): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "Vaxt təyin edilməyib";
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getDate()} ${AZ_MONTHS[d.getMonth()]} ${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function formatCompactDate(iso: string | null | undefined): string {
@@ -331,6 +274,10 @@ function isFixtureReady(match: Match): boolean {
   return Boolean(match.scheduledAt && match.venue?.trim());
 }
 
+function canEditSchedule(match: Match): boolean {
+  return match.status !== "LIVE" && match.status !== "FINISHED";
+}
+
 function formatDiff(value: number): string {
   if (value > 0) return `+${value}`;
   return String(value);
@@ -355,10 +302,10 @@ function TeamMark({
 }) {
   const dim = size === "sm" ? "h-7 w-7 text-[10px]" : "h-8 w-8 text-xs";
   const mark = logo ? (
-    <img src={mediaUrl(logo)} alt="" className={`${dim} rounded-full object-cover`} />
+    <img src={mediaUrl(logo)} alt="" className={`${dim} shrink-0 rounded-full object-cover`} />
   ) : (
     <span
-      className={`flex ${dim} items-center justify-center rounded-full bg-brand-soft font-bold text-brand`}
+      className={`flex ${dim} shrink-0 items-center justify-center rounded-full font-bold ${teamInitialTone(name)}`}
     >
       {name.slice(0, 1).toUpperCase()}
     </span>
@@ -395,8 +342,8 @@ function StandingsTable({ rows }: { rows: StandingRow[] }) {
       <table className="w-full min-w-[520px] text-left text-sm">
         <thead>
           <tr className="border-b border-slate-100 text-xs font-semibold uppercase tracking-wide text-slate-400">
-            <th className="px-4 py-2.5">#</th>
-            <th className="px-4 py-2.5">Komanda</th>
+            <th className="w-12 px-3 py-2.5 pr-1 text-center">#</th>
+            <th className="px-2 py-2.5 pl-1">Komanda</th>
             <th className="px-2 py-2.5 text-center">O</th>
             <th className="px-2 py-2.5 text-center">Q</th>
             <th className="px-2 py-2.5 text-center">He</th>
@@ -409,10 +356,10 @@ function StandingsTable({ rows }: { rows: StandingRow[] }) {
         <tbody className="divide-y divide-slate-50">
           {rows.map((row) => (
             <tr key={row.teamId} className="hover:bg-slate-50/60">
-              <td className="px-4 py-2.5 font-bold tabular-nums text-slate-500">
+              <td className="w-12 px-3 py-2.5 pr-1 text-center font-bold tabular-nums text-slate-500">
                 {row.rank}
               </td>
-              <td className="px-4 py-2.5">
+              <td className="px-2 py-2.5 pl-1">
                 <TeamMark
                   name={row.team.name}
                   logo={row.team.logo}
@@ -483,6 +430,8 @@ function MatchListSection({
         <ul className="divide-y divide-slate-100">
           {matches.map((match) => {
             const meta = parsePlayoffNotes(match.notes);
+            const ready = isFixtureReady(match);
+            const editable = canEditSchedule(match);
             return (
             <li key={match.id}>
               <div
@@ -492,7 +441,9 @@ function MatchListSection({
               >
                 <button
                   type="button"
-                  onClick={() => onSelect(match)}
+                  onClick={() =>
+                    ready || !editable ? onEnter(match) : onSelect(match)
+                  }
                   className="flex min-w-0 flex-1 flex-col gap-2 text-left transition hover:opacity-90 sm:flex-row sm:items-center sm:gap-3"
                 >
                   <div
@@ -554,14 +505,16 @@ function MatchListSection({
                   >
                     {MATCH_STATUS_LABEL[match.status]}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => onSelect(match)}
-                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-ink"
-                    title="Vaxt və məkan"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
+                  {editable ? (
+                    <button
+                      type="button"
+                      onClick={() => onSelect(match)}
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-ink"
+                      title="Vaxt və məkan"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     disabled={!isFixtureReady(match)}
@@ -705,9 +658,9 @@ function PlayoffTeamRow({
       }`}
     >
       {logo ? (
-        <img src={mediaUrl(logo)} alt="" className="h-8 w-8 rounded-full object-cover" />
+        <img src={mediaUrl(logo)} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
       ) : (
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">
+        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${teamInitialTone(name)}`}>
           {name.slice(0, 1).toUpperCase()}
         </span>
       )}
@@ -732,6 +685,7 @@ function PlayoffMatchCard({
 }) {
   const meta = parsePlayoffNotes(match.notes);
   const ready = isFixtureReady(match);
+  const editable = canEditSchedule(match);
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -748,7 +702,7 @@ function PlayoffMatchCard({
       </div>
       <button
         type="button"
-        onClick={() => onSelect(match)}
+        onClick={() => (ready || !editable ? onEnter(match) : onSelect(match))}
         className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2 text-left"
       >
         <PlayoffTeamRow
@@ -773,14 +727,16 @@ function PlayoffMatchCard({
         />
       </button>
       <div className="mt-2 flex items-center justify-end gap-1">
-        <button
-          type="button"
-          onClick={() => onSelect(match)}
-          className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-ink"
-          title="Vaxt və məkan"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
+        {editable ? (
+          <button
+            type="button"
+            onClick={() => onSelect(match)}
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-ink"
+            title="Vaxt və məkan"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
         <button
           type="button"
           disabled={!ready}
@@ -810,6 +766,88 @@ function PlayoffPlaceholderCard({ item }: { item: PlayoffPlaceholder }) {
         </p>
       </div>
     </div>
+  );
+}
+
+function ChampionshipOverallTeamTable({
+  rows,
+}: {
+  rows: ChampionshipTeamStatistics[];
+}) {
+  return (
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-100 px-4 py-3">
+        <h3 className="text-sm font-bold text-ink">Komanda statistikası</h3>
+        <p className="mt-0.5 text-xs text-slate-400">
+          Çempionat qolları komandanın ümumi GF/GA göstəricisinə düşür.
+        </p>
+      </div>
+      {rows.length === 0 ? (
+        <p className="px-4 py-10 text-center text-sm text-slate-500">
+          Komanda statistikası hələ yoxdur.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                <th className="px-3 py-2.5 text-center">#</th>
+                <th className="px-3 py-2.5">Komanda</th>
+                <th className="px-2 py-2.5 text-center">O</th>
+                <th className="px-2 py-2.5 text-center">Q</th>
+                <th className="px-2 py-2.5 text-center">He</th>
+                <th className="px-2 py-2.5 text-center">M</th>
+                <th className="px-2 py-2.5 text-center">V</th>
+                <th className="px-2 py-2.5 text-center">B</th>
+                <th className="px-2 py-2.5 text-center">+</th>
+                <th className="px-3 py-2.5 text-center">Xal</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {rows.map((row, index) => (
+                <tr key={row.teamId} className="hover:bg-slate-50/70">
+                  <td className="px-3 py-2.5 text-center font-bold tabular-nums text-slate-400">
+                    {index + 1}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <TeamMark name={row.teamName} logo={row.logo} size="sm" />
+                  </td>
+                  <td className="px-2 py-2.5 text-center tabular-nums">{row.played}</td>
+                  <td className="px-2 py-2.5 text-center tabular-nums">{row.wins}</td>
+                  <td className="px-2 py-2.5 text-center tabular-nums">{row.draws}</td>
+                  <td className="px-2 py-2.5 text-center tabular-nums">{row.losses}</td>
+                  <td className="px-2 py-2.5 text-center font-semibold tabular-nums text-ink">
+                    {row.goalsFor}
+                  </td>
+                  <td className="px-2 py-2.5 text-center tabular-nums">{row.goalsAgainst}</td>
+                  <td className="px-2 py-2.5 text-center tabular-nums">
+                    {formatDiff(row.goalDifference)}
+                  </td>
+                  <td className="px-3 py-2.5 text-center font-bold tabular-nums text-ink">
+                    {row.points}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ChampionshipStatsBlock({
+  players,
+  teams,
+}: {
+  players: ChampScorerRow[];
+  teams: ChampionshipTeamStatistics[];
+}) {
+  return (
+    <>
+      <ChampionshipOverallTeamTable rows={teams} />
+      <ChampionshipScorerTable rows={players} />
+    </>
   );
 }
 
@@ -961,6 +999,10 @@ export function AdminChampionshipDetailPage() {
 
   const [championship, setChampionship] = useState<Championship | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [statistics, setStatistics] = useState<ChampionshipStatistics>({
+    players: [],
+    teams: [],
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -968,6 +1010,7 @@ export function AdminChampionshipDetailPage() {
 
   const [allTeams, setAllTeams] = useState<TeamSummary[]>([]);
   const [teamSearch, setTeamSearch] = useState("");
+  const [teamSearchLoading, setTeamSearchLoading] = useState(false);
 
   const [activeGroupId, setActiveGroupId] = useState<number | null>(null);
   const [standings, setStandings] = useState<StandingRow[]>([]);
@@ -1004,6 +1047,12 @@ export function AdminChampionshipDetailPage() {
 
   const [modalSubmitting, setModalSubmitting] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<{
+    kind: "team" | "invite";
+    id: number;
+    name: string;
+  } | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!Number.isInteger(championshipId) || championshipId <= 0) {
@@ -1014,12 +1063,14 @@ export function AdminChampionshipDetailPage() {
     setLoading(true);
     setError(null);
     try {
-      const [champ, matchList] = await Promise.all([
+      const [champ, matchList, stats] = await Promise.all([
         fetchChampionship(championshipId),
         fetchChampionshipMatches(championshipId),
+        fetchChampionshipStatistics(championshipId),
       ]);
       setChampionship(champ);
       setMatches(matchList);
+      setStatistics(stats);
       if (champ.groups.length > 0) {
         setActiveGroupId((prev) => {
           if (prev && champ.groups.some((g) => g.id === prev)) return prev;
@@ -1030,6 +1081,7 @@ export function AdminChampionshipDetailPage() {
       setError(err instanceof Error ? err.message : "Yuklenmedi");
       setChampionship(null);
       setMatches([]);
+      setStatistics({ players: [], teams: [] });
     } finally {
       setLoading(false);
     }
@@ -1070,20 +1122,46 @@ export function AdminChampionshipDetailPage() {
     });
   }, [groupCount]);
 
-  const loadTeamPicker = useCallback(async (q?: string) => {
-    try {
-      const teams = await fetchTeams({ q: q || undefined });
-      setAllTeams(teams);
-    } catch {
-      setAllTeams([]);
-    }
-  }, []);
+  const closeAddTeamModal = () => {
+    setAddTeamModalOpen(false);
+    setTeamSearch("");
+    setPickerTeamId("");
+    setAllTeams([]);
+    setTeamSearchLoading(false);
+    setModalError(null);
+  };
 
   useEffect(() => {
-    if (addTeamModalOpen || addToGroupModal) {
-      void loadTeamPicker(teamSearch);
+    if (!addTeamModalOpen) return;
+
+    const q = teamSearch.trim();
+    if (q.length < 1) {
+      setAllTeams([]);
+      setTeamSearchLoading(false);
+      return;
     }
-  }, [addTeamModalOpen, addToGroupModal, teamSearch, loadTeamPicker]);
+
+    const controller = new AbortController();
+    setTeamSearchLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const teams = await fetchTeams({ q }, controller.signal);
+        if (controller.signal.aborted) return;
+        setAllTeams(teams);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        if (err instanceof Error && err.name === "AbortError") return;
+        setAllTeams([]);
+      } finally {
+        if (!controller.signal.aborted) setTeamSearchLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [addTeamModalOpen, teamSearch]);
 
   const pendingInvites = championship?.pendingInvites ?? [];
 
@@ -1099,14 +1177,6 @@ export function AdminChampionshipDetailPage() {
 
   const rosterCount =
     (championship?.teams.length ?? 0) + pendingInvites.length;
-
-  const availablePickerTeams = useMemo(
-    () =>
-      allTeams.filter(
-        (t) => !enrolledTeamIds.has(t.id) && !pendingTeamIds.has(t.id),
-      ),
-    [allTeams, enrolledTeamIds, pendingTeamIds],
-  );
 
   const teamsInGroups = useMemo(() => {
     const ids = new Set<number>();
@@ -1188,8 +1258,7 @@ export function AdminChampionshipDetailPage() {
   );
 
   const scorerRows = useMemo(() => {
-    const rows = collectChampionshipScorers(matches);
-    return rows
+    return statistics.players
       .filter((row) => row.goals > 0 || row.assists > 0)
       .sort(
         (a, b) =>
@@ -1197,8 +1266,20 @@ export function AdminChampionshipDetailPage() {
           b.assists - a.assists ||
           b.goals + b.assists - (a.goals + a.assists) ||
           playerDisplayName(a).localeCompare(playerDisplayName(b), "az"),
-      );
-  }, [matches]);
+      )
+      .map((row) => ({
+        id: row.id,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        shirtNumber: row.shirtNumber,
+        photo: row.photo,
+        teamId: row.teamId,
+        teamName: row.team.name,
+        teamLogo: row.team.logo,
+        goals: row.goals,
+        assists: row.assists,
+      }));
+  }, [statistics.players]);
 
   const unfinishedGroupMatches = useMemo(
     () =>
@@ -1259,6 +1340,7 @@ export function AdminChampionshipDetailPage() {
   };
 
   const openSchedule = (match: Match) => {
+    if (!canEditSchedule(match)) return;
     setScheduleMatch(match);
     setScheduleAt(toDatetimeLocal(match.scheduledAt));
     setScheduleVenue(match.venue ?? "");
@@ -1266,12 +1348,13 @@ export function AdminChampionshipDetailPage() {
   };
 
   const enterMatch = (match: Match) => {
+    if (canEditSchedule(match) && !isFixtureReady(match)) return;
     navigate(`/admin/football/matches/${match.id}`);
   };
 
   const handleSaveSchedule = async (e: FormEvent) => {
     e.preventDefault();
-    if (!scheduleMatch) return;
+    if (!scheduleMatch || !canEditSchedule(scheduleMatch)) return;
     if (!scheduleAt) {
       setModalError("Oyun vaxtı mütləqdir");
       return;
@@ -1305,7 +1388,7 @@ export function AdminChampionshipDetailPage() {
   const handleAddTeam = async (e: FormEvent) => {
     e.preventDefault();
     if (!pickerTeamId) {
-      setModalError("Komanda secin");
+      setModalError("Komanda seçin");
       return;
     }
     if (
@@ -1329,8 +1412,7 @@ export function AdminChampionshipDetailPage() {
     try {
       const updated = await addChampionshipTeam(championshipId, pickerTeamId);
       setChampionship(updated);
-      setAddTeamModalOpen(false);
-      setPickerTeamId("");
+      closeAddTeamModal();
     } catch (err) {
       setModalError(err instanceof Error ? err.message : "Elave edilmedi");
     } finally {
@@ -1338,23 +1420,29 @@ export function AdminChampionshipDetailPage() {
     }
   };
 
-  const handleRemoveTeam = async (teamId: number) => {
-    if (!window.confirm("Komandani cempionatdan cixarmaq isteyirsiniz?")) return;
-    await runAction(async () => {
-      const updated = await removeChampionshipTeam(championshipId, teamId);
-      setChampionship(updated);
-    });
+  const closeRemoveModal = () => {
+    if (busy) return;
+    setRemoveTarget(null);
+    setRemoveError(null);
   };
 
-  const handleCancelInvite = async (inviteId: number) => {
-    if (!window.confirm("Dəvəti ləğv etmək istəyirsiniz?")) return;
-    await runAction(async () => {
-      const updated = await cancelChampionshipTeamInvite(
-        championshipId,
-        inviteId,
-      );
+  const handleRemoveTeam = async () => {
+    if (!removeTarget) return;
+    setBusy(true);
+    setRemoveError(null);
+    setActionError(null);
+    try {
+      const updated =
+        removeTarget.kind === "invite"
+          ? await cancelChampionshipTeamInvite(championshipId, removeTarget.id)
+          : await removeChampionshipTeam(championshipId, removeTarget.id);
       setChampionship(updated);
-    });
+      setRemoveTarget(null);
+    } catch (err) {
+      setRemoveError(err instanceof Error ? err.message : "Silinmədi");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleCreateGroups = async (e: FormEvent) => {
@@ -1671,6 +1759,8 @@ export function AdminChampionshipDetailPage() {
                 }
                 onClick={() => {
                   setPickerTeamId("");
+                  setTeamSearch("");
+                  setAllTeams([]);
                   setModalError(null);
                   setAddTeamModalOpen(true);
                 }}
@@ -1713,7 +1803,14 @@ export function AdminChampionshipDetailPage() {
                     <button
                       type="button"
                       disabled={busy}
-                      onClick={() => void handleCancelInvite(invite.id)}
+                      onClick={() => {
+                        setRemoveError(null);
+                        setRemoveTarget({
+                          kind: "invite",
+                          id: invite.id,
+                          name: invite.team.name,
+                        });
+                      }}
                       className="rounded-lg p-1.5 text-slate-300 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
                       title="Dəvəti ləğv et"
                     >
@@ -1730,7 +1827,14 @@ export function AdminChampionshipDetailPage() {
                     <button
                       type="button"
                       disabled={busy}
-                      onClick={() => void handleRemoveTeam(row.teamId)}
+                      onClick={() => {
+                        setRemoveError(null);
+                        setRemoveTarget({
+                          kind: "team",
+                          id: row.teamId,
+                          name: row.team.name,
+                        });
+                      }}
                       className="rounded-lg p-1.5 text-slate-300 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
                       title="Cixart"
                     >
@@ -1966,7 +2070,10 @@ export function AdminChampionshipDetailPage() {
               onEnter={enterMatch}
             />
 
-            <ChampionshipScorerTable rows={scorerRows} />
+            <ChampionshipStatsBlock
+              players={scorerRows}
+              teams={statistics.teams}
+            />
           </div>
         </div>
       ) : null}
@@ -2038,7 +2145,10 @@ export function AdminChampionshipDetailPage() {
                 onSelect={openSchedule}
                 onEnter={enterMatch}
               />
-              <ChampionshipScorerTable rows={scorerRows} />
+              <ChampionshipStatsBlock
+              players={scorerRows}
+              teams={statistics.teams}
+            />
             </div>
           ) : (
             <div className="space-y-6">
@@ -2160,7 +2270,7 @@ export function AdminChampionshipDetailPage() {
                               className="h-8 w-8 rounded-full object-cover"
                             />
                           ) : (
-                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">
+                            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${teamInitialTone(row.team.name)}`}>
                               {row.team.name.slice(0, 1).toUpperCase()}
                             </span>
                           )}
@@ -2181,7 +2291,10 @@ export function AdminChampionshipDetailPage() {
                 </section>
               ) : null}
 
-              <ChampionshipScorerTable rows={scorerRows} />
+              <ChampionshipStatsBlock
+              players={scorerRows}
+              teams={statistics.teams}
+            />
             </div>
           )}
         </div>
@@ -2197,25 +2310,11 @@ export function AdminChampionshipDetailPage() {
               onClick={() => setScheduleMatch(null)}
               disabled={modalSubmitting}
             />
-            {scheduleMatch ? (
-              <button
-                type="button"
-                disabled={!isFixtureReady(scheduleMatch)}
-                onClick={() => enterMatch(scheduleMatch)}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                title={
-                  isFixtureReady(scheduleMatch)
-                    ? "Oyuna gir"
-                    : "Əvvəlcə vaxt və məkanı yadda saxlayın"
-                }
-              >
-                Oyuna gir
-              </button>
-            ) : null}
             <ModalSubmitButton
               label="Yadda saxla"
               loading={modalSubmitting}
               formId="schedule-match"
+              disabled={!scheduleAt.trim() || !scheduleVenue.trim()}
             />
           </>
         }
@@ -2254,11 +2353,11 @@ export function AdminChampionshipDetailPage() {
       <AdminModal
         open={addTeamModalOpen}
         title="Komandanı dəvət et"
-        onClose={() => setAddTeamModalOpen(false)}
+        onClose={closeAddTeamModal}
         footer={
           <>
             <ModalCancelButton
-              onClick={() => setAddTeamModalOpen(false)}
+              onClick={closeAddTeamModal}
               disabled={modalSubmitting}
             />
             <ModalSubmitButton
@@ -2274,31 +2373,138 @@ export function AdminChampionshipDetailPage() {
             Dəvət komandanın kapitanına gedəcək. Qəbul etdikdən sonra komandanı
             qrupa əlavə edə bilərsiniz.
           </p>
-          <Field label="Axtar">
-            <input
-              className={inputClass}
-              value={teamSearch}
-              onChange={(e) => setTeamSearch(e.target.value)}
-              placeholder="Komanda adi..."
-            />
-          </Field>
-          <Field label="Komanda" required>
-            <select
-              className={inputClass}
-              value={pickerTeamId}
-              onChange={(e) =>
-                setPickerTeamId(e.target.value ? Number(e.target.value) : "")
-              }
-              required
-            >
-              <option value="">Secin...</option>
-              {availablePickerTeams.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </Field>
+          <div className="mb-4">
+            <span className="mb-1.5 block text-sm font-medium text-slate-700">
+              Komanda <span className="text-rose-500">*</span>
+            </span>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className={`${inputClass} pl-9 pr-9`}
+                value={teamSearch}
+                onChange={(e) => {
+                  setTeamSearch(e.target.value);
+                  setPickerTeamId("");
+                  setModalError(null);
+                }}
+                placeholder="Komanda adını yazın..."
+                autoComplete="off"
+                autoFocus
+              />
+              {teamSearchLoading ? (
+                <Loader2 className="absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400" />
+              ) : teamSearch ? (
+                <button
+                  type="button"
+                  aria-label="Təmizlə"
+                  onClick={() => {
+                    setTeamSearch("");
+                    setPickerTeamId("");
+                    setAllTeams([]);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+            {teamSearch.trim().length === 0 ? (
+              <p className="mt-2 text-xs text-slate-400">
+                Hərf yazdıqca komandalar axtarılacaq
+              </p>
+            ) : (
+            <div className="mt-2 overflow-hidden rounded-xl border border-slate-200">
+              {teamSearchLoading && allTeams.length === 0 ? (
+                <div className="flex items-center gap-2 px-3 py-4 text-sm text-slate-500">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Axtarılır...
+                </div>
+              ) : allTeams.length === 0 ? (
+                <p className="px-3 py-8 text-center text-sm text-slate-400">
+                  Nəticə tapılmadı
+                </p>
+              ) : (
+                <ul className="max-h-64 overflow-y-auto py-1">
+                  {allTeams.map((team) => {
+                    const enrolled = enrolledTeamIds.has(team.id);
+                    const pending = pendingTeamIds.has(team.id);
+                    const unavailable = enrolled || pending;
+                    const selected = pickerTeamId === team.id;
+                    const subtitle = [
+                      team.city,
+                      team.captain ? `@${team.captain.username}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ");
+                    const statusNote = enrolled
+                      ? "Bu komanda artıq çempionatdadır"
+                      : pending
+                        ? "Bu komanda dəvət gözləyir"
+                        : null;
+                    const rowClass = `flex w-full items-center gap-3 px-3 py-2.5 text-left ${
+                      unavailable
+                        ? "cursor-default opacity-70"
+                        : selected
+                          ? "bg-brand/20"
+                          : "hover:bg-slate-50"
+                    }`;
+                    const content = (
+                      <>
+                        {team.logo ? (
+                          <img
+                            src={mediaUrl(team.logo)}
+                            alt=""
+                            className="h-9 w-9 shrink-0 rounded-full object-cover"
+                          />
+                        ) : (
+                          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${teamInitialTone(team.name)}`}>
+                            {team.name.slice(0, 1).toUpperCase()}
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-ink">
+                            {team.name}
+                          </span>
+                          {subtitle ? (
+                            <span className="block truncate text-xs text-slate-500">
+                              {subtitle}
+                            </span>
+                          ) : null}
+                          {statusNote ? (
+                            <span className="mt-0.5 block text-[11px] font-medium text-amber-600">
+                              {statusNote}
+                            </span>
+                          ) : null}
+                        </span>
+                        {selected && !unavailable ? (
+                          <Check className="h-4 w-4 shrink-0 text-brand-dark" />
+                        ) : null}
+                      </>
+                    );
+                    return (
+                      <li key={team.id}>
+                        {unavailable ? (
+                          <div className={rowClass}>{content}</div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPickerTeamId(team.id);
+                              setModalError(null);
+                            }}
+                            className={`${rowClass} transition`}
+                          >
+                            {content}
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+            )}
+          </div>
           {modalError ? (
             <p className="text-sm font-medium text-rose-600">{modalError}</p>
           ) : null}
@@ -2595,6 +2801,41 @@ export function AdminChampionshipDetailPage() {
             </div>
           );
         })}
+      </AdminModal>
+
+      <AdminModal
+        open={removeTarget != null}
+        title="Komandanı sil"
+        onClose={closeRemoveModal}
+        footer={
+          <>
+            <ModalCancelButton
+              onClick={closeRemoveModal}
+              disabled={busy}
+            />
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void handleRemoveTeam()}
+              className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-700 disabled:opacity-60"
+            >
+              {busy ? "Gözləyin..." : "Sil"}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm leading-relaxed text-slate-700">
+          <span className="font-semibold text-ink">{removeTarget?.name}</span>{" "}
+          komandasını silməyə əminsiniz?
+        </p>
+        <p className="mt-2 text-xs text-slate-500">
+          {removeTarget?.kind === "invite"
+            ? "Dəvət ləğv olunacaq."
+            : "Komanda çempionatdan çıxarılacaq, sistemdən silinməyəcək."}
+        </p>
+        {removeError ? (
+          <p className="mt-3 text-sm font-medium text-rose-600">{removeError}</p>
+        ) : null}
       </AdminModal>
     </AdminPageShell>
   );

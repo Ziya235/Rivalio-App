@@ -27,6 +27,7 @@ import {
   type GroupMatchEventType,
   type GroupMatchStatus,
 } from "../../lib/roundRobin";
+import { teamInitialTone } from "../../lib/teamAvatar";
 
 type Team = { id: string; name: string };
 
@@ -76,7 +77,9 @@ function eventIcon(type: GroupMatchEventType) {
 function TeamMark({ name }: { name: string }) {
   return (
     <div className="flex flex-col items-center gap-2 text-center">
-      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-lg font-bold text-brand shadow ring-2 ring-white">
+      <span
+        className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-bold shadow ring-2 ring-white ${teamInitialTone(name)}`}
+      >
         {name.slice(0, 1).toUpperCase()}
       </span>
       <span className="max-w-[9rem] text-sm font-bold text-ink sm:max-w-[12rem]">
@@ -370,12 +373,12 @@ export function ChampionshipMatchDetail({
             </p>
             <p className="mt-2 text-xs text-slate-400">
               {match.scheduledAt
-                ? new Date(match.scheduledAt).toLocaleString("az-AZ", {
-                    day: "numeric",
-                    month: "long",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
+                ? (() => {
+                    const d = new Date(match.scheduledAt);
+                    if (Number.isNaN(d.getTime())) return "Vaxt təyin edilməyib";
+                    const pad = (n: number) => String(n).padStart(2, "0");
+                    return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                  })()
                 : "Vaxt təyin edilməyib"}
             </p>
           </div>

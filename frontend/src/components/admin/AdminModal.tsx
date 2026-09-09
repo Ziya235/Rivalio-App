@@ -96,17 +96,19 @@ export function ModalSubmitButton({
   label,
   loading,
   formId,
+  disabled,
 }: {
   label: string;
   loading?: boolean;
   formId?: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="submit"
       form={formId}
-      disabled={loading}
-      className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-ink shadow-sm hover:bg-brand-dark disabled:opacity-60"
+      disabled={loading || disabled}
+      className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-ink shadow-sm hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
     >
       <Check className="h-4 w-4" />
       {loading ? "Gözləyin..." : label}

@@ -28,6 +28,7 @@ import {
   updateChampionship,
   updateChampionshipMatchAndAdvance,
   updateGroup,
+  getOwnedChampionshipStatistics,
 } from "../services/championshipService.js";
 
 function handleServiceError(res, error) {
@@ -391,6 +392,19 @@ export const championshipStandingsHandler = async (req, res) => {
     return res.json({ success: true, data });
   } catch (error) {
     console.log("Error in championshipStandings:", error);
+    return handleServiceError(res, error);
+  }
+};
+
+export const championshipStatisticsHandler = async (req, res) => {
+  try {
+    const data = await getOwnedChampionshipStatistics(
+      req.params.championshipId,
+      req.user.id,
+    );
+    return res.json({ success: true, data });
+  } catch (error) {
+    console.log("Error in championshipStatistics:", error);
     return handleServiceError(res, error);
   }
 };

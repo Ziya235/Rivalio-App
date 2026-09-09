@@ -158,7 +158,7 @@ export default function TeamDetailPage() {
 
         <div className="mb-8">
           <p className={`mb-2 text-sm font-medium ${light ? "text-gray-500" : "text-white/60"}`}>
-            Bütün liqalar üzrə statistika
+            Bütün liqalar və çempionatlar üzrə statistika
           </p>
           <div className="grid grid-cols-3 gap-3">
             {[
@@ -182,7 +182,7 @@ export default function TeamDetailPage() {
             ))}
           </div>
           <p className={`mt-2 text-xs ${light ? "text-gray-400" : "text-white/30"}`}>
-            Public və private liqalardakı bitmiş oyunlar
+            Public və private liqalardakı, həmçinin çempionatlardakı bitmiş oyunlar
           </p>
         </div>
 

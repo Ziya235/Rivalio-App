@@ -457,7 +457,7 @@ export default function MyProfilePage() {
 
             <div>
               <p className={`text-sm font-medium mb-1.5 ${light ? "text-gray-700" : "text-white/80"}`}>
-                Bütün liqalar üzrə statistika
+                Bütün liqalar və çempionatlar üzrə statistika
               </p>
               <div className="grid grid-cols-3 gap-3">
                 {[
@@ -481,7 +481,7 @@ export default function MyProfilePage() {
                 ))}
               </div>
               <p className={`mt-2 text-xs ${light ? "text-gray-400" : "text-white/30"}`}>
-                Public və private liqalardakı bitmiş oyunlar
+                Public və private liqalardakı, həmçinin çempionatlardakı bitmiş oyunlar
               </p>
             </div>
 

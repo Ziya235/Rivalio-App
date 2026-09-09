@@ -3,8 +3,19 @@ import { canViewLeague } from "../utils/leagueAccess.js";
 import {
   applyGoalAssistToUsers,
   applyGamesPlayedForMatch,
+  revertMatchUserGoalStats,
 } from "../utils/userStats.js";
 import { onChampionshipMatchFinished } from "../services/championshipService.js";
+import { buildGroupFixtures } from "../utils/championshipBracket.js";
+import {
+  MatchClockError,
+  assertEventMinute,
+  assertMatchEventsWritable,
+  buildStatusUpdate,
+  persistIfClockExpired,
+  withMatchClock,
+  withMatchClockList,
+} from "../utils/matchClock.js";
 
 const MATCH_STATUSES = [
   "SCHEDULED",
@@ -83,6 +94,35 @@ const matchDetailInclude = {
 
 // Every query is a Neon roundtrip (~1s), so the 5s default is not enough here.
 const TX_OPTIONS = { maxWait: 15000, timeout: 30000 };
+
+const clockErrorResponse = (res, err) => {
+  if (err instanceof MatchClockError) {
+    res.status(err.status || 400).json({
+      success: false,
+      message: err.message,
+    });
+    return true;
+  }
+  return false;
+};
+
+const reloadMatch = (matchId) =>
+  prisma.match.findUnique({
+    where: { id: matchId },
+    include: matchDetailInclude,
+  });
+
+const syncMatchClock = async (match) => {
+  if (!match) return match;
+  const result = await persistIfClockExpired(match);
+  if (result.championshipFinished) {
+    await onChampionshipMatchFinished(match.id);
+  }
+  if (result.changed) {
+    return reloadMatch(match.id);
+  }
+  return match;
+};
 
 const assertLeagueOwner = async (req, res, leagueId) => {
   if (!leagueId) {
@@ -230,7 +270,7 @@ export const listLeagueMatches = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: matches,
+      data: withMatchClockList(matches),
     });
   } catch (error) {
     console.log("Error in listLeagueMatches:", error);
@@ -277,7 +317,7 @@ export const listMyMatches = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: matches,
+      data: withMatchClockList(matches),
     });
   } catch (error) {
     console.log("Error in listMyMatches:", error);
@@ -332,9 +372,11 @@ export const getMatchById = async (req, res) => {
       }
     }
 
+    const synced = await syncMatchClock(match);
+
     return res.status(200).json({
       success: true,
-      data: match,
+      data: withMatchClock(synced),
     });
   } catch (error) {
     console.log("Error in getMatchById:", error);
@@ -436,10 +478,100 @@ export const createMatch = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Match created successfully",
-      data: match,
+      data: withMatchClock(match),
     });
   } catch (error) {
     console.log("Error in createMatch:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const generateLeagueMatches = async (req, res) => {
+  try {
+    const leagueId = parsePositiveInt(req.params.leagueId);
+    const league = await assertLeagueOwner(req, res, leagueId);
+    if (!league) return;
+
+    const homeAway =
+      req.body?.homeAway === true ||
+      req.body?.homeAway === "true" ||
+      req.body?.matchFormat === "HOME_AWAY";
+
+    const memberships = await prisma.leagueTeam.findMany({
+      where: { leagueId },
+      select: { teamId: true },
+      orderBy: { teamId: "asc" },
+    });
+    const teamIds = memberships.map((m) => m.teamId);
+
+    if (teamIds.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: "Oyun yaratmaq üçün ən azı 2 komanda lazımdır",
+      });
+    }
+
+    const startedCount = await prisma.match.count({
+      where: {
+        leagueId,
+        matchType: "LEAGUE",
+        status: { in: ["LIVE", "FINISHED"] },
+      },
+    });
+    if (startedCount > 0) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Liqada artıq başlamış və ya bitmiş oyun var. Cədvəli yenidən yaratmaq olmaz.",
+      });
+    }
+
+    const rounds = buildGroupFixtures(teamIds, { homeAway });
+    const rows = [];
+    for (const round of rounds) {
+      for (const pairing of round.pairings) {
+        rows.push({
+          leagueId,
+          homeTeamId: pairing.homeTeamId,
+          awayTeamId: pairing.awayTeamId,
+          round: round.round,
+          matchType: "LEAGUE",
+          status: "SCHEDULED",
+          scheduledAt: null,
+          venue: null,
+          createdById: req.user.id,
+        });
+      }
+    }
+
+    const created = await prisma.$transaction(async (tx) => {
+      await tx.match.deleteMany({
+        where: {
+          leagueId,
+          matchType: "LEAGUE",
+          status: { in: ["SCHEDULED", "POSTPONED"] },
+        },
+      });
+      if (rows.length > 0) {
+        await tx.match.createMany({ data: rows });
+      }
+      return tx.match.findMany({
+        where: { leagueId, matchType: "LEAGUE" },
+        include: matchInclude,
+        orderBy: [{ round: "asc" }, { id: "asc" }],
+      });
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Liqa oyunları yaradıldı",
+      data: withMatchClockList(created),
+    });
+  } catch (error) {
+    console.log("Error in generateLeagueMatches:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -452,6 +584,7 @@ export const updateMatch = async (req, res) => {
     const matchId = parsePositiveInt(req.params.matchId);
     const existing = await assertMatchOwner(req, res, matchId);
     if (!existing) return;
+    const current = await syncMatchClock(existing);
 
     const {
       scheduledAt,
@@ -462,8 +595,14 @@ export const updateMatch = async (req, res) => {
       status,
       homeScore,
       awayScore,
-      minute,
     } = req.body;
+
+    if (current.lockedAt) {
+      return res.status(400).json({
+        success: false,
+        message: "Oyun kilidlənib. Daha dəyişiklik etmək olmaz.",
+      });
+    }
 
     const data = {};
 
@@ -495,6 +634,16 @@ export const updateMatch = async (req, res) => {
     if (venue !== undefined) data.venue = venue?.trim() || null;
     if (notes !== undefined) data.notes = notes?.trim() || null;
 
+    if (
+      (current.status === "LIVE" || current.status === "FINISHED") &&
+      (scheduledAt !== undefined || venue !== undefined)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Canlı və bitmiş oyunun vaxtı və məkanı dəyişdirilə bilməz",
+      });
+    }
+
     if (matchType !== undefined) {
       const type = String(matchType).toUpperCase();
       if (!MATCH_TYPES.includes(type)) {
@@ -514,44 +663,32 @@ export const updateMatch = async (req, res) => {
           message: `status must be one of: ${MATCH_STATUSES.join(", ")}`,
         });
       }
-      data.status = nextStatus;
 
-      if (nextStatus === "LIVE" && !existing.startedAt) {
-        data.startedAt = new Date();
-        if (existing.minute == null && minute === undefined) {
-          data.minute = 1;
+      if (nextStatus === "LIVE" && current.status === "SCHEDULED") {
+        const kickoff = data.scheduledAt ?? current.scheduledAt;
+        const place =
+          data.venue !== undefined ? data.venue : current.venue;
+        if (!kickoff || !String(place || "").trim()) {
+          return res.status(400).json({
+            success: false,
+            message: "Oyunu başlatmaq üçün əvvəlcə vaxt və məkan təyin edin",
+          });
         }
       }
 
-      if (nextStatus === "FINISHED") {
-        data.finishedAt = new Date();
-        if (existing.minute == null && minute === undefined) {
-          data.minute = 90;
-        }
-        if (existing.championshipId) {
-          const hs =
-            homeScore !== undefined ? Number(homeScore) : existing.homeScore;
-          const as =
-            awayScore !== undefined ? Number(awayScore) : existing.awayScore;
-          data.winnerTeamId =
-            hs > as
-              ? existing.homeTeamId
-              : as > hs
-                ? existing.awayTeamId
-                : null;
-        }
-      }
-
-      if (nextStatus === "SCHEDULED") {
-        data.statsApplied = false;
-      }
-
-      if (nextStatus === "SCHEDULED") {
-        data.startedAt = null;
-        data.finishedAt = null;
-        data.minute = null;
-        data.homeScore = 0;
-        data.awayScore = 0;
+      try {
+        Object.assign(
+          data,
+          buildStatusUpdate(current, nextStatus, new Date(), {
+            homeScore:
+              homeScore !== undefined ? Number(homeScore) : current.homeScore,
+            awayScore:
+              awayScore !== undefined ? Number(awayScore) : current.awayScore,
+          }),
+        );
+      } catch (err) {
+        if (clockErrorResponse(res, err)) return;
+        throw err;
       }
     }
 
@@ -577,31 +714,11 @@ export const updateMatch = async (req, res) => {
       data.awayScore = score;
     }
 
-    if (minute !== undefined) {
-      if (minute === null || minute === "") {
-        data.minute = null;
-      } else {
-        const m = Number(minute);
-        if (!Number.isInteger(m) || m < 0 || m > 130) {
-          return res.status(400).json({
-            success: false,
-            message: "minute must be between 0 and 130",
-          });
-        }
-        data.minute = m;
-      }
-    }
-
     if (Object.keys(data).length === 0) {
       return res.status(400).json({
         success: false,
         message: "No fields to update",
       });
-    }
-
-    // Resetting to SCHEDULED clears events that would desync scores
-    if (data.status === "SCHEDULED") {
-      await prisma.matchEvent.deleteMany({ where: { matchId } });
     }
 
     await prisma.$transaction(async (tx) => {
@@ -630,7 +747,7 @@ export const updateMatch = async (req, res) => {
     if (
       match?.championshipId &&
       match.status === "FINISHED" &&
-      existing.status !== "FINISHED"
+      current.status !== "FINISHED"
     ) {
       await onChampionshipMatchFinished(match.id);
     }
@@ -638,9 +755,10 @@ export const updateMatch = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Match updated successfully",
-      data: match,
+      data: withMatchClock(match),
     });
   } catch (error) {
+    if (clockErrorResponse(res, error)) return;
     console.log("Error in updateMatch:", error);
     return res.status(500).json({
       success: false,
@@ -655,7 +773,10 @@ export const deleteMatch = async (req, res) => {
     const existing = await assertMatchOwner(req, res, matchId);
     if (!existing) return;
 
-    await prisma.match.delete({ where: { id: matchId } });
+    await prisma.$transaction(async (tx) => {
+      await revertMatchUserGoalStats(tx, matchId);
+      await tx.match.delete({ where: { id: matchId } });
+    }, TX_OPTIONS);
 
     return res.status(200).json({
       success: true,
@@ -673,21 +794,15 @@ export const deleteMatch = async (req, res) => {
 export const addMatchEvent = async (req, res) => {
   try {
     const matchId = parsePositiveInt(req.params.matchId);
-    const match = await assertMatchOwner(req, res, matchId);
-    if (!match) return;
+    const raw = await assertMatchOwner(req, res, matchId);
+    if (!raw) return;
+    const match = await syncMatchClock(raw);
 
-    if (match.status === "CANCELLED" || match.status === "POSTPONED") {
-      return res.status(400).json({
-        success: false,
-        message: "Cannot add events to cancelled or postponed matches",
-      });
-    }
-
-    if (match.status === "SCHEDULED") {
-      return res.status(400).json({
-        success: false,
-        message: "Əvvəlcə oyun başladılmalıdır",
-      });
+    try {
+      assertMatchEventsWritable(match);
+    } catch (err) {
+      if (clockErrorResponse(res, err)) return;
+      throw err;
     }
 
     const {
@@ -709,12 +824,12 @@ export const addMatchEvent = async (req, res) => {
       });
     }
 
-    const minuteValue = Number(minute);
-    if (!Number.isInteger(minuteValue) || minuteValue < 0 || minuteValue > 130) {
-      return res.status(400).json({
-        success: false,
-        message: "minute must be between 0 and 130",
-      });
+    let minuteValue;
+    try {
+      minuteValue = assertEventMinute(minute);
+    } catch (err) {
+      if (clockErrorResponse(res, err)) return;
+      throw err;
     }
 
     const teamIdValue =
@@ -753,6 +868,16 @@ export const addMatchEvent = async (req, res) => {
     const scorerId = parsePositiveInt(playerId) || null;
     const assistId = parsePositiveInt(assistPlayerId) || null;
 
+    if (
+      ["GOAL", "OWN_GOAL", "YELLOW_CARD", "RED_CARD"].includes(eventType) &&
+      !scorerId
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Oyunçu seçilməlidir",
+      });
+    }
+
     const eventId = await prisma.$transaction(async (tx) => {
       const event = await tx.matchEvent.create({
         data: {
@@ -782,10 +907,6 @@ export const addMatchEvent = async (req, res) => {
         data: {
           homeScore: { increment: delta.home },
           awayScore: { increment: delta.away },
-          minute: minuteValue,
-          ...(match.status === "SCHEDULED"
-            ? { status: "LIVE", startedAt: new Date() }
-            : {}),
         },
         select: { id: true },
       });
@@ -807,7 +928,7 @@ export const addMatchEvent = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Event added successfully",
-      data: { event, match: updatedMatch },
+      data: { event, match: withMatchClock(updatedMatch) },
     });
   } catch (error) {
     console.log("Error in addMatchEvent:", error);
@@ -822,8 +943,16 @@ export const deleteMatchEvent = async (req, res) => {
   try {
     const matchId = parsePositiveInt(req.params.matchId);
     const eventId = parsePositiveInt(req.params.eventId);
-    const match = await assertMatchOwner(req, res, matchId);
-    if (!match) return;
+    const raw = await assertMatchOwner(req, res, matchId);
+    if (!raw) return;
+    const match = await syncMatchClock(raw);
+
+    try {
+      assertMatchEventsWritable(match);
+    } catch (err) {
+      if (clockErrorResponse(res, err)) return;
+      throw err;
+    }
 
     if (!eventId) {
       return res.status(400).json({
@@ -879,7 +1008,7 @@ export const deleteMatchEvent = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Event deleted successfully",
-      data: updatedMatch,
+      data: withMatchClock(updatedMatch),
     });
   } catch (error) {
     console.log("Error in deleteMatchEvent:", error);

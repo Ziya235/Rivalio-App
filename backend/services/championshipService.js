@@ -1,9 +1,6 @@
 import { prisma } from "../config/db.js";
 import { getSportByCode } from "../utils/sports.js";
-import {
-  attachPlayerStats,
-  getPlayerStatsMap,
-} from "../utils/playerStats.js";
+import { buildCompetitionStatistics } from "../utils/competitionStats.js";
 import {
   PLAYOFF_ONLY_SIZES,
   buildGroupFixtures,
@@ -27,6 +24,15 @@ import {
   validateGroupSlots,
 } from "../utils/championshipGroups.js";
 import { createNotification } from "./notificationService.js";
+import {
+  MATCH_EDIT_WINDOW_MS,
+  MatchClockError,
+  buildStatusUpdate,
+  persistIfClockExpired,
+  withMatchClock,
+  withMatchClockList,
+} from "../utils/matchClock.js";
+import { revertMatchUserGoalStats } from "../utils/userStats.js";
 
 const MATCH_FORMATS = ["SINGLE", "HOME_AWAY"];
 
@@ -1248,11 +1254,13 @@ export async function listChampionshipMatches(championshipId, userId, query = {}
   if (query.stage) where.stage = query.stage;
   if (query.status) where.status = query.status;
 
-  return prisma.match.findMany({
-    where,
-    include: matchInclude,
-    orderBy: [{ scheduledAt: { sort: "asc", nulls: "first" } }, { id: "asc" }],
-  });
+  return withMatchClockList(
+    await prisma.match.findMany({
+      where,
+      include: matchInclude,
+      orderBy: [{ scheduledAt: { sort: "asc", nulls: "first" } }, { id: "asc" }],
+    }),
+  );
 }
 
 export async function getChampionshipMatch(matchId, userId) {
@@ -1268,12 +1276,35 @@ export async function getChampionshipMatch(matchId, userId) {
   if (match.championship.createdById !== userId) {
     throw httpError("You can only manage your own championships", 403);
   }
-  return match;
+  const expired = await persistIfClockExpired(match);
+  if (expired.changed) {
+    if (expired.championshipFinished) {
+      await onChampionshipMatchFinished(match.id);
+    }
+    const reloaded = await prisma.match.findUnique({
+      where: { id: match.id },
+      include: {
+        ...matchInclude,
+        championship: true,
+      },
+    });
+    return withMatchClock(reloaded);
+  }
+  return withMatchClock(match);
 }
 
 export async function updateChampionshipMatch(matchId, userId, body) {
   const match = await getChampionshipMatch(matchId, userId);
+  if (match.lockedAt) {
+    throw httpError("Oyun kilidlənib. Daha dəyişiklik etmək olmaz.");
+  }
   const data = {};
+
+  if (body.scheduledAt != null || body.venue !== undefined) {
+    if (match.status === "LIVE" || match.status === "FINISHED") {
+      throw httpError("Canlı və bitmiş oyunun vaxtı və məkanı dəyişdirilə bilməz");
+    }
+  }
 
   if (body.scheduledAt != null) {
     const d = new Date(body.scheduledAt);
@@ -1289,32 +1320,30 @@ export async function updateChampionshipMatch(matchId, userId, body) {
   if (body.round !== undefined) {
     data.round = body.round === null || body.round === "" ? null : Number(body.round);
   }
-  if (body.minute !== undefined) data.minute = body.minute;
 
   if (body.status != null) {
     const status = body.status;
     if (!["SCHEDULED", "LIVE", "FINISHED", "CANCELLED", "POSTPONED"].includes(status)) {
       throw httpError("Invalid status");
     }
-    data.status = status;
-    if (status === "LIVE") {
-      data.startedAt = match.startedAt || new Date();
-      if (match.minute == null) data.minute = 1;
+    if (status === "LIVE" && match.status === "SCHEDULED") {
+      const kickoff = data.scheduledAt ?? match.scheduledAt;
+      const place = data.venue !== undefined ? data.venue : match.venue;
+      if (!kickoff || !String(place || "").trim()) {
+        throw httpError("Oyunu başlatmaq üçün əvvəlcə vaxt və məkan təyin edin");
+      }
     }
-    if (status === "FINISHED") {
-      data.finishedAt = new Date();
-      const hs = body.homeScore != null ? Number(body.homeScore) : match.homeScore;
-      const as = body.awayScore != null ? Number(body.awayScore) : match.awayScore;
-      data.homeScore = hs;
-      data.awayScore = as;
-      data.winnerTeamId =
-        hs > as ? match.homeTeamId : as > hs ? match.awayTeamId : null;
-    }
-    if (status === "SCHEDULED") {
-      data.startedAt = null;
-      data.finishedAt = null;
-      data.winnerTeamId = null;
-      data.minute = null;
+    try {
+      Object.assign(
+        data,
+        buildStatusUpdate(match, status, new Date(), {
+          homeScore: body.homeScore != null ? Number(body.homeScore) : match.homeScore,
+          awayScore: body.awayScore != null ? Number(body.awayScore) : match.awayScore,
+        }),
+      );
+    } catch (err) {
+      if (err instanceof MatchClockError) throw httpError(err.message, err.status);
+      throw err;
     }
   }
 
@@ -1326,11 +1355,14 @@ export async function updateChampionshipMatch(matchId, userId, body) {
     data,
     include: matchInclude,
   });
-  return updated;
+  return withMatchClock(updated);
 }
 
 export async function setMatchResult(matchId, userId, body) {
   const match = await getChampionshipMatch(matchId, userId);
+  if (match.lockedAt) {
+    throw httpError("Oyun kilidlənib. Daha dəyişiklik etmək olmaz.");
+  }
   const homeScore = Number(body.homeScore);
   const awayScore = Number(body.awayScore);
   if (!Number.isInteger(homeScore) || homeScore < 0) {
@@ -1338,6 +1370,30 @@ export async function setMatchResult(matchId, userId, body) {
   }
   if (!Number.isInteger(awayScore) || awayScore < 0) {
     throw httpError("awayScore must be a non-negative integer");
+  }
+
+  const now = new Date();
+  let clockData = {};
+  if (match.status === "LIVE") {
+    try {
+      clockData = buildStatusUpdate(match, "FINISHED", now, {
+        homeScore,
+        awayScore,
+      });
+    } catch (err) {
+      if (err instanceof MatchClockError) throw httpError(err.message, err.status);
+      throw err;
+    }
+  } else if (match.status === "SCHEDULED") {
+    clockData = {
+      status: "FINISHED",
+      startedAt: now,
+      finishedAt: now,
+      editUntil: new Date(now.getTime() + MATCH_EDIT_WINDOW_MS),
+      minute: 0,
+    };
+  } else {
+    throw httpError("Bu oyunun nəticəsini dəyişmək olmaz");
   }
 
   const winnerTeamId =
@@ -1352,10 +1408,8 @@ export async function setMatchResult(matchId, userId, body) {
     data: {
       homeScore,
       awayScore,
-      status: "FINISHED",
-      finishedAt: new Date(),
-      startedAt: match.startedAt || new Date(),
       winnerTeamId,
+      ...clockData,
     },
     include: matchInclude,
   });
@@ -1366,7 +1420,10 @@ export async function setMatchResult(matchId, userId, body) {
 
 export async function deleteChampionshipMatch(matchId, userId) {
   const match = await getChampionshipMatch(matchId, userId);
-  await prisma.match.delete({ where: { id: match.id } });
+  await prisma.$transaction(async (tx) => {
+    await revertMatchUserGoalStats(tx, match.id);
+    await tx.match.delete({ where: { id: match.id } });
+  });
   return { ok: true };
 }
 
@@ -2071,11 +2128,13 @@ export async function listVisibleChampionshipMatches(championshipId, query = {})
   if (query.stage) where.stage = query.stage;
   if (query.status) where.status = query.status;
 
-  return prisma.match.findMany({
-    where,
-    include: matchInclude,
-    orderBy: [{ scheduledAt: { sort: "asc", nulls: "first" } }, { id: "asc" }],
-  });
+  return withMatchClockList(
+    await prisma.match.findMany({
+      where,
+      include: matchInclude,
+      orderBy: [{ scheduledAt: { sort: "asc", nulls: "first" } }, { id: "asc" }],
+    }),
+  );
 }
 
 export async function getVisibleChampionshipMatch(matchId) {
@@ -2090,64 +2149,35 @@ export async function getVisibleChampionshipMatch(matchId) {
   if (!match || !match.championshipId || match.championship?.status === "DRAFT") {
     throw httpError("Match not found", 404);
   }
-  return match;
+  const expired = await persistIfClockExpired(match);
+  if (expired.changed) {
+    if (expired.championshipFinished) {
+      await onChampionshipMatchFinished(match.id);
+    }
+    const reloaded = await prisma.match.findUnique({
+      where: { id },
+      include: {
+        ...matchInclude,
+        championship: { select: { id: true, name: true, status: true } },
+      },
+    });
+    return withMatchClock(reloaded);
+  }
+  return withMatchClock(match);
 }
 
 export async function getVisibleChampionshipStatistics(championshipId) {
   const c = await getVisibleChampionshipRecord(championshipId);
-  const statsMap = await getPlayerStatsMap({ championshipId: c.id });
+  return buildChampionshipStatistics(c.id);
+}
 
-  const players = await prisma.player.findMany({
-    where: {
-      team: {
-        championshipTeams: { some: { championshipId: c.id } },
-      },
-    },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      shirtNumber: true,
-      photo: true,
-      teamId: true,
-      team: { select: teamBrief },
-    },
-    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+export async function getOwnedChampionshipStatistics(championshipId, userId) {
+  const c = await getOwnedChampionship(championshipId, userId, {
+    include: null,
   });
+  return buildChampionshipStatistics(c.id);
+}
 
-  const finishedMatches = await prisma.match.findMany({
-    where: { championshipId: c.id, status: "FINISHED" },
-    select: { homeTeamId: true, awayTeamId: true },
-  });
-  const teamMatchCount = new Map();
-  for (const m of finishedMatches) {
-    teamMatchCount.set(
-      m.homeTeamId,
-      (teamMatchCount.get(m.homeTeamId) || 0) + 1,
-    );
-    teamMatchCount.set(
-      m.awayTeamId,
-      (teamMatchCount.get(m.awayTeamId) || 0) + 1,
-    );
-  }
-
-  return attachPlayerStats(players, statsMap).map((player) => {
-    const matchesPlayed = teamMatchCount.get(player.teamId) || 0;
-    return {
-      id: player.id,
-      firstName: player.firstName,
-      lastName: player.lastName,
-      shirtNumber: player.shirtNumber,
-      photo: player.photo,
-      teamId: player.teamId,
-      team: player.team,
-      goals: player.goals,
-      assists: player.assists,
-      matchesPlayed,
-      goalsPerMatch:
-        matchesPlayed > 0
-          ? Math.round((player.goals / matchesPlayed) * 100) / 100
-          : 0,
-    };
-  });
+async function buildChampionshipStatistics(championshipId) {
+  return buildCompetitionStatistics({ championshipId });
 }

@@ -87,6 +87,14 @@ export type Match = {
   minute: number | null;
   startedAt: string | null;
   finishedAt: string | null;
+  reopenedAt?: string | null;
+  lockedAt?: string | null;
+  editUntil?: string | null;
+  clockSecond?: number;
+  clockFrozen?: boolean;
+  isLocked?: boolean;
+  canReopen?: boolean;
+  serverNow?: string;
   createdAt: string;
   updatedAt: string;
   championship?: { id: number; name: string } | null;

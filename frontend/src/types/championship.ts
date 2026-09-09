@@ -171,4 +171,24 @@ export type PlayerStatistics = {
   goalsPerMatch: number;
 };
 
+export type ChampionshipTeamStatistics = {
+  teamId: number;
+  teamName: string;
+  shortName: string | null;
+  logo: string | null;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+  points: number;
+};
+
+export type ChampionshipStatistics = {
+  players: PlayerStatistics[];
+  teams: ChampionshipTeamStatistics[];
+};
+
 export type UserFacingChampStatus = "Upcoming" | "Active" | "Finished";

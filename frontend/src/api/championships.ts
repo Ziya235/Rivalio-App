@@ -7,6 +7,7 @@ import type {
   ChampionshipGroup,
   ChampionshipListItem,
   ChampionshipMatchFormat,
+  ChampionshipStatistics,
   ChampionshipStatus,
   ChampionshipTeamInvite,
   GroupStandingsBlock,
@@ -407,12 +408,34 @@ export function fetchVisibleChampionshipMatches(
   );
 }
 
-export function fetchVisibleChampionshipStatistics(
+export async function fetchVisibleChampionshipStatistics(
   championshipId: number,
-): Promise<PlayerStatistics[]> {
-  return champFetch<PlayerStatistics[]>(
+): Promise<ChampionshipStatistics> {
+  const data = await champFetch<ChampionshipStatistics | PlayerStatistics[]>(
     `/api/championships/public/${championshipId}/statistics`,
   );
+  return normalizeChampionshipStatistics(data);
+}
+
+export async function fetchChampionshipStatistics(
+  championshipId: number,
+): Promise<ChampionshipStatistics> {
+  const data = await champFetch<ChampionshipStatistics | PlayerStatistics[]>(
+    `/api/championships/${championshipId}/statistics`,
+  );
+  return normalizeChampionshipStatistics(data);
+}
+
+function normalizeChampionshipStatistics(
+  data: ChampionshipStatistics | PlayerStatistics[],
+): ChampionshipStatistics {
+  if (Array.isArray(data)) {
+    return { players: data, teams: [] };
+  }
+  return {
+    players: Array.isArray(data?.players) ? data.players : [],
+    teams: Array.isArray(data?.teams) ? data.teams : [],
+  };
 }
 
 export function fetchVisibleChampionshipMatch(matchId: number): Promise<Match> {

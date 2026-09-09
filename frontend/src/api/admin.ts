@@ -138,7 +138,7 @@ export type LeagueJoinRequest = {
 /** Invite an existing team (by unique name) into the league. */
 export function inviteTeamToLeague(
   leagueId: number,
-  payload: { teamName: string; message?: string },
+  payload: { teamId?: number; teamName?: string; message?: string },
 ): Promise<LeagueInvite> {
   return adminFetch<LeagueInvite>(`/api/leagues/${leagueId}/team-invites`, {
     method: "POST",
@@ -211,6 +211,16 @@ export function fetchMyMatches(params?: {
 
 export function fetchMatch(matchId: number): Promise<Match> {
   return adminFetch<Match>(`/api/matches/${matchId}`);
+}
+
+export function generateLeagueMatches(
+  leagueId: number,
+  payload?: { homeAway?: boolean },
+): Promise<Match[]> {
+  return adminFetch<Match[]>(`/api/leagues/${leagueId}/matches/generate`, {
+    method: "POST",
+    body: JSON.stringify(payload ?? {}),
+  });
 }
 
 export function createMatch(

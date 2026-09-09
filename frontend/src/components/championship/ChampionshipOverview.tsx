@@ -6,8 +6,8 @@ import {
 } from "../../lib/championshipUi";
 import type {
   ChampionshipListItem,
+  ChampionshipStatistics,
   GroupStandingsBlock,
-  PlayerStatistics,
   StandingRow,
 } from "../../types/championship";
 import type { Match } from "../../types/match";
@@ -97,7 +97,7 @@ export function ChampionshipOverview({
   championship: ChampionshipListItem;
   matches: Match[];
   standings: GroupStandingsBlock[];
-  statistics: PlayerStatistics[];
+  statistics: ChampionshipStatistics;
 }) {
   const myTeamIds = new Set((championship.myTeams ?? []).map((t) => t.id));
   const finished = matches.filter((m) => m.status === "FINISHED");
@@ -118,7 +118,7 @@ export function ChampionshipOverview({
   const finalMatch = finished.find((m) => m.stage === "FINAL");
   const champion = finalMatch?.winnerTeam ?? null;
 
-  const topScorer = [...statistics]
+  const topScorer = [...statistics.players]
     .filter((p) => p.goals > 0)
     .sort(
       (a, b) =>
@@ -126,7 +126,7 @@ export function ChampionshipOverview({
         b.assists - a.assists ||
         `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, "az"),
     )[0];
-  const topAssister = [...statistics]
+  const topAssister = [...statistics.players]
     .filter((p) => p.assists > 0)
     .sort(
       (a, b) =>
@@ -265,7 +265,7 @@ export function ChampionshipOverview({
         </div>
       ) : null}
 
-      {statistics.length === 0 && matches.length === 0 ? (
+      {statistics.players.length === 0 && matches.length === 0 ? (
         <p className="flex items-center gap-2 text-sm text-gray-400">
           <Target size={14} />
           <Handshake size={14} />

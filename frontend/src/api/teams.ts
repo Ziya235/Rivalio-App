@@ -134,15 +134,20 @@ export type TeamPlayerInviteNotifications = {
   outcomes: TeamPlayerInvite[];
 };
 
-export function fetchTeams(params?: {
-  mine?: boolean;
-  q?: string;
-}): Promise<TeamSummary[]> {
+export function fetchTeams(
+  params?: {
+    mine?: boolean;
+    q?: string;
+  },
+  signal?: AbortSignal,
+): Promise<TeamSummary[]> {
   const search = new URLSearchParams();
   if (params?.mine) search.set("mine", "true");
   if (params?.q) search.set("q", params.q);
   const qs = search.toString();
-  return apiFetch<TeamSummary[]>(`/api/teams${qs ? `?${qs}` : ""}`);
+  return apiFetch<TeamSummary[]>(`/api/teams${qs ? `?${qs}` : ""}`, {
+    signal,
+  });
 }
 
 export function fetchTeam(teamId: number): Promise<TeamDetail> {

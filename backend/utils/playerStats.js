@@ -1,13 +1,16 @@
 import { prisma } from "../config/db.js";
+import { competitiveMatchWhere } from "./goalStats.js";
 
 /**
- * Aggregate goals/assists for players from MatchEvents in a league (or any matches).
+ * Aggregate goals/assists for players from MatchEvents.
+ * Own goals do not count for the scorer. Cancelled matches are ignored.
  */
 export const getPlayerStatsMap = async ({
   leagueId,
   championshipId,
   teamId,
   playerIds,
+  finishedOnly = false,
 } = {}) => {
   const eventWhere = {
     OR: [
@@ -15,27 +18,13 @@ export const getPlayerStatsMap = async ({
       { type: "OWN_GOAL", playerId: { not: null } },
       { assistPlayerId: { not: null } },
     ],
-  };
-
-  if (championshipId) {
-    eventWhere.match = {
-      championshipId,
-      ...(teamId
-        ? { OR: [{ homeTeamId: teamId }, { awayTeamId: teamId }] }
-        : {}),
-    };
-  } else if (leagueId) {
-    eventWhere.match = {
+    match: competitiveMatchWhere({
       leagueId,
-      ...(teamId
-        ? { OR: [{ homeTeamId: teamId }, { awayTeamId: teamId }] }
-        : {}),
-    };
-  } else if (teamId) {
-    eventWhere.match = {
-      OR: [{ homeTeamId: teamId }, { awayTeamId: teamId }],
-    };
-  }
+      championshipId,
+      teamId,
+      finishedOnly,
+    }),
+  };
 
   if (playerIds?.length) {
     eventWhere.AND = [

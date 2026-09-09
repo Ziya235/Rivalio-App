@@ -21,8 +21,8 @@ import { Button } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import type {
   ChampionshipListItem,
+  ChampionshipStatistics,
   GroupStandingsBlock,
-  PlayerStatistics,
 } from "../types/championship";
 import type { Match } from "../types/match";
 
@@ -46,7 +46,10 @@ export default function ChampionshipDetailPage() {
   );
   const [standings, setStandings] = useState<GroupStandingsBlock[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
-  const [statistics, setStatistics] = useState<PlayerStatistics[]>([]);
+  const [statistics, setStatistics] = useState<ChampionshipStatistics>({
+    players: [],
+    teams: [],
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [matchFilter, setMatchFilter] = useState<
@@ -126,7 +129,7 @@ export default function ChampionshipDetailPage() {
     ];
     if (hasGroups) all.push({ id: "groups", label: "Qruplar" });
     if (hasPlayoff) all.push({ id: "playoff", label: "Playoff" });
-    all.push({ id: "scorers", label: "Bombardirlər" });
+    all.push({ id: "scorers", label: "Statistika" });
     all.push({ id: "matches", label: "Oyunlar" });
     return all;
   }, [hasGroups, hasPlayoff]);
@@ -219,7 +222,9 @@ export default function ChampionshipDetailPage() {
           {activeTab === "playoff" ? (
             <ChampionshipPlayoff matches={matches} onOpenMatch={openMatch} />
           ) : null}
-          {activeTab === "scorers" ? <TopScorers rows={statistics} /> : null}
+          {activeTab === "scorers" ? (
+            <TopScorers rows={statistics.players} teams={statistics.teams} />
+          ) : null}
           {activeTab === "matches" ? (
             <ChampionshipMatches
               matches={matches}

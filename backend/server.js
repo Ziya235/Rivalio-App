@@ -20,6 +20,7 @@ import championshipRoutes from "./routes/championshipRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import { uploadsDir } from "./middlewares/uploadMiddleware.js";
 import { startExpireJob } from "./utils/expireListings.js";
+import { startMatchClockJob } from "./utils/matchClockJob.js";
 import { ensureDefaultSports } from "./utils/sports.js";
 import { initSocketServer } from "./socket/socket.server.js";
 
@@ -68,6 +69,7 @@ initSocketServer(server);
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   startExpireJob();
+  startMatchClockJob();
   ensureDefaultSports().catch((error) => {
     console.log("Failed to ensure default sports:", error);
   });
