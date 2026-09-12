@@ -241,6 +241,7 @@ model League {
   description String?
   visibility  LeagueVisibility @default(PRIVATE)
   status      LeagueStatus     @default(DRAFT)
+  matchFormat ChampionshipMatchFormat @default(SINGLE)
 
   sportId     Int
   createdById Int
@@ -381,6 +382,7 @@ enum ChampionshipStatus {
   GROUP_STAGE
   PLAYOFF
   COMPLETED
+  FINISHED
   CANCELLED
 }
 

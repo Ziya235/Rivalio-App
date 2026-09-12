@@ -271,4 +271,35 @@ export function deleteMatchEvent(
   });
 }
 
+export function updateMatchEvent(
+  matchId: number,
+  eventId: number,
+  payload: CreateMatchEventPayload,
+): Promise<{ event: MatchEvent; match: Match }> {
+  return adminFetch<{ event: MatchEvent; match: Match }>(
+    `/api/matches/${matchId}/events/${eventId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function startLeague(
+  leagueId: number,
+  payload?: { matchFormat?: "SINGLE" | "HOME_AWAY" },
+): Promise<League> {
+  return adminFetch<League>(`/api/leagues/${leagueId}/start`, {
+    method: "POST",
+    body: JSON.stringify(payload ?? {}),
+  });
+}
+
+export function finishLeague(leagueId: number): Promise<League> {
+  return adminFetch<League>(`/api/leagues/${leagueId}/finish`, {
+    method: "POST",
+    body: "{}",
+  });
+}
+
 export type { TeamDetail };

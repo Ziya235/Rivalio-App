@@ -79,12 +79,12 @@ export default function ChampionshipMatchPage() {
   }, [load, match?.status]);
 
   useEffect(() => {
-    if (match?.status !== "LIVE" || match.clockFrozen || match.reopenedAt) {
+    if (match?.status !== "LIVE") {
       return;
     }
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, [match?.status, match?.clockFrozen, match?.reopenedAt]);
+  }, [match?.status]);
 
   const clock = useMemo(
     () => (match ? computeMatchClock(match, nowMs) : null),

@@ -6,16 +6,28 @@ import {
   revertMatchUserGoalStats,
 } from "../utils/userStats.js";
 import { onChampionshipMatchFinished } from "../services/championshipService.js";
-import { buildGroupFixtures } from "../utils/championshipBracket.js";
+import { replaceLeagueSchedule } from "../utils/leagueFixtures.js";
+import {
+  MATCH_ERRORS,
+  canEditCompetitionMatch,
+  canStartMatch,
+  championshipWinnerId,
+  matchEditBlockReason,
+  scoresFromEvents,
+} from "../utils/matchEditPolicy.js";
 import {
   MatchClockError,
   assertEventMinute,
   assertMatchEventsWritable,
   buildStatusUpdate,
   persistIfClockExpired,
-  withMatchClock,
-  withMatchClockList,
 } from "../utils/matchClock.js";
+import {
+  enrichMatches,
+  enrichOneMatch,
+  loadChampionshipMatchSummaries,
+  policyContextFromMatch,
+} from "../utils/matchEnrich.js";
 
 const MATCH_STATUSES = [
   "SCHEDULED",
@@ -71,6 +83,7 @@ const matchInclude = {
       logo: true,
       season: true,
       createdById: true,
+      status: true,
     },
   },
   championship: {
@@ -78,6 +91,7 @@ const matchInclude = {
       id: true,
       name: true,
       createdById: true,
+      status: true,
     },
   },
   homeTeam: { select: teamSelect },
@@ -112,6 +126,49 @@ const reloadMatch = (matchId) =>
     include: matchDetailInclude,
   });
 
+const policyCtxFor = async (match) => {
+  if (match?.championshipId) {
+    const byChamp = await loadChampionshipMatchSummaries([match.championshipId]);
+    return policyContextFromMatch(
+      match,
+      byChamp.get(match.championshipId) ?? [],
+    );
+  }
+  return policyContextFromMatch(match);
+};
+
+const recomputeMatchScore = async (tx, match) => {
+  const events = await tx.matchEvent.findMany({
+    where: { matchId: match.id },
+    select: { type: true, teamId: true },
+  });
+  const scores = scoresFromEvents(events, match.homeTeamId, match.awayTeamId);
+  const data = {
+    homeScore: scores.homeScore,
+    awayScore: scores.awayScore,
+  };
+  if (match.championshipId) {
+    const current = await tx.match.findUnique({
+      where: { id: match.id },
+      select: { status: true },
+    });
+    if (current?.status === "FINISHED") {
+      const winner = championshipWinnerId(
+        match,
+        scores.homeScore,
+        scores.awayScore,
+      );
+      data.winnerTeamId = winner === undefined ? undefined : winner;
+    }
+  }
+  await tx.match.update({
+    where: { id: match.id },
+    data,
+    select: { id: true },
+  });
+  return scores;
+};
+
 const syncMatchClock = async (match) => {
   if (!match) return match;
   const result = await persistIfClockExpired(match);
@@ -130,15 +187,16 @@ const assertLeagueOwner = async (req, res, leagueId) => {
     return null;
   }
 
-  const league = await prisma.league.findUnique({
-    where: { id: leagueId },
-    select: {
-      id: true,
-      name: true,
-      createdById: true,
-      sport: { select: { code: true } },
-    },
-  });
+    const league = await prisma.league.findUnique({
+      where: { id: leagueId },
+      select: {
+        id: true,
+        name: true,
+        createdById: true,
+        status: true,
+        sport: { select: { code: true } },
+      },
+    });
 
   if (!league) {
     res.status(404).json({ success: false, message: "League not found" });
@@ -192,23 +250,6 @@ const assertMatchOwner = async (req, res, matchId) => {
   }
 
   return match;
-};
-
-const scoreDeltaForEvent = (type, teamId, homeTeamId, awayTeamId) => {
-  if (!teamId || (type !== "GOAL" && type !== "OWN_GOAL")) {
-    return { home: 0, away: 0 };
-  }
-
-  const isHome = teamId === homeTeamId;
-  const isAway = teamId === awayTeamId;
-  if (!isHome && !isAway) return { home: 0, away: 0 };
-
-  if (type === "GOAL") {
-    return isHome ? { home: 1, away: 0 } : { home: 0, away: 1 };
-  }
-
-  // Own goal credits the opposing team
-  return isHome ? { home: 0, away: 1 } : { home: 1, away: 0 };
 };
 
 export const listLeagueMatches = async (req, res) => {
@@ -270,7 +311,7 @@ export const listLeagueMatches = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: withMatchClockList(matches),
+      data: await enrichMatches(matches),
     });
   } catch (error) {
     console.log("Error in listLeagueMatches:", error);
@@ -317,7 +358,7 @@ export const listMyMatches = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: withMatchClockList(matches),
+      data: await enrichMatches(matches),
     });
   } catch (error) {
     console.log("Error in listMyMatches:", error);
@@ -376,7 +417,7 @@ export const getMatchById = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: withMatchClock(synced),
+      data: await enrichOneMatch(synced),
     });
   } catch (error) {
     console.log("Error in getMatchById:", error);
@@ -392,6 +433,13 @@ export const createMatch = async (req, res) => {
     const leagueId = parsePositiveInt(req.params.leagueId);
     const league = await assertLeagueOwner(req, res, leagueId);
     if (!league) return;
+
+    if (league.status !== "DRAFT") {
+      return res.status(400).json({
+        success: false,
+        message: MATCH_ERRORS.LEAGUE_TEAMS_LOCKED,
+      });
+    }
 
     const {
       homeTeamId,
@@ -478,7 +526,7 @@ export const createMatch = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Match created successfully",
-      data: withMatchClock(match),
+      data: await enrichOneMatch(match),
     });
   } catch (error) {
     console.log("Error in createMatch:", error);
@@ -495,6 +543,13 @@ export const generateLeagueMatches = async (req, res) => {
     const league = await assertLeagueOwner(req, res, leagueId);
     if (!league) return;
 
+    if (league.status !== "DRAFT") {
+      return res.status(400).json({
+        success: false,
+        message: MATCH_ERRORS.LEAGUE_TEAMS_LOCKED,
+      });
+    }
+
     const homeAway =
       req.body?.homeAway === true ||
       req.body?.homeAway === "true" ||
@@ -510,54 +565,17 @@ export const generateLeagueMatches = async (req, res) => {
     if (teamIds.length < 2) {
       return res.status(400).json({
         success: false,
-        message: "Oyun yaratmaq üçün ən azı 2 komanda lazımdır",
+        message: MATCH_ERRORS.LEAGUE_MIN_TEAMS,
       });
-    }
-
-    const startedCount = await prisma.match.count({
-      where: {
-        leagueId,
-        matchType: "LEAGUE",
-        status: { in: ["LIVE", "FINISHED"] },
-      },
-    });
-    if (startedCount > 0) {
-      return res.status(409).json({
-        success: false,
-        message:
-          "Liqada artıq başlamış və ya bitmiş oyun var. Cədvəli yenidən yaratmaq olmaz.",
-      });
-    }
-
-    const rounds = buildGroupFixtures(teamIds, { homeAway });
-    const rows = [];
-    for (const round of rounds) {
-      for (const pairing of round.pairings) {
-        rows.push({
-          leagueId,
-          homeTeamId: pairing.homeTeamId,
-          awayTeamId: pairing.awayTeamId,
-          round: round.round,
-          matchType: "LEAGUE",
-          status: "SCHEDULED",
-          scheduledAt: null,
-          venue: null,
-          createdById: req.user.id,
-        });
-      }
     }
 
     const created = await prisma.$transaction(async (tx) => {
-      await tx.match.deleteMany({
-        where: {
-          leagueId,
-          matchType: "LEAGUE",
-          status: { in: ["SCHEDULED", "POSTPONED"] },
-        },
+      await replaceLeagueSchedule(tx, {
+        leagueId,
+        teamIds,
+        homeAway,
+        createdById: req.user.id,
       });
-      if (rows.length > 0) {
-        await tx.match.createMany({ data: rows });
-      }
       return tx.match.findMany({
         where: { leagueId, matchType: "LEAGUE" },
         include: matchInclude,
@@ -568,13 +586,13 @@ export const generateLeagueMatches = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Liqa oyunları yaradıldı",
-      data: withMatchClockList(created),
+      data: await enrichMatches(created),
     });
   } catch (error) {
     console.log("Error in generateLeagueMatches:", error);
-    return res.status(500).json({
+    return res.status(error.status || 500).json({
       success: false,
-      message: "Internal server error",
+      message: error.message || "Internal server error",
     });
   }
 };
@@ -585,11 +603,13 @@ export const updateMatch = async (req, res) => {
     const existing = await assertMatchOwner(req, res, matchId);
     if (!existing) return;
     const current = await syncMatchClock(existing);
+    const ctx = await policyCtxFor(current);
 
     const {
       scheduledAt,
       round,
       venue,
+      location,
       notes,
       matchType,
       status,
@@ -597,11 +617,32 @@ export const updateMatch = async (req, res) => {
       awayScore,
     } = req.body;
 
-    if (current.lockedAt) {
-      return res.status(400).json({
-        success: false,
-        message: "Oyun kilidlənib. Daha dəyişiklik etmək olmaz.",
-      });
+    if (status !== undefined) {
+      const nextStatus = String(status).toUpperCase();
+      if (nextStatus === "LIVE") {
+        if (!canStartMatch(current, ctx)) {
+          const reason =
+            matchEditBlockReason(current, ctx) ||
+            MATCH_ERRORS.MATCH_NOT_SCHEDULED;
+          return res.status(400).json({ success: false, message: reason });
+        }
+      } else if (nextStatus === "FINISHED") {
+        if (current.status !== "LIVE" || !canEditCompetitionMatch(current, ctx)) {
+          const reason =
+            matchEditBlockReason(current, ctx) || MATCH_ERRORS.MATCH_NOT_LIVE;
+          return res.status(400).json({ success: false, message: reason });
+        }
+      } else if (!canEditCompetitionMatch(current, ctx) && current.status === "FINISHED") {
+        const reason =
+          matchEditBlockReason(current, ctx) ||
+          MATCH_ERRORS.MATCH_EVENTS_NOT_WRITABLE;
+        return res.status(400).json({ success: false, message: reason });
+      }
+    } else if (current.status === "FINISHED" && !canEditCompetitionMatch(current, ctx)) {
+      const reason =
+        matchEditBlockReason(current, ctx) ||
+        MATCH_ERRORS.MATCH_EVENTS_NOT_WRITABLE;
+      return res.status(400).json({ success: false, message: reason });
     }
 
     const data = {};
@@ -632,6 +673,10 @@ export const updateMatch = async (req, res) => {
     }
 
     if (venue !== undefined) data.venue = venue?.trim() || null;
+    if (location !== undefined) {
+      data.location = location?.trim() || null;
+      if (data.venue === undefined) data.venue = data.location;
+    }
     if (notes !== undefined) data.notes = notes?.trim() || null;
 
     if (
@@ -671,7 +716,7 @@ export const updateMatch = async (req, res) => {
         if (!kickoff || !String(place || "").trim()) {
           return res.status(400).json({
             success: false,
-            message: "Oyunu başlatmaq üçün əvvəlcə vaxt və məkan təyin edin",
+            message: MATCH_ERRORS.MATCH_NEED_KICKOFF,
           });
         }
       }
@@ -755,7 +800,7 @@ export const updateMatch = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Match updated successfully",
-      data: withMatchClock(match),
+      data: await enrichOneMatch(match),
     });
   } catch (error) {
     if (clockErrorResponse(res, error)) return;
@@ -797,9 +842,10 @@ export const addMatchEvent = async (req, res) => {
     const raw = await assertMatchOwner(req, res, matchId);
     if (!raw) return;
     const match = await syncMatchClock(raw);
+    const ctx = await policyCtxFor(match);
 
     try {
-      assertMatchEventsWritable(match);
+      assertMatchEventsWritable(match, ctx);
     } catch (err) {
       if (clockErrorResponse(res, err)) return;
       throw err;
@@ -858,13 +904,6 @@ export const addMatchEvent = async (req, res) => {
       });
     }
 
-    const delta = scoreDeltaForEvent(
-      eventType,
-      teamIdValue,
-      match.homeTeamId,
-      match.awayTeamId,
-    );
-
     const scorerId = parsePositiveInt(playerId) || null;
     const assistId = parsePositiveInt(assistPlayerId) || null;
 
@@ -902,14 +941,7 @@ export const addMatchEvent = async (req, res) => {
         });
       }
 
-      await tx.match.update({
-        where: { id: matchId },
-        data: {
-          homeScore: { increment: delta.home },
-          awayScore: { increment: delta.away },
-        },
-        select: { id: true },
-      });
+      await recomputeMatchScore(tx, match);
 
       return event.id;
     }, TX_OPTIONS);
@@ -928,7 +960,7 @@ export const addMatchEvent = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Event added successfully",
-      data: { event, match: withMatchClock(updatedMatch) },
+      data: { event, match: await enrichOneMatch(updatedMatch) },
     });
   } catch (error) {
     console.log("Error in addMatchEvent:", error);
@@ -946,9 +978,10 @@ export const deleteMatchEvent = async (req, res) => {
     const raw = await assertMatchOwner(req, res, matchId);
     if (!raw) return;
     const match = await syncMatchClock(raw);
+    const ctx = await policyCtxFor(match);
 
     try {
-      assertMatchEventsWritable(match);
+      assertMatchEventsWritable(match, ctx);
     } catch (err) {
       if (clockErrorResponse(res, err)) return;
       throw err;
@@ -972,13 +1005,6 @@ export const deleteMatchEvent = async (req, res) => {
       });
     }
 
-    const delta = scoreDeltaForEvent(
-      event.type,
-      event.teamId,
-      match.homeTeamId,
-      match.awayTeamId,
-    );
-
     await prisma.$transaction(async (tx) => {
       if (event.type === "GOAL") {
         await applyGoalAssistToUsers(tx, {
@@ -989,15 +1015,7 @@ export const deleteMatchEvent = async (req, res) => {
       }
 
       await tx.matchEvent.delete({ where: { id: eventId } });
-
-      await tx.match.update({
-        where: { id: matchId },
-        data: {
-          homeScore: Math.max(0, match.homeScore - delta.home),
-          awayScore: Math.max(0, match.awayScore - delta.away),
-        },
-        select: { id: true },
-      });
+      await recomputeMatchScore(tx, match);
     }, TX_OPTIONS);
 
     const updatedMatch = await prisma.match.findUnique({
@@ -1008,10 +1026,186 @@ export const deleteMatchEvent = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Event deleted successfully",
-      data: withMatchClock(updatedMatch),
+      data: await enrichOneMatch(updatedMatch),
     });
   } catch (error) {
     console.log("Error in deleteMatchEvent:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const updateMatchEvent = async (req, res) => {
+  try {
+    const matchId = parsePositiveInt(req.params.matchId);
+    const eventId = parsePositiveInt(req.params.eventId);
+    const raw = await assertMatchOwner(req, res, matchId);
+    if (!raw) return;
+    const match = await syncMatchClock(raw);
+    const ctx = await policyCtxFor(match);
+
+    try {
+      assertMatchEventsWritable(match, ctx);
+    } catch (err) {
+      if (clockErrorResponse(res, err)) return;
+      throw err;
+    }
+
+    if (!eventId) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid event id",
+      });
+    }
+
+    const existing = await prisma.matchEvent.findFirst({
+      where: { id: eventId, matchId },
+    });
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        message: "Event not found",
+      });
+    }
+
+    const {
+      type,
+      minute,
+      teamId,
+      playerId,
+      assistPlayerId,
+      playerInId,
+      playerOutId,
+      note,
+    } = req.body;
+
+    const eventType = type ? String(type).toUpperCase() : existing.type;
+    if (!EVENT_TYPES.includes(eventType)) {
+      return res.status(400).json({
+        success: false,
+        message: `type must be one of: ${EVENT_TYPES.join(", ")}`,
+      });
+    }
+
+    let minuteValue = existing.minute;
+    if (minute !== undefined) {
+      try {
+        minuteValue = assertEventMinute(minute);
+      } catch (err) {
+        if (clockErrorResponse(res, err)) return;
+        throw err;
+      }
+    }
+
+    const teamIdValue =
+      teamId !== undefined
+        ? teamId != null && teamId !== ""
+          ? parsePositiveInt(teamId)
+          : null
+        : existing.teamId;
+
+    if (
+      ["GOAL", "OWN_GOAL", "YELLOW_CARD", "RED_CARD", "SUBSTITUTION"].includes(
+        eventType,
+      ) &&
+      !teamIdValue
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "teamId is required for this event type",
+      });
+    }
+
+    if (
+      teamIdValue &&
+      teamIdValue !== match.homeTeamId &&
+      teamIdValue !== match.awayTeamId
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "teamId must be one of the match teams",
+      });
+    }
+
+    const scorerId =
+      playerId !== undefined
+        ? parsePositiveInt(playerId) || null
+        : existing.playerId;
+    const assistId =
+      assistPlayerId !== undefined
+        ? parsePositiveInt(assistPlayerId) || null
+        : existing.assistPlayerId;
+
+    if (
+      ["GOAL", "OWN_GOAL", "YELLOW_CARD", "RED_CARD"].includes(eventType) &&
+      !scorerId
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Oyunçu seçilməlidir",
+      });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (existing.type === "GOAL") {
+        await applyGoalAssistToUsers(tx, {
+          playerId: existing.playerId,
+          assistPlayerId: existing.assistPlayerId,
+          direction: "decrement",
+        });
+      }
+
+      await tx.matchEvent.update({
+        where: { id: eventId },
+        data: {
+          type: eventType,
+          minute: minuteValue,
+          teamId: teamIdValue,
+          playerId: scorerId,
+          assistPlayerId: eventType === "GOAL" ? assistId : null,
+          playerInId:
+            playerInId !== undefined
+              ? parsePositiveInt(playerInId) || null
+              : existing.playerInId,
+          playerOutId:
+            playerOutId !== undefined
+              ? parsePositiveInt(playerOutId) || null
+              : existing.playerOutId,
+          note: note !== undefined ? note?.trim() || null : existing.note,
+        },
+      });
+
+      if (eventType === "GOAL") {
+        await applyGoalAssistToUsers(tx, {
+          playerId: scorerId,
+          assistPlayerId: assistId,
+          direction: "increment",
+        });
+      }
+
+      await recomputeMatchScore(tx, match);
+    }, TX_OPTIONS);
+
+    const [event, updatedMatch] = await Promise.all([
+      prisma.matchEvent.findUnique({
+        where: { id: eventId },
+        include: eventInclude,
+      }),
+      prisma.match.findUnique({
+        where: { id: matchId },
+        include: matchDetailInclude,
+      }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Event updated successfully",
+      data: { event, match: await enrichOneMatch(updatedMatch) },
+    });
+  } catch (error) {
+    console.log("Error in updateMatchEvent:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",

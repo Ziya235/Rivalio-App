@@ -7,6 +7,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Play,
   Radio,
   Search,
   Target,
@@ -29,9 +30,10 @@ import {
   fetchLeagueInvites,
   fetchLeagueJoinRequests,
   fetchMyMatches,
-  generateLeagueMatches,
+  finishLeague,
   inviteTeamToLeague,
   respondJoinRequest,
+  startLeague,
   updateMatch,
   type LeagueInvite,
   type LeagueJoinRequest,
@@ -429,6 +431,9 @@ export function AdminLeagueDetailPage() {
   const [generateHomeAway, setGenerateHomeAway] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [finishOpen, setFinishOpen] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [finishError, setFinishError] = useState<string | null>(null);
   const [scheduleMatch, setScheduleMatch] = useState<Match | null>(null);
   const [scheduleAt, setScheduleAt] = useState("");
   const [scheduleVenue, setScheduleVenue] = useState("");
@@ -685,6 +690,7 @@ export function AdminLeagueDetailPage() {
   };
 
   const openSchedule = (match: Match) => {
+    if (league?.status === "FINISHED") return;
     if (!canEditSchedule(match)) return;
     setScheduleMatch(match);
     setScheduleAt(toDatetimeLocal(match.scheduledAt));
@@ -730,32 +736,41 @@ export function AdminLeagueDetailPage() {
     }
   };
 
-  const handleGenerateMatches = async () => {
+  const handleStartLeague = async () => {
     if (standings.length < 2) {
-      setGenerateError("Oyun yaratmaq üçün ən azı 2 komanda lazımdır");
-      return;
-    }
-    const started = matches.some(
-      (m) => m.status === "LIVE" || m.status === "FINISHED",
-    );
-    if (started) {
-      setGenerateError(
-        "Liqada artıq başlamış və ya bitmiş oyun var. Cədvəli yenidən yaratmaq olmaz.",
-      );
+      setGenerateError("Liqanı başlatmaq üçün ən azı 2 komanda lazımdır");
       return;
     }
     setGenerating(true);
     setGenerateError(null);
     try {
-      await generateLeagueMatches(leagueId, { homeAway: generateHomeAway });
+      await startLeague(leagueId, {
+        matchFormat: generateHomeAway ? "HOME_AWAY" : "SINGLE",
+      });
       setGenerateOpen(false);
       await load();
     } catch (err) {
       setGenerateError(
-        err instanceof Error ? err.message : "Oyunlar yaradılmadı",
+        err instanceof Error ? err.message : "Liqa başladılmadı",
       );
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleFinishLeague = async () => {
+    setFinishing(true);
+    setFinishError(null);
+    try {
+      await finishLeague(leagueId);
+      setFinishOpen(false);
+      await load();
+    } catch (err) {
+      setFinishError(
+        err instanceof Error ? err.message : "Liqa bitirilmədi",
+      );
+    } finally {
+      setFinishing(false);
     }
   };
 
@@ -786,17 +801,48 @@ export function AdminLeagueDetailPage() {
         league.visibility === "PUBLIC" ? "İctimai" : "Özəl"
       } · Turnir cədvəli, oyunlar və statistika`}
       action={
-        <button
-          type="button"
-          onClick={() => {
-            resetForm();
-            setModalOpen(true);
-          }}
-          className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-ink shadow-sm hover:bg-brand-dark"
-        >
-          <Plus className="h-4 w-4" />
-          Komanda dəvət et
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {league.status === "DRAFT" ? (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  resetForm();
+                  setModalOpen(true);
+                }}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <Plus className="h-4 w-4" />
+                Komanda dəvət et
+              </button>
+              <button
+                type="button"
+                disabled={standings.length < 2}
+                onClick={() => {
+                  setGenerateError(null);
+                  setGenerateHomeAway(league.matchFormat === "HOME_AWAY");
+                  setGenerateOpen(true);
+                }}
+                className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-ink shadow-sm hover:bg-brand-dark disabled:opacity-50"
+              >
+                <Play className="h-4 w-4" />
+                Liqanı başlat
+              </button>
+            </>
+          ) : null}
+          {league.status === "ACTIVE" ? (
+            <button
+              type="button"
+              onClick={() => {
+                setFinishError(null);
+                setFinishOpen(true);
+              }}
+              className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+            >
+              Liqanı bitir
+            </button>
+          ) : null}
+        </div>
       }
     >
       <nav className="mb-5 flex items-center gap-1.5 text-sm text-slate-500">
@@ -807,7 +853,7 @@ export function AdminLeagueDetailPage() {
         <span className="font-medium text-ink">{league.name}</span>
       </nav>
 
-      {pendingJoins.length > 0 ? (
+      {pendingJoins.length > 0 && league.status === "DRAFT" ? (
         <div className="mb-6 overflow-hidden rounded-xl border border-amber-200 bg-amber-50/50 shadow-sm">
           <div className="border-b border-amber-100 px-4 py-3">
             <h2 className="text-base font-bold text-ink">
@@ -856,7 +902,7 @@ export function AdminLeagueDetailPage() {
         </div>
       ) : null}
 
-      {pendingInvites.length > 0 ? (
+      {pendingInvites.length > 0 && league.status === "DRAFT" ? (
         <div className="mb-6 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
           <span className="font-semibold text-ink">Gözləyən dəvətlər: </span>
           {pendingInvites.map((i) => i.team.name).join(", ")}
@@ -973,6 +1019,7 @@ export function AdminLeagueDetailPage() {
                             <Users className="h-3.5 w-3.5" />
                             Oyunçular
                           </Link>
+                          {league.status === "DRAFT" ? (
                           <button
                             type="button"
                             disabled={deletingId === row.teamId}
@@ -988,6 +1035,7 @@ export function AdminLeagueDetailPage() {
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -1004,25 +1052,8 @@ export function AdminLeagueDetailPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-slate-500">
               {standings.length} komanda · {matches.length} oyun
+              {league.status === "FINISHED" ? " · Yalnız oxu" : ""}
             </p>
-            <button
-              type="button"
-              disabled={standings.length < 2}
-              onClick={() => {
-                setGenerateError(null);
-                setGenerateHomeAway(false);
-                setGenerateOpen(true);
-              }}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-ink shadow-sm hover:bg-brand-dark disabled:opacity-50"
-              title={
-                standings.length < 2
-                  ? "Ən azı 2 komanda lazımdır"
-                  : "Liqa komandaları üçün oyun cədvəli yarat"
-              }
-            >
-              <Plus className="h-4 w-4" />
-              Oyunları yarat
-            </button>
           </div>
           <MatchGroup
             title="Canlı"
@@ -1278,7 +1309,7 @@ export function AdminLeagueDetailPage() {
 
       <AdminModal
         open={generateOpen}
-        title="Oyunları yarat"
+        title="Liqanı başlat"
         onClose={closeGenerateModal}
         footer={
           <>
@@ -1289,14 +1320,18 @@ export function AdminLeagueDetailPage() {
             <button
               type="button"
               disabled={generating || standings.length < 2}
-              onClick={() => void handleGenerateMatches()}
+              onClick={() => void handleStartLeague()}
               className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-ink shadow-sm hover:bg-brand-dark disabled:opacity-60"
             >
-              {generating ? "Yaradılır..." : "Yarat"}
+              {generating ? "Başladılır..." : "Başlat"}
             </button>
           </>
         }
       >
+        <p className="mb-3 text-sm leading-relaxed text-slate-700">
+          Liqa başladıqdan sonra yeni komanda əlavə etmək mümkün olmayacaq.
+          İştirakçı komandalar kilidlənəcək və oyunlar avtomatik yaranacaq.
+        </p>
         <p className="mb-3 text-sm leading-relaxed text-slate-700">
           Liqadakı{" "}
           <span className="font-semibold text-ink">{standings.length}</span>{" "}
@@ -1316,22 +1351,37 @@ export function AdminLeagueDetailPage() {
           {leagueFixturePreview(standings.length, generateHomeAway).rounds} tur ·{" "}
           {leagueFixturePreview(standings.length, generateHomeAway).matches} oyun
         </p>
-        {matches.some(
-          (m) => m.status === "SCHEDULED" || m.status === "POSTPONED",
-        ) ? (
-          <p className="mb-2 text-xs font-medium text-amber-600">
-            Mövcud planlı oyunlar silinib yeniləri ilə əvəz olunacaq.
-          </p>
-        ) : null}
-        {matches.some(
-          (m) => m.status === "LIVE" || m.status === "FINISHED",
-        ) ? (
-          <p className="mb-2 text-xs font-medium text-rose-600">
-            Başlamış və ya bitmiş oyun olduğu üçün cədvəli yenidən yaratmaq olmaz.
-          </p>
-        ) : null}
         {generateError ? (
           <p className="text-sm font-medium text-rose-600">{generateError}</p>
+        ) : null}
+      </AdminModal>
+
+      <AdminModal
+        open={finishOpen}
+        title="Liqanı bitir"
+        onClose={() => !finishing && setFinishOpen(false)}
+        footer={
+          <>
+            <ModalCancelButton
+              onClick={() => setFinishOpen(false)}
+              disabled={finishing}
+            />
+            <button
+              type="button"
+              disabled={finishing}
+              onClick={() => void handleFinishLeague()}
+              className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+            >
+              {finishing ? "Bitirilir..." : "Bitir"}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm leading-relaxed text-slate-700">
+          Are you sure you want to finish this league? This action cannot be undone.
+        </p>
+        {finishError ? (
+          <p className="mt-3 text-sm font-medium text-rose-600">{finishError}</p>
         ) : null}
       </AdminModal>
 

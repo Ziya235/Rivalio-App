@@ -94,6 +94,10 @@ export type Match = {
   clockFrozen?: boolean;
   isLocked?: boolean;
   canReopen?: boolean;
+  canEdit?: boolean;
+  eventsWritable?: boolean;
+  stageLocked?: boolean;
+  elapsedSeconds?: number;
   serverNow?: string;
   createdAt: string;
   updatedAt: string;

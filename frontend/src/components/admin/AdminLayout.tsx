@@ -1,7 +1,6 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-  Calendar,
   ChevronDown,
   HelpCircle,
   LogOut,
@@ -40,12 +39,6 @@ const SPORTS: SportNav[] = [
         label: "Liqalar",
         icon: Trophy,
         matchPrefix: "/admin/football/leagues",
-      },
-      {
-        to: "/admin/football/matches",
-        label: "Oyunlar",
-        icon: Calendar,
-        matchPrefix: "/admin/football/matches",
       },
       {
         to: "/admin/football/championships",

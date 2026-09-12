@@ -1,5 +1,9 @@
 import express from "express";
-import { createLeague } from "../controllers/leagueController.js";
+import {
+  createLeague,
+  finishLeague,
+  startLeague,
+} from "../controllers/leagueController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { adminMiddleware } from "../middlewares/adminMiddleware.js";
 import { permissionMiddleware } from "../middlewares/permissionMiddleware.js";
@@ -8,10 +12,26 @@ const router = express.Router();
 
 router.post(
   "/",
-  authMiddleware, // authMiddleware: check if the user is authenticated
+  authMiddleware,
   adminMiddleware,
   permissionMiddleware("football", "create"),
-  createLeague
+  createLeague,
+);
+
+router.post(
+  "/:leagueId/start",
+  authMiddleware,
+  adminMiddleware,
+  permissionMiddleware("football", "update"),
+  startLeague,
+);
+
+router.post(
+  "/:leagueId/finish",
+  authMiddleware,
+  adminMiddleware,
+  permissionMiddleware("football", "update"),
+  finishLeague,
 );
 
 export default router;

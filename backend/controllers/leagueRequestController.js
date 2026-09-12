@@ -1,6 +1,10 @@
 import { prisma } from "../config/db.js";
 import { addTeamToLeague } from "../utils/leagueMembership.js";
 import { parsePositiveInt, teamSelect, userBriefSelect } from "../utils/helpers.js";
+import {
+  MATCH_ERRORS,
+  isLeagueAcceptingTeams,
+} from "../utils/matchEditPolicy.js";
 
 const inviteInclude = {
   league: {
@@ -61,7 +65,7 @@ export const inviteTeamToLeague = async (req, res) => {
 
     const league = await prisma.league.findUnique({
       where: { id: leagueId },
-      select: { id: true, createdById: true, name: true },
+      select: { id: true, createdById: true, name: true, status: true },
     });
 
     if (!league) {
@@ -75,6 +79,13 @@ export const inviteTeamToLeague = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: "You can only invite teams to your own league",
+      });
+    }
+
+    if (!isLeagueAcceptingTeams(league.status)) {
+      return res.status(400).json({
+        success: false,
+        message: MATCH_ERRORS.LEAGUE_NOT_ACCEPTING_INVITES,
       });
     }
 
@@ -250,6 +261,7 @@ export const respondTeamInvite = async (req, res) => {
       where: { id: inviteId },
       include: {
         team: { select: { id: true, captainId: true } },
+        league: { select: { id: true, status: true } },
       },
     });
 
@@ -271,6 +283,13 @@ export const respondTeamInvite = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Invite is no longer pending",
+      });
+    }
+
+    if (action === "accept" && !isLeagueAcceptingTeams(invite.league.status)) {
+      return res.status(400).json({
+        success: false,
+        message: MATCH_ERRORS.LEAGUE_NOT_ACCEPTING_INVITES,
       });
     }
 
@@ -340,6 +359,7 @@ export const requestJoinPublicLeague = async (req, res) => {
         visibility: true,
         createdById: true,
         name: true,
+        status: true,
       },
     });
 
@@ -354,6 +374,13 @@ export const requestJoinPublicLeague = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: "You can only request to join public leagues",
+      });
+    }
+
+    if (!isLeagueAcceptingTeams(league.status)) {
+      return res.status(400).json({
+        success: false,
+        message: MATCH_ERRORS.LEAGUE_NOT_ACCEPTING_REQUESTS,
       });
     }
 
@@ -495,7 +522,7 @@ export const respondJoinRequest = async (req, res) => {
     const request = await prisma.leagueJoinRequest.findUnique({
       where: { id: requestId },
       include: {
-        league: { select: { createdById: true } },
+        league: { select: { createdById: true, status: true } },
       },
     });
 
@@ -517,6 +544,13 @@ export const respondJoinRequest = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Request is no longer pending",
+      });
+    }
+
+    if (action === "accept" && !isLeagueAcceptingTeams(request.league.status)) {
+      return res.status(400).json({
+        success: false,
+        message: MATCH_ERRORS.LEAGUE_NOT_ACCEPTING_REQUESTS,
       });
     }
 
@@ -580,7 +614,7 @@ export const removeTeamFromLeague = async (req, res) => {
 
     const league = await prisma.league.findUnique({
       where: { id: leagueId },
-      select: { createdById: true },
+      select: { createdById: true, status: true },
     });
 
     if (!league) {
@@ -594,6 +628,13 @@ export const removeTeamFromLeague = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: "You can only manage your own league",
+      });
+    }
+
+    if (!isLeagueAcceptingTeams(league.status)) {
+      return res.status(400).json({
+        success: false,
+        message: MATCH_ERRORS.LEAGUE_TEAMS_LOCKED_REMOVE,
       });
     }
 

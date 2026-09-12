@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "nodemon backend/server.js",
     "start": "node backend/server.js",
+    "test": "node --test backend/tests/matchLifecycle.test.js",
     "build": "prisma generate",
     "postinstall": "prisma generate"
   },

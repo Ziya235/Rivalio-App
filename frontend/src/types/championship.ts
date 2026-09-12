@@ -4,6 +4,7 @@ export type ChampionshipStatus =
   | "GROUP_STAGE"
   | "PLAYOFF"
   | "COMPLETED"
+  | "FINISHED"
   | "CANCELLED";
 
 export type ChampionshipFormat = "GROUP_AND_PLAYOFF" | "PLAYOFF_ONLY";

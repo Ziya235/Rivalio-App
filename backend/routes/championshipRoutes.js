@@ -28,6 +28,7 @@ import {
   startGroupStageHandler,
   startPlayoffHandler,
   transitionStatusHandler,
+  finishChampionshipHandler,
   updateChampionshipHandler,
   updateGroupHandler,
   updateMatchHandler,
@@ -69,6 +70,11 @@ router.get("/:championshipId", ...adminRead, getChampionshipHandler);
 router.patch("/:championshipId", ...adminWrite, updateChampionshipHandler);
 router.delete("/:championshipId", ...adminWrite, deleteChampionshipHandler);
 router.post("/:championshipId/status", ...adminWrite, transitionStatusHandler);
+router.post(
+  "/:championshipId/finish",
+  ...adminWrite,
+  finishChampionshipHandler,
+);
 router.post(
   "/:championshipId/start-group-stage",
   ...adminWrite,

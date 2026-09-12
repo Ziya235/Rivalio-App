@@ -1,8 +1,22 @@
 import { prisma } from "../config/db.js";
 import { applyGamesPlayedForMatch } from "./userStats.js";
+import {
+  MATCH_CLOCK_MAX_MINUTES,
+  MATCH_CLOCK_MAX_MS,
+  MATCH_ERRORS,
+  canEditCompetitionMatch,
+  canEditFinishedMatch,
+  canMutateMatchEvents,
+  championshipWinnerId,
+  elapsedMs,
+  isLiveMatchExpired,
+  isStageLocked,
+  matchEditBlockReason,
+  toMs,
+} from "./matchEditPolicy.js";
 
-export const MATCH_CLOCK_MAX_MINUTES = 180;
-export const MATCH_EDIT_WINDOW_MS = 6 * 60 * 60 * 1000;
+export { MATCH_CLOCK_MAX_MINUTES, MATCH_CLOCK_MAX_MS };
+export { championshipWinnerId } from "./matchEditPolicy.js";
 
 export class MatchClockError extends Error {
   constructor(message, status = 400) {
@@ -13,70 +27,28 @@ export class MatchClockError extends Error {
 
 const TX_OPTIONS = { maxWait: 15000, timeout: 30000 };
 
-function toMs(value) {
-  if (!value) return null;
-  const t = new Date(value).getTime();
-  return Number.isNaN(t) ? null : t;
-}
-
-export function resolveEditUntilMs(match) {
-  const stored = toMs(match.editUntil);
-  if (stored != null) return stored;
-  if (match.status === "FINISHED" && match.finishedAt) {
-    return toMs(match.finishedAt) + MATCH_EDIT_WINDOW_MS;
-  }
-  if (match.startedAt) {
-    return toMs(match.startedAt) + MATCH_EDIT_WINDOW_MS;
-  }
-  return null;
-}
-
 export function computeMatchClock(match, now = new Date()) {
   const nowMs = now.getTime();
   const startedMs = toMs(match.startedAt);
   const finishedMs = toMs(match.finishedAt);
-  const lockedMs = toMs(match.lockedAt);
-  const reopenedMs = toMs(match.reopenedAt);
-  const editUntilMs = resolveEditUntilMs(match);
-  const deadlinePassed = editUntilMs != null && nowMs >= editUntilMs;
-
-  const locked = Boolean(lockedMs) || deadlinePassed;
-  const frozen =
-    match.status === "LIVE" && (Boolean(reopenedMs) || match.clockFrozen === true);
-
-  const canReopen =
-    match.status === "FINISHED" &&
-    !lockedMs &&
-    !reopenedMs &&
-    !deadlinePassed &&
-    editUntilMs != null &&
-    nowMs < editUntilMs;
+  const locked = Boolean(match.lockedAt) || Boolean(match.isLocked);
 
   let minute = match.minute ?? null;
   let second = 0;
+  let elapsed = 0;
 
-  if (match.status === "LIVE") {
-    if (frozen) {
-      minute = MATCH_CLOCK_MAX_MINUTES;
-      second = 0;
-    } else if (startedMs != null) {
-      const elapsedMs = Math.max(0, nowMs - startedMs);
-      const cappedMs = Math.min(
-        elapsedMs,
-        MATCH_CLOCK_MAX_MINUTES * 60 * 1000,
-      );
-      minute = Math.floor(cappedMs / 60000);
-      second = Math.floor((cappedMs % 60000) / 1000);
-    } else {
-      minute = 0;
-      second = 0;
-    }
+  if (match.status === "LIVE" && startedMs != null) {
+    elapsed = Math.max(0, nowMs - startedMs);
+    const cappedMs = Math.min(elapsed, MATCH_CLOCK_MAX_MS);
+    minute = Math.floor(cappedMs / 60000);
+    second = Math.floor((cappedMs % 60000) / 1000);
   } else if (match.status === "FINISHED") {
-    if (minute == null && startedMs != null) {
+    if (startedMs != null) {
       const endMs = finishedMs ?? nowMs;
+      elapsed = Math.max(0, endMs - startedMs);
       minute = Math.min(
         MATCH_CLOCK_MAX_MINUTES,
-        Math.max(0, Math.floor((endMs - startedMs) / 60000)),
+        Math.max(0, Math.floor(elapsed / 60000)),
       );
     }
     second = 0;
@@ -85,10 +57,11 @@ export function computeMatchClock(match, now = new Date()) {
   return {
     minute,
     second,
-    frozen,
+    elapsedSeconds: Math.floor(elapsed / 1000),
+    frozen: false,
     locked,
-    canReopen,
-    editUntilMs,
+    canReopen: false,
+    canEdit: Boolean(match.canEdit),
   };
 }
 
@@ -99,9 +72,13 @@ export function withMatchClock(match, now = new Date()) {
     ...match,
     minute: clock.minute,
     clockSecond: clock.second,
+    elapsedSeconds: clock.elapsedSeconds,
     clockFrozen: clock.frozen,
     isLocked: clock.locked,
-    canReopen: clock.canReopen,
+    canReopen: false,
+    canEdit: clock.canEdit,
+    eventsWritable: Boolean(match.eventsWritable),
+    stageLocked: Boolean(match.stageLocked),
     serverNow: now.toISOString(),
   };
 }
@@ -110,11 +87,23 @@ export function withMatchClockList(matches, now = new Date()) {
   return (matches ?? []).map((m) => withMatchClock(m, now));
 }
 
-export function championshipWinnerId(match, homeScore, awayScore) {
-  if (!match.championshipId) return undefined;
-  if (homeScore > awayScore) return match.homeTeamId;
-  if (awayScore > homeScore) return match.awayTeamId;
-  return null;
+export function attachMatchPolicy(match, ctx = {}, now = new Date()) {
+  if (!match) return match;
+  const canEditComp = canEditCompetitionMatch(match, ctx);
+  return withMatchClock(
+    {
+      ...match,
+      canEdit: canEditFinishedMatch(match, ctx),
+      eventsWritable: canMutateMatchEvents(match, ctx, now),
+      stageLocked: Boolean(
+        match.championshipId &&
+          match.stage &&
+          isStageLocked(match.stage, ctx),
+      ),
+      isLocked: !canEditComp && match.status === "FINISHED",
+    },
+    now,
+  );
 }
 
 export function buildStatusUpdate(
@@ -123,17 +112,10 @@ export function buildStatusUpdate(
   now = new Date(),
   scores = {},
 ) {
-  const clock = computeMatchClock(existing, now);
   const homeScore =
     scores.homeScore != null ? Number(scores.homeScore) : existing.homeScore;
   const awayScore =
     scores.awayScore != null ? Number(scores.awayScore) : existing.awayScore;
-
-  if (clock.locked && nextStatus !== existing.status) {
-    throw new MatchClockError(
-      "Oyun kilidlənib. Daha dəyişiklik etmək olmaz.",
-    );
-  }
 
   if (nextStatus === "LIVE") {
     if (existing.status === "SCHEDULED") {
@@ -143,42 +125,26 @@ export function buildStatusUpdate(
         finishedAt: null,
         lockedAt: null,
         reopenedAt: null,
-        editUntil: new Date(now.getTime() + MATCH_EDIT_WINDOW_MS),
         minute: 0,
       };
     }
-
-    if (existing.status === "FINISHED") {
-      if (!clock.canReopen) {
-        throw new MatchClockError(
-          "Oyunu yalnız bitirdikdən sonra 6 saat ərzində 1 dəfə yenidən başlatmaq olar.",
-        );
-      }
-      return {
-        status: "LIVE",
-        reopenedAt: now,
-        finishedAt: null,
-        minute: MATCH_CLOCK_MAX_MINUTES,
-      };
-    }
-
-    throw new MatchClockError("Oyun artıq canlıdır");
+    throw new MatchClockError("This match cannot be started again.");
   }
 
   if (nextStatus === "FINISHED") {
     if (existing.status !== "LIVE") {
-      throw new MatchClockError("Yalnız canlı oyunu bitirmək olar");
+      throw new MatchClockError(MATCH_ERRORS.MATCH_NOT_LIVE);
     }
+    const elapsed = elapsedMs(existing.startedAt, now);
+    const minute = Math.min(
+      MATCH_CLOCK_MAX_MINUTES,
+      Math.max(0, Math.floor(elapsed / 60000)),
+    );
     const data = {
       status: "FINISHED",
       finishedAt: now,
-      minute: clock.minute ?? MATCH_CLOCK_MAX_MINUTES,
+      minute,
     };
-    if (existing.reopenedAt) {
-      data.lockedAt = now;
-    } else {
-      data.editUntil = new Date(now.getTime() + MATCH_EDIT_WINDOW_MS);
-    }
     const winnerTeamId = championshipWinnerId(existing, homeScore, awayScore);
     if (winnerTeamId !== undefined) data.winnerTeamId = winnerTeamId;
     return data;
@@ -191,16 +157,16 @@ export function buildStatusUpdate(
   return { status: nextStatus };
 }
 
-export function assertMatchEventsWritable(match, now = new Date()) {
-  const clock = computeMatchClock(match, now);
-  if (clock.locked || match.lockedAt) {
-    throw new MatchClockError(
-      "Oyun kilidlənib. Hadisə əlavə etmək və ya silmək olmaz.",
-    );
+export function assertMatchEventsWritable(match, ctx = {}, now = new Date()) {
+  if (canMutateMatchEvents(match, ctx, now)) return;
+  const reason = matchEditBlockReason(match, ctx);
+  if (reason) {
+    throw new MatchClockError(reason);
   }
-  if (match.status !== "LIVE") {
-    throw new MatchClockError("Əvvəlcə oyun başladılmalıdır");
+  if (match.status !== "LIVE" && match.status !== "FINISHED") {
+    throw new MatchClockError(MATCH_ERRORS.MATCH_EVENTS_NOT_WRITABLE);
   }
+  throw new MatchClockError(MATCH_ERRORS.MATCH_EVENTS_NOT_WRITABLE);
 }
 
 export function assertEventMinute(minute) {
@@ -218,55 +184,46 @@ export function assertEventMinute(minute) {
 }
 
 export async function persistIfClockExpired(match, now = new Date()) {
-  if (!match || match.lockedAt) {
+  if (!match || match.status !== "LIVE") {
+    return { changed: false, championshipFinished: false };
+  }
+  if (!isLiveMatchExpired(match, now)) {
     return { changed: false, championshipFinished: false };
   }
 
-  const clock = computeMatchClock(match, now);
-  if (!clock.locked) {
-    return { changed: false, championshipFinished: false };
-  }
+  const startedMs = toMs(match.startedAt);
+  const finishedAt =
+    startedMs != null
+      ? new Date(startedMs + MATCH_CLOCK_MAX_MS)
+      : now;
+  const winnerTeamId = championshipWinnerId(
+    match,
+    match.homeScore,
+    match.awayScore,
+  );
 
-  if (match.status === "LIVE") {
-    const winnerTeamId = championshipWinnerId(
-      match,
-      match.homeScore,
-      match.awayScore,
-    );
-    await prisma.$transaction(async (tx) => {
-      const updated = await tx.match.update({
-        where: { id: match.id },
-        data: {
-          status: "FINISHED",
-          finishedAt: now,
-          lockedAt: now,
-          minute: clock.minute ?? MATCH_CLOCK_MAX_MINUTES,
-          ...(winnerTeamId !== undefined ? { winnerTeamId } : {}),
-        },
-        select: {
-          id: true,
-          status: true,
-          homeTeamId: true,
-          awayTeamId: true,
-          statsApplied: true,
-        },
-      });
-      await applyGamesPlayedForMatch(tx, updated);
-    }, TX_OPTIONS);
-
-    return {
-      changed: true,
-      championshipFinished: Boolean(match.championshipId),
-    };
-  }
-
-  if (match.status === "FINISHED") {
-    await prisma.match.update({
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.match.update({
       where: { id: match.id },
-      data: { lockedAt: now },
+      data: {
+        status: "FINISHED",
+        finishedAt,
+        minute: MATCH_CLOCK_MAX_MINUTES,
+        ...(winnerTeamId !== undefined ? { winnerTeamId } : {}),
+      },
+      select: {
+        id: true,
+        status: true,
+        homeTeamId: true,
+        awayTeamId: true,
+        statsApplied: true,
+      },
     });
-    return { changed: true, championshipFinished: false };
-  }
+    await applyGamesPlayedForMatch(tx, updated);
+  }, TX_OPTIONS);
 
-  return { changed: false, championshipFinished: false };
+  return {
+    changed: true,
+    championshipFinished: Boolean(match.championshipId),
+  };
 }

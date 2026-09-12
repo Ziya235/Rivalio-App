@@ -1,5 +1,4 @@
-export const MATCH_CLOCK_MAX_MINUTES = 180;
-export const MATCH_EDIT_WINDOW_MS = 6 * 60 * 60 * 1000;
+export const MATCH_CLOCK_MAX_MINUTES = 120;
 
 function toMs(value: string | null | undefined): number | null {
   if (!value) return null;
@@ -14,33 +13,25 @@ export type MatchClockFields = {
   finishedAt?: string | null;
   reopenedAt?: string | null;
   lockedAt?: string | null;
-  editUntil?: string | null;
   clockFrozen?: boolean;
   isLocked?: boolean;
-  canReopen?: boolean;
+  canEdit?: boolean;
+  eventsWritable?: boolean;
+  stageLocked?: boolean;
+  elapsedSeconds?: number;
   serverNow?: string;
 };
 
 export type MatchClockView = {
   minute: number;
   second: number;
+  elapsedSeconds: number;
   frozen: boolean;
   locked: boolean;
   canReopen: boolean;
+  canEdit: boolean;
   label: string;
 };
-
-function resolveEditUntilMs(match: MatchClockFields): number | null {
-  const stored = toMs(match.editUntil);
-  if (stored != null) return stored;
-  if (match.status === "FINISHED" && match.finishedAt) {
-    return (toMs(match.finishedAt) ?? 0) + MATCH_EDIT_WINDOW_MS;
-  }
-  if (match.startedAt) {
-    return (toMs(match.startedAt) ?? 0) + MATCH_EDIT_WINDOW_MS;
-  }
-  return null;
-}
 
 export function computeMatchClock(
   match: MatchClockFields,
@@ -48,56 +39,37 @@ export function computeMatchClock(
 ): MatchClockView {
   const startedMs = toMs(match.startedAt);
   const finishedMs = toMs(match.finishedAt);
-  const lockedMs = toMs(match.lockedAt);
-  const reopenedMs = toMs(match.reopenedAt);
-  const editUntilMs = resolveEditUntilMs(match);
-  const deadlinePassed = editUntilMs != null && nowMs >= editUntilMs;
-  const locked = Boolean(lockedMs) || Boolean(match.isLocked) || deadlinePassed;
-  const frozen =
-    match.status === "LIVE" &&
-    (Boolean(reopenedMs) || match.clockFrozen === true);
-
-  const canReopen =
-    match.status === "FINISHED" &&
-    !lockedMs &&
-    !reopenedMs &&
-    !deadlinePassed &&
-    editUntilMs != null &&
-    nowMs < editUntilMs;
+  const locked = Boolean(match.lockedAt) || Boolean(match.isLocked);
 
   let minute = match.minute ?? 0;
   let second = 0;
+  let elapsed = 0;
 
-  if (match.status === "LIVE") {
-    if (frozen) {
-      minute = MATCH_CLOCK_MAX_MINUTES;
-      second = 0;
-    } else if (startedMs != null) {
-      const elapsedMs = Math.max(0, nowMs - startedMs);
-      const cappedMs = Math.min(
-        elapsedMs,
-        MATCH_CLOCK_MAX_MINUTES * 60 * 1000,
-      );
-      minute = Math.floor(cappedMs / 60000);
-      second = Math.floor((cappedMs % 60000) / 1000);
-    } else {
-      minute = 0;
-      second = 0;
-    }
-  } else if (match.status === "FINISHED" && minute == null && startedMs != null) {
+  if (match.status === "LIVE" && startedMs != null) {
+    elapsed = Math.max(0, nowMs - startedMs);
+    const cappedMs = Math.min(
+      elapsed,
+      MATCH_CLOCK_MAX_MINUTES * 60 * 1000,
+    );
+    minute = Math.floor(cappedMs / 60000);
+    second = Math.floor((cappedMs % 60000) / 1000);
+  } else if (match.status === "FINISHED" && startedMs != null) {
     const endMs = finishedMs ?? nowMs;
+    elapsed = Math.max(0, endMs - startedMs);
     minute = Math.min(
       MATCH_CLOCK_MAX_MINUTES,
-      Math.max(0, Math.floor((endMs - startedMs) / 60000)),
+      Math.max(0, Math.floor(elapsed / 60000)),
     );
   }
 
   return {
     minute,
     second,
-    frozen,
+    elapsedSeconds: Math.floor(elapsed / 1000),
+    frozen: false,
     locked,
-    canReopen,
+    canReopen: false,
+    canEdit: Boolean(match.canEdit),
     label: `${minute}:${String(second).padStart(2, "0")}`,
   };
 }

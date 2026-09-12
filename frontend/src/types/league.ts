@@ -18,6 +18,7 @@ export type League = {
   description: string | null;
   visibility: "PUBLIC" | "PRIVATE";
   status: "DRAFT" | "ACTIVE" | "FINISHED" | "CANCELLED";
+  matchFormat?: "SINGLE" | "HOME_AWAY";
   createdAt: string;
   updatedAt: string;
   sport: LeagueSport;

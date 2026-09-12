@@ -9,6 +9,7 @@ import {
   listLeagueMatches,
   listMyMatches,
   updateMatch,
+  updateMatchEvent,
 } from "../controllers/matchController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { adminMiddleware } from "../middlewares/adminMiddleware.js";
@@ -73,6 +74,14 @@ router.delete(
   adminMiddleware,
   permissionMiddleware("football", "update"),
   deleteMatchEvent,
+);
+
+router.patch(
+  "/matches/:matchId/events/:eventId",
+  authMiddleware,
+  adminMiddleware,
+  permissionMiddleware("football", "update"),
+  updateMatchEvent,
 );
 
 export default router;

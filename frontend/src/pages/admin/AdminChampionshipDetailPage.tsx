@@ -38,6 +38,7 @@ import {
   fetchChampionshipMatches,
   fetchChampionshipStatistics,
   fetchGroupStandings,
+  finishChampionship,
   removeChampionshipTeam,
   removeTeamFromGroup,
   startGroupStage,
@@ -77,6 +78,7 @@ const STATUS_LABEL: Record<ChampionshipStatus, string> = {
   GROUP_STAGE: "Qrup mərhələsi",
   PLAYOFF: "Playoff",
   COMPLETED: "Bitib",
+  FINISHED: "Bitib",
   CANCELLED: "Ləğv",
 };
 
@@ -192,6 +194,7 @@ function statusClass(status: ChampionshipStatus): string {
     case "PLAYOFF":
       return "bg-amber-50 text-amber-800 ring-1 ring-amber-200";
     case "COMPLETED":
+    case "FINISHED":
       return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
     case "CANCELLED":
       return "bg-slate-100 text-slate-500 ring-1 ring-slate-200";
@@ -1478,8 +1481,30 @@ export function AdminChampionshipDetailPage() {
   };
 
   const handleStartGroupStage = () => {
+    if (
+      !window.confirm(
+        "Are you sure you want to start this championship? Teams cannot be added after the group stage begins.",
+      )
+    ) {
+      return;
+    }
     void runAction(async () => {
       const updated = await startGroupStage(championshipId);
+      setChampionship(updated);
+      await load();
+    });
+  };
+
+  const handleFinishChampionship = () => {
+    if (
+      !window.confirm(
+        "Are you sure you want to finish this championship? This action cannot be undone.",
+      )
+    ) {
+      return;
+    }
+    void runAction(async () => {
+      const updated = await finishChampionship(championshipId);
       setChampionship(updated);
       await load();
     });
@@ -1635,7 +1660,9 @@ export function AdminChampionshipDetailPage() {
   const isSetup = isSetupStatus(championship.status);
   const isGroupStage = championship.status === "GROUP_STAGE";
   const isPlayoff =
-    championship.status === "PLAYOFF" || championship.status === "COMPLETED";
+    championship.status === "PLAYOFF" ||
+    championship.status === "COMPLETED" ||
+    championship.status === "FINISHED";
   const isPlayoffOnlyFormat = championship.format === "PLAYOFF_ONLY";
   const playoffReady =
     isPlayoffOnlyFormat &&
@@ -1698,12 +1725,24 @@ export function AdminChampionshipDetailPage() {
         `${championship.format === "PLAYOFF_ONLY" ? "Yalniz Playoff" : "Qrup + Playoff"} · ${championship.matchFormat === "HOME_AWAY" ? "Ev-sefer" : "1 oyun"} · ${championship.teamCount} komanda · ${championship.matchCount} oyun`
       }
       action={
-        <Link
-          to="/admin/football/championships"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-        >
-          Siyahı
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {championship.status === "PLAYOFF" ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleFinishChampionship}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              Çempionatı bitir
+            </button>
+          ) : null}
+          <Link
+            to="/admin/football/championships"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Siyahı
+          </Link>
+        </div>
       }
     >
       <div className="mb-6 flex flex-wrap items-center gap-2">

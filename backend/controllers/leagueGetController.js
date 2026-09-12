@@ -95,6 +95,7 @@ export const getLeagues = async (req, res) => {
         description: true,
         visibility: true,
         status: true,
+        matchFormat: true,
         createdAt: true,
         updatedAt: true,
         sport: {
@@ -155,6 +156,7 @@ export const getLeagueById = async (req, res) => {
         description: true,
         visibility: true,
         status: true,
+        matchFormat: true,
         createdAt: true,
         updatedAt: true,
         sport: {

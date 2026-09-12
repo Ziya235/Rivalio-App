@@ -127,6 +127,13 @@ export function setChampionshipStatus(
   });
 }
 
+export function finishChampionship(id: number): Promise<Championship> {
+  return champFetch<Championship>(`/api/championships/${id}/finish`, {
+    method: "POST",
+    body: "{}",
+  });
+}
+
 export function startGroupStage(id: number): Promise<Championship> {
   return champFetch<Championship>(
     `/api/championships/${id}/start-group-stage`,

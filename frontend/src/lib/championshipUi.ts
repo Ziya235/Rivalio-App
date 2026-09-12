@@ -40,7 +40,7 @@ export const MATCH_STATUS_LABEL: Record<MatchStatus, string> = {
 export function toUserFacingStatus(
   status: ChampionshipStatus,
 ): UserFacingChampStatus {
-  if (status === "COMPLETED") return "Finished";
+  if (status === "COMPLETED" || status === "FINISHED") return "Finished";
   if (status === "GROUP_STAGE" || status === "PLAYOFF") return "Active";
   return "Upcoming";
 }
@@ -53,7 +53,7 @@ export function currentStageLabel(
   if (currentStage && STAGE_LABEL[currentStage]) return STAGE_LABEL[currentStage];
   if (status === "GROUP_STAGE") return STAGE_LABEL.GROUP_STAGE;
   if (status === "PLAYOFF") return "Playoff";
-  if (status === "COMPLETED") return STAGE_LABEL.FINAL;
+  if (status === "COMPLETED" || status === "FINISHED") return STAGE_LABEL.FINAL;
   return null;
 }
 

@@ -25,6 +25,7 @@ import {
   startGroupStage,
   startPlayoff,
   transitionChampionshipStatus,
+  finishChampionship,
   updateChampionship,
   updateChampionshipMatchAndAdvance,
   updateGroup,
@@ -418,6 +419,16 @@ export const startPlayoffHandler = async (req, res) => {
     return res.status(201).json({ success: true, data });
   } catch (error) {
     console.log("Error in startPlayoff:", error);
+    return handleServiceError(res, error);
+  }
+};
+
+export const finishChampionshipHandler = async (req, res) => {
+  try {
+    const data = await finishChampionship(req.params.championshipId, req.user.id);
+    return res.json({ success: true, data });
+  } catch (error) {
+    console.log("Error in finishChampionship:", error);
     return handleServiceError(res, error);
   }
 };

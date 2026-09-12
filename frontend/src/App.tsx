@@ -29,7 +29,6 @@ import NotificationsPage from './pages/NotificationsPage'
 import { AdminLeaguesPage } from './pages/admin/AdminLeaguesPage'
 import { AdminLeagueDetailPage } from './pages/admin/AdminLeagueDetailPage'
 import { AdminTeamPage } from './pages/admin/AdminTeamPage'
-import { AdminMatchesPage } from './pages/admin/AdminMatchesPage'
 import { AdminMatchDetailPage } from './pages/admin/AdminMatchDetailPage'
 import { AdminChampionshipsPage } from './pages/admin/AdminChampionshipsPage'
 import { AdminChampionshipDetailPage } from './pages/admin/AdminChampionshipDetailPage'
@@ -183,7 +182,7 @@ export default function App() {
           <Route path="football/leagues" element={<AdminLeaguesPage />} />
           <Route path="football/leagues/:leagueId" element={<AdminLeagueDetailPage />} />
           <Route path="football/leagues/:leagueId/teams/:teamId" element={<AdminTeamPage />} />
-          <Route path="football/matches" element={<AdminMatchesPage />} />
+          <Route path="football/matches" element={<Navigate to="/admin/football/leagues" replace />} />
           <Route path="football/matches/:matchId" element={<AdminMatchDetailPage />} />
           <Route path="football/championships" element={<AdminChampionshipsPage />} />
           <Route path="football/championships/:championshipId" element={<AdminChampionshipDetailPage />} />

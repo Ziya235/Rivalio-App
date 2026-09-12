@@ -7,6 +7,7 @@ import {
   CircleDot,
   Flag,
   NotebookPen,
+  Pencil,
   Play,
   Radio,
   Square,
@@ -27,6 +28,7 @@ import {
   deleteMatchEvent,
   fetchMatch,
   updateMatch,
+  updateMatchEvent,
 } from "../../api/admin";
 import { mediaUrl } from "../../api/base";
 import { fetchTeam } from "../../api/leagues";
@@ -53,6 +55,13 @@ const STATUS_LABEL: Record<MatchStatus, string> = {
 };
 
 type EventModalKind = "GOAL" | "CARD" | "SUB" | "NOTE" | null;
+
+function eventKindFromType(type: MatchEventType): EventModalKind {
+  if (type === "GOAL" || type === "OWN_GOAL") return "GOAL";
+  if (type === "YELLOW_CARD" || type === "RED_CARD") return "CARD";
+  if (type === "SUBSTITUTION") return "SUB";
+  return "NOTE";
+}
 
 function formatKickoff(iso: string | null | undefined): string {
   if (!iso) return "Vaxt təyin edilməyib";
@@ -173,6 +182,11 @@ export function AdminMatchDetailPage() {
   const [note, setNote] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<MatchEvent | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<MatchEvent | null>(null);
+  const [confirmKind, setConfirmKind] = useState<
+    "start" | "finish" | "edit" | null
+  >(null);
   const [fetchedAt, setFetchedAt] = useState(() => Date.now());
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -244,21 +258,20 @@ export function AdminMatchDetailPage() {
 
   useEffect(() => {
     if (!match) return;
-    const shouldTick =
-      (match.status === "LIVE" && !clock?.frozen) ||
-      (match.status === "FINISHED" && !match.lockedAt && !match.reopenedAt);
+    const shouldTick = match.status === "LIVE";
     if (!shouldTick) return;
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, [match?.id, match?.status, match?.lockedAt, match?.reopenedAt, clock?.frozen]);
+  }, [match?.id, match?.status]);
 
   useEffect(() => {
-    if (!match || match.lockedAt || !clock?.locked) return;
+    if (!match || match.status !== "LIVE" || !clock) return;
+    if (clock.elapsedSeconds < MATCH_CLOCK_MAX_MINUTES * 60) return;
     const id = window.setTimeout(() => {
       void load({ silent: true });
-    }, 4000);
+    }, 2000);
     return () => window.clearTimeout(id);
-  }, [clock?.locked, match, load]);
+  }, [clock?.elapsedSeconds, match, load]);
 
   const applyMatch = (data: Match) => {
     setMatch(data);
@@ -287,17 +300,35 @@ export function AdminMatchDetailPage() {
     setFormError(null);
   };
 
-  const openEventModal = (kind: EventModalKind) => {
-    if (!match || match.status !== "LIVE" || clock?.locked) {
+  const openEventModal = (kind: EventModalKind, event?: MatchEvent) => {
+    const writable =
+      match?.status === "LIVE" || (match?.status === "FINISHED" && editMode);
+    if (!match || !writable || match.stageLocked || match.isLocked) {
       toast.info(
-        clock?.locked
+        match?.stageLocked || match?.isLocked
           ? "Oyun kilidlənib"
-          : "Əvvəlcə oyun başladılmalıdır",
+          : "Əvvəlcə oyunu başladın və ya redaktə rejiminə keçin",
         { toastId: "match-not-started" },
       );
       return;
     }
     resetEventForm(kind);
+    if (event) {
+      setEditingEvent(event);
+      setMinute(String(event.minute));
+      setTeamId(event.teamId ?? "");
+      setPlayerId(event.playerId ?? "");
+      setAssistPlayerId(event.assistPlayerId ?? "");
+      setPlayerInId(event.playerInId ?? "");
+      setPlayerOutId(event.playerOutId ?? "");
+      setCardType(
+        event.type === "RED_CARD" ? "RED_CARD" : "YELLOW_CARD",
+      );
+      setIsOwnGoal(event.type === "OWN_GOAL");
+      setNote(event.note ?? "");
+    } else {
+      setEditingEvent(null);
+    }
     setEventKind(kind);
   };
 
@@ -395,9 +426,12 @@ export function AdminMatchDetailPage() {
         };
       }
 
-      const result = await addMatchEvent(match.id, payload);
+      const result = editingEvent
+        ? await updateMatchEvent(match.id, editingEvent.id, payload)
+        : await addMatchEvent(match.id, payload);
       applyMatch(result.match);
       setEventKind(null);
+      setEditingEvent(null);
     } catch (err) {
       setFormError(
         err instanceof Error ? err.message : "Hadisə əlavə olunmadı",
@@ -438,24 +472,31 @@ export function AdminMatchDetailPage() {
     return (
       <div className="py-16 text-center">
         <p className="mb-4 text-sm text-rose-600">{error || "Oyun tapılmadı"}</p>
-        <Link to="/admin/football/matches" className="text-sm font-semibold text-brand">
-          ← Oyunlara qayıt
+        <Link
+          to="/admin/football/leagues"
+          className="text-sm font-semibold text-brand"
+        >
+          ← Geri
         </Link>
       </div>
     );
   }
 
   const events = match.events ?? [];
-  const canManageEvents = match.status === "LIVE" && !clock?.locked;
+  const canManageEvents =
+    (match.status === "LIVE" || (match.status === "FINISHED" && editMode)) &&
+    Boolean(match.eventsWritable ?? true) &&
+    !match.stageLocked &&
+    !match.isLocked;
 
   const eventModalTitle =
     eventKind === "GOAL"
-      ? "Qol əlavə et"
+      ? editingEvent ? "Qolu dəyiş" : "Qol əlavə et"
       : eventKind === "CARD"
-        ? "Kart əlavə et"
+        ? editingEvent ? "Kartı dəyiş" : "Kart əlavə et"
         : eventKind === "SUB"
-          ? "Dəyişiklik"
-          : "Qeyd əlavə et";
+          ? editingEvent ? "Dəyişikliyi yenilə" : "Dəyişiklik"
+          : editingEvent ? "Qeydi dəyiş" : "Qeyd əlavə et";
 
   const canSubmitEvent =
     eventKind === "GOAL" || eventKind === "CARD"
@@ -478,7 +519,7 @@ export function AdminMatchDetailPage() {
             <button
               type="button"
               disabled={busy || !(match.scheduledAt && match.venue?.trim())}
-              onClick={() => void patchStatus("LIVE")}
+              onClick={() => setConfirmKind("start")}
               className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
               title={
                 match.scheduledAt && match.venue?.trim()
@@ -490,26 +531,35 @@ export function AdminMatchDetailPage() {
               Oyunu başlat
             </button>
           ) : null}
-          {match.status === "LIVE" && !clock?.locked ? (
+          {match.status === "LIVE" ? (
             <button
               type="button"
               disabled={busy}
-              onClick={() => void patchStatus("FINISHED")}
+              onClick={() => setConfirmKind("finish")}
               className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
             >
               <Square className="h-3.5 w-3.5" />
               Oyunu bitir
             </button>
           ) : null}
-          {clock?.canReopen ? (
+          {match.status === "FINISHED" && match.canEdit && !editMode ? (
             <button
               type="button"
               disabled={busy}
-              onClick={() => void patchStatus("LIVE")}
+              onClick={() => setConfirmKind("edit")}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
-              <Radio className="h-4 w-4" />
-              Yenidən başlat
+              <Pencil className="h-4 w-4" />
+              Redaktə et
+            </button>
+          ) : null}
+          {editMode ? (
+            <button
+              type="button"
+              onClick={() => setEditMode(false)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Redaktəni bitir
             </button>
           ) : null}
         </div>
@@ -519,14 +569,14 @@ export function AdminMatchDetailPage() {
         <Link
           to={
             match.league?.id
-              ? `/admin/football/matches?leagueId=${match.league.id}`
+              ? `/admin/football/leagues/${match.league.id}?tab=matches`
               : match.championshipId
                 ? `/admin/football/championships/${match.championshipId}`
-                : "/admin/football/matches"
+                : "/admin/football/leagues"
           }
           className="hover:text-brand"
         >
-          Oyunlar
+          {match.league?.name ?? match.championship?.name ?? "Geri"}
         </Link>
         <ChevronRight className="h-3.5 w-3.5" />
         <span className="font-medium text-ink">İdarəetmə</span>
@@ -579,7 +629,7 @@ export function AdminMatchDetailPage() {
                 {clock.label}
                 {clock.frozen ? (
                   <span className="ml-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    180-ci dəqiqə
+                    120-ci dəqiqə
                   </span>
                 ) : null}
               </p>
@@ -677,6 +727,16 @@ export function AdminMatchDetailPage() {
                   </p>
                 </div>
                 {canManageEvents ? (
+                <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => openEventModal(eventKindFromType(event.type), event)}
+                  className="rounded-lg p-1.5 text-slate-300 hover:bg-slate-100 hover:text-ink disabled:opacity-50"
+                  title="Dəyiş"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
                 <button
                   type="button"
                   disabled={busy}
@@ -689,6 +749,7 @@ export function AdminMatchDetailPage() {
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
+                </div>
                 ) : null}
               </li>
             ))}
@@ -708,7 +769,7 @@ export function AdminMatchDetailPage() {
             />
             <ModalSubmitButton
               formId="match-event-form"
-              label="Əlavə et"
+              label={editingEvent ? "Yadda saxla" : "Əlavə et"}
               loading={submitting}
               disabled={!canSubmitEvent}
             />
@@ -931,6 +992,53 @@ export function AdminMatchDetailPage() {
         {deleteError ? (
           <p className="mt-3 text-sm font-medium text-rose-600">{deleteError}</p>
         ) : null}
+      </AdminModal>
+
+      <AdminModal
+        open={confirmKind != null}
+        title={
+          confirmKind === "start"
+            ? "Oyunu başlat"
+            : confirmKind === "finish"
+              ? "Oyunu bitir"
+              : "Oyunu redaktə et"
+        }
+        onClose={() => !busy && setConfirmKind(null)}
+        footer={
+          <>
+            <ModalCancelButton
+              onClick={() => setConfirmKind(null)}
+              disabled={busy}
+            />
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                if (confirmKind === "start") {
+                  setConfirmKind(null);
+                  void patchStatus("LIVE");
+                } else if (confirmKind === "finish") {
+                  setConfirmKind(null);
+                  void patchStatus("FINISHED");
+                } else if (confirmKind === "edit") {
+                  setEditMode(true);
+                  setConfirmKind(null);
+                }
+              }}
+              className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+            >
+              Təsdiqlə
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm leading-relaxed text-slate-700">
+          {confirmKind === "start"
+            ? "Are you sure you want to start this match? The live timer will begin from the server timestamp."
+            : confirmKind === "finish"
+              ? "Are you sure you want to finish this match? The result will be treated as final until you enter edit mode."
+              : "Are you sure you want to edit this finished match? Statistics will be recalculated from events."}
+        </p>
       </AdminModal>
     </AdminPageShell>
   );

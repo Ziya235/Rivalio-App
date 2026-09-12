@@ -1,16 +1,16 @@
 import { prisma } from "../config/db.js";
 import { onChampionshipMatchFinished } from "../services/championshipService.js";
+import { MATCH_CLOCK_MAX_MS } from "./matchEditPolicy.js";
 import { persistIfClockExpired } from "./matchClock.js";
 
 let started = false;
 
 export async function syncExpiredMatchClocks() {
-  const now = new Date();
+  const cutoff = new Date(Date.now() - MATCH_CLOCK_MAX_MS);
   const candidates = await prisma.match.findMany({
     where: {
-      lockedAt: null,
-      startedAt: { not: null },
-      status: { in: ["LIVE", "FINISHED"] },
+      status: "LIVE",
+      startedAt: { lte: cutoff },
     },
     select: {
       id: true,
@@ -19,8 +19,8 @@ export async function syncExpiredMatchClocks() {
       finishedAt: true,
       reopenedAt: true,
       lockedAt: true,
-      editUntil: true,
       championshipId: true,
+      leagueId: true,
       homeTeamId: true,
       awayTeamId: true,
       homeScore: true,
@@ -32,7 +32,7 @@ export async function syncExpiredMatchClocks() {
 
   for (const match of candidates) {
     try {
-      const result = await persistIfClockExpired(match, now);
+      const result = await persistIfClockExpired(match);
       if (result.championshipFinished) {
         await onChampionshipMatchFinished(match.id);
       }
@@ -55,4 +55,3 @@ export const startMatchClockJob = (intervalMs = 30000) => {
   run();
   setInterval(run, intervalMs);
 };
-

@@ -33,6 +33,7 @@ const STATUS_LABEL: Record<ChampionshipStatus, string> = {
   GROUP_STAGE: "Qrup mərhələsi",
   PLAYOFF: "Playoff",
   COMPLETED: "Bitib",
+  FINISHED: "Bitib",
   CANCELLED: "Ləğv",
 };
 
@@ -53,6 +54,7 @@ function statusClass(status: ChampionshipStatus): string {
     case "PLAYOFF":
       return "bg-amber-50 text-amber-800 ring-1 ring-amber-200";
     case "COMPLETED":
+    case "FINISHED":
       return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
     case "CANCELLED":
       return "bg-slate-100 text-slate-500 ring-1 ring-slate-200";
