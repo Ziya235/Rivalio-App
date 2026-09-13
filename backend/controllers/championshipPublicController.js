@@ -17,7 +17,9 @@ function handleServiceError(res, error) {
 
 export const listVisibleChampionshipsHandler = async (req, res) => {
   try {
-    const data = await listVisibleChampionships(req.user.id);
+    const includeAll =
+      String(req.query.includeAll || "").toLowerCase() === "true";
+    const data = await listVisibleChampionships(req.user.id, { includeAll });
     return res.json({ success: true, data });
   } catch (error) {
     console.log("Error in listVisibleChampionships:", error);
@@ -42,6 +44,7 @@ export const getVisibleStandingsHandler = async (req, res) => {
   try {
     const data = await getVisibleChampionshipStandings(
       req.params.championshipId,
+      req.user.id,
     );
     return res.json({ success: true, data });
   } catch (error) {
@@ -54,6 +57,7 @@ export const listVisibleMatchesHandler = async (req, res) => {
   try {
     const data = await listVisibleChampionshipMatches(
       req.params.championshipId,
+      req.user.id,
       req.query,
     );
     return res.json({ success: true, data });
@@ -65,7 +69,10 @@ export const listVisibleMatchesHandler = async (req, res) => {
 
 export const getVisibleMatchHandler = async (req, res) => {
   try {
-    const data = await getVisibleChampionshipMatch(req.params.matchId);
+    const data = await getVisibleChampionshipMatch(
+      req.params.matchId,
+      req.user.id,
+    );
     return res.json({ success: true, data });
   } catch (error) {
     console.log("Error in getVisibleChampionshipMatch:", error);
@@ -77,6 +84,7 @@ export const getVisibleStatisticsHandler = async (req, res) => {
   try {
     const data = await getVisibleChampionshipStatistics(
       req.params.championshipId,
+      req.user.id,
     );
     return res.json({ success: true, data });
   } catch (error) {

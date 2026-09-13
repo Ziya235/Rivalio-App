@@ -11,6 +11,8 @@ export type ChampionshipFormat = "GROUP_AND_PLAYOFF" | "PLAYOFF_ONLY";
 
 export type ChampionshipMatchFormat = "SINGLE" | "HOME_AWAY";
 
+export type ChampionshipVisibility = "PUBLIC" | "PRIVATE";
+
 export type MatchStage =
   | "GROUP_STAGE"
   | "PRELIMINARY"
@@ -78,6 +80,27 @@ export type ChampionshipTeamInvite = {
   };
 };
 
+export type ChampionshipJoinRequest = {
+  id: number;
+  championshipId?: number;
+  teamId: number;
+  status: "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED";
+  message?: string | null;
+  createdAt?: string;
+  championship?: {
+    id: number;
+    name: string;
+    logo?: string | null;
+  };
+  team: ChampionshipTeamBrief & { city?: string | null };
+  requestedBy?: {
+    id: number;
+    username: string;
+    firstName: string;
+    lastName: string;
+  };
+};
+
 export type ChampionshipProgress = {
   total: number;
   finished: number;
@@ -91,6 +114,7 @@ export type Championship = {
   logo: string | null;
   format: ChampionshipFormat;
   matchFormat?: ChampionshipMatchFormat;
+  visibility?: ChampionshipVisibility;
   status: ChampionshipStatus;
   startDate: string | null;
   endDate: string | null;
@@ -114,6 +138,12 @@ export type Championship = {
   currentStage?: MatchStage | null;
   progress?: ChampionshipProgress;
   myTeams?: ChampionshipTeamBrief[];
+  canView?: boolean;
+  myJoinRequests?: Array<{
+    id: number;
+    teamId: number;
+    status: "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED";
+  }>;
   createdAt: string;
   updatedAt: string;
 };
@@ -192,4 +222,4 @@ export type ChampionshipStatistics = {
   teams: ChampionshipTeamStatistics[];
 };
 
-export type UserFacingChampStatus = "Upcoming" | "Active" | "Finished";
+export type UserFacingChampStatus = "DRAFT" | "ACTIVE" | "FINISHED";

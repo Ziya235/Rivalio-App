@@ -55,32 +55,36 @@ const assertLeagueAccess = async (req, res, leagueId) => {
 export const getLeagues = async (req, res) => {
   try {
     const userId = req.user?.id ?? null;
+    const includeAll =
+      String(req.query.includeAll || "").toLowerCase() === "true";
 
     const where = userId
-      ? {
-          OR: [
-            { visibility: "PUBLIC" },
-            { visibility: "PRIVATE", createdById: userId },
-            {
-              visibility: "PRIVATE",
-              members: {
-                some: { userId },
+      ? includeAll
+        ? {}
+        : {
+            OR: [
+              { visibility: "PUBLIC" },
+              { visibility: "PRIVATE", createdById: userId },
+              {
+                visibility: "PRIVATE",
+                members: {
+                  some: { userId },
+                },
               },
-            },
-            {
-              visibility: "PRIVATE",
-              teams: {
-                some: {
-                  team: {
-                    players: {
-                      some: { userId },
+              {
+                visibility: "PRIVATE",
+                teams: {
+                  some: {
+                    team: {
+                      players: {
+                        some: { userId },
+                      },
                     },
                   },
                 },
               },
-            },
-          ],
-        }
+            ],
+          }
       : {
           visibility: "PUBLIC",
         };
@@ -124,9 +128,71 @@ export const getLeagues = async (req, res) => {
       },
     });
 
+    const leagueIds = leagues.map((league) => league.id);
+    const viewableIds = new Set();
+
+    leagues.forEach((league) => {
+      if (league.visibility === "PUBLIC") {
+        viewableIds.add(league.id);
+      } else if (userId && league.createdBy.id === userId) {
+        viewableIds.add(league.id);
+      }
+    });
+
+    let pendingByLeague = new Map();
+
+    if (userId && leagueIds.length > 0) {
+      const [members, roster, pendingRequests] = await Promise.all([
+        prisma.leagueMember.findMany({
+          where: { userId, leagueId: { in: leagueIds } },
+          select: { leagueId: true },
+        }),
+        prisma.leagueTeam.findMany({
+          where: {
+            leagueId: { in: leagueIds },
+            team: { players: { some: { userId } } },
+          },
+          select: { leagueId: true },
+        }),
+        prisma.leagueJoinRequest.findMany({
+          where: {
+            requestedById: userId,
+            status: "PENDING",
+            leagueId: { in: leagueIds },
+          },
+          select: {
+            id: true,
+            leagueId: true,
+            teamId: true,
+            status: true,
+          },
+        }),
+      ]);
+
+      members.forEach((row) => viewableIds.add(row.leagueId));
+      roster.forEach((row) => viewableIds.add(row.leagueId));
+
+      pendingByLeague = pendingRequests.reduce((map, request) => {
+        const list = map.get(request.leagueId) || [];
+        list.push({
+          id: request.id,
+          teamId: request.teamId,
+          status: request.status,
+        });
+        map.set(request.leagueId, list);
+        return map;
+      }, new Map());
+    }
+
+    const data = leagues.map((league) => ({
+      ...league,
+      canView: viewableIds.has(league.id),
+      myJoinRequests: pendingByLeague.get(league.id) || [],
+    }));
+
     return res.status(200).json({
       success: true,
-      data: leagues,
+      data,
     });
   } catch (error) {
     console.log("Error in getLeagues:", error);

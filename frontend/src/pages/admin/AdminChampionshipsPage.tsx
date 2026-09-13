@@ -25,6 +25,7 @@ import type {
   ChampionshipFormat,
   ChampionshipMatchFormat,
   ChampionshipStatus,
+  ChampionshipVisibility,
 } from "../../types/championship";
 
 const STATUS_LABEL: Record<ChampionshipStatus, string> = {
@@ -88,6 +89,8 @@ export function AdminChampionshipsPage() {
     useState<ChampionshipMatchFormat>("SINGLE");
   const [maxTeams, setMaxTeams] = useState("8");
   const [startDate, setStartDate] = useState("");
+  const [visibility, setVisibility] =
+    useState<ChampionshipVisibility>("PUBLIC");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -113,6 +116,7 @@ export function AdminChampionshipsPage() {
     setMatchFormat("SINGLE");
     setMaxTeams("8");
     setStartDate("");
+    setVisibility("PUBLIC");
     setFormError(null);
     setModalOpen(true);
   };
@@ -145,6 +149,7 @@ export function AdminChampionshipsPage() {
             ? Number(maxTeams)
             : 20,
         startDate: startDate || undefined,
+        visibility,
         sportCode: "FOOTBALL",
       });
       setModalOpen(false);
@@ -241,6 +246,15 @@ export function AdminChampionshipsPage() {
                       >
                         {STATUS_LABEL[c.status]}
                       </span>
+                      <span
+                        className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ${
+                          c.visibility === "PUBLIC"
+                            ? "bg-sky-50 text-sky-700 ring-1 ring-sky-200"
+                            : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+                        }`}
+                      >
+                        {c.visibility === "PUBLIC" ? "Public" : "Private"}
+                      </span>
                     </div>
                     <p className="mt-1 text-xs text-slate-500">
                       {c.sport?.name ?? "Futbol"} · {FORMAT_LABEL[c.format]} ·{" "}
@@ -297,6 +311,18 @@ export function AdminChampionshipsPage() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+          </Field>
+          <Field label="Görünürlük" required>
+            <select
+              className={inputClass}
+              value={visibility}
+              onChange={(e) =>
+                setVisibility(e.target.value as ChampionshipVisibility)
+              }
+            >
+              <option value="PUBLIC">Public</option>
+              <option value="PRIVATE">Private</option>
+            </select>
           </Field>
           <Field label="Format" required>
             <select

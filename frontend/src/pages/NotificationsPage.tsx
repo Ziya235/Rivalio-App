@@ -1,29 +1,28 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bell,
   Check,
   CheckCircle2,
   Clock,
   MapPin,
+  MessageCircle,
   Swords,
-  Trophy,
   UserPlus,
   X,
   XCircle,
 } from "lucide-react";
-import { Button } from "../components/ui";
+import { Avatar, Button } from "../components/ui";
+import { NotificationTime } from "../components/NotificationTime";
 import {
-  fetchMyChampionshipInvites,
   respondChampionshipInvite,
+  respondChampionshipJoinRequest,
 } from "../api/championships";
-import type { ChampionshipTeamInvite } from "../types/championship";
 import {
   fetchMyTeamPlayerInviteNotifications,
-  fetchMyTeamInvites,
   respondTeamPlayerInvite,
   respondTeamInvite,
+  respondLeagueJoinRequest,
   type TeamPlayerInvite,
-  type TeamInvite,
 } from "../api/teams";
 import {
   fetchMyChallengeNotifications,
@@ -38,7 +37,6 @@ import {
   rejectFriendRequest,
 } from "../api/friends";
 import {
-  fetchNotifications,
   markNotificationRead,
   type AppNotification,
 } from "../api/notifications";
@@ -46,11 +44,49 @@ import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import type { AppOutletContext } from "../App";
-import { Avatar } from "../components/ui";
-import { MessageCircle } from "lucide-react";
+import {
+  isAcceptedNotification,
+  isPendingChampionshipInvite,
+  isPendingChampionshipJoinRequest,
+  isPendingFriendRequest,
+  isPendingJoinRequest,
+  isPendingLeagueInvite,
+  isRejectedNotification,
+  notificationLabel,
+  personName,
+} from "../lib/notificationDisplay";
+
+type FeedEntry =
+  | {
+      key: string;
+      at: number;
+      kind: "social";
+      notification: AppNotification;
+    }
+  | {
+      key: string;
+      at: number;
+      kind: "player";
+      request: PlayerSearchNotificationRequest;
+      incoming: boolean;
+    }
+  | {
+      key: string;
+      at: number;
+      kind: "challenge";
+      request: ChallengeNotificationRequest;
+      incoming: boolean;
+    }
+  | {
+      key: string;
+      at: number;
+      kind: "team-player";
+      invite: TeamPlayerInvite;
+      incoming: boolean;
+    };
 
 export default function NotificationsPage() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const ctx = useOutletContext<AppOutletContext | undefined>();
@@ -62,20 +98,12 @@ export default function NotificationsPage() {
     : "bg-[#08080e]";
   const card = light
     ? "bg-white/70 backdrop-blur-sm border-gray-200"
-    : "bg-[#101017]";
+    : "bg-[#101017] border-white/10";
   const title = light ? "text-gray-900" : "text-white";
   const muted = light ? "text-gray-500" : "text-white/45";
   const soft = light ? "text-gray-400" : "text-white/35";
   const body = light ? "text-gray-600" : "text-white/55";
-  const sectionLabel = light ? "text-gray-400" : "text-white/40";
-  const accentIcon = light
-    ? "bg-emerald-500/15 text-emerald-600"
-    : "bg-[#c5f135]/15 text-[#c5f135]";
   const pendingBorder = light ? "border-emerald-500/25" : "border-[#c5f135]/20";
-  const [invites, setInvites] = useState<TeamInvite[]>([]);
-  const [championshipInvites, setChampionshipInvites] = useState<
-    ChampionshipTeamInvite[]
-  >([]);
   const [incoming, setIncoming] = useState<PlayerSearchNotificationRequest[]>(
     [],
   );
@@ -94,46 +122,34 @@ export default function NotificationsPage() {
   const [teamPlayerOutcomes, setTeamPlayerOutcomes] = useState<
     TeamPlayerInvite[]
   >([]);
-  const [socialNotifications, setSocialNotifications] = useState<
-    AppNotification[]
-  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
-  const { refreshNotifications } = useSocket();
+  const {
+    notifications,
+    refreshNotifications,
+    patchNotification,
+    markLocalNotificationRead,
+  } = useSocket();
 
-  const load = useCallback(async () => {
+  const loadExtras = useCallback(async () => {
     if (!user) {
       setLoading(false);
       return;
     }
-    setLoading(true);
     setError(null);
     try {
-      const [
-        teamInvites,
-        championshipInviteRows,
-        playerSearchNotifications,
-        challengeNotifications,
-        teamPlayerNotifications,
-        socialData,
-      ] = await Promise.all([
-        fetchMyTeamInvites(),
-        fetchMyChampionshipInvites(),
+      const [playerSearch, challenges, teamPlayer] = await Promise.all([
         fetchMyPlayerSearchNotifications(),
         fetchMyChallengeNotifications(),
         fetchMyTeamPlayerInviteNotifications(),
-        fetchNotifications(100),
       ]);
-      setInvites(teamInvites);
-      setChampionshipInvites(championshipInviteRows);
-      setIncoming(playerSearchNotifications.incoming);
-      setOutcomes(playerSearchNotifications.outcomes);
-      setChallengeIncoming(challengeNotifications.incoming);
-      setChallengeOutcomes(challengeNotifications.outcomes);
-      setTeamPlayerIncoming(teamPlayerNotifications.incoming);
-      setTeamPlayerOutcomes(teamPlayerNotifications.outcomes);
-      setSocialNotifications(socialData.notifications);
+      setIncoming(playerSearch.incoming);
+      setOutcomes(playerSearch.outcomes);
+      setChallengeIncoming(challenges.incoming);
+      setChallengeOutcomes(challenges.outcomes);
+      setTeamPlayerIncoming(teamPlayer.incoming);
+      setTeamPlayerOutcomes(teamPlayer.outcomes);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Yüklənmədi");
     } finally {
@@ -142,96 +158,133 @@ export default function NotificationsPage() {
   }, [user]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadExtras();
+  }, [loadExtras, notifications]);
 
-  const respondChampionship = async (
-    id: number,
-    action: "accept" | "reject",
-  ) => {
-    setBusyKey(`champ-invite-${id}`);
-    try {
-      await respondChampionshipInvite(id, action);
-      await load();
-      await refreshNotifications();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Əməliyyat alınmadı");
-    } finally {
-      setBusyKey(null);
-    }
-  };
+  const entries = useMemo<FeedEntry[]>(() => {
+    return [
+      ...notifications.map((notification) => ({
+        key: `social-${notification.id}`,
+        at: Date.parse(notification.createdAt) || 0,
+        kind: "social" as const,
+        notification,
+      })),
+      ...incoming.map((request) => ({
+        key: `player-in-${request.id}`,
+        at: Date.parse(request.createdAt) || 0,
+        kind: "player" as const,
+        request,
+        incoming: true,
+      })),
+      ...outcomes.map((request) => ({
+        key: `player-out-${request.id}`,
+        at: Date.parse(request.respondedAt || request.createdAt) || 0,
+        kind: "player" as const,
+        request,
+        incoming: false,
+      })),
+      ...challengeIncoming.map((request) => ({
+        key: `challenge-in-${request.id}`,
+        at: Date.parse(request.createdAt) || 0,
+        kind: "challenge" as const,
+        request,
+        incoming: true,
+      })),
+      ...challengeOutcomes.map((request) => ({
+        key: `challenge-out-${request.id}`,
+        at: Date.parse(request.respondedAt || request.createdAt) || 0,
+        kind: "challenge" as const,
+        request,
+        incoming: false,
+      })),
+      ...teamPlayerIncoming.map((invite) => ({
+        key: `team-player-in-${invite.id}`,
+        at: Date.parse(invite.createdAt) || 0,
+        kind: "team-player" as const,
+        invite,
+        incoming: true,
+      })),
+      ...teamPlayerOutcomes.map((invite) => ({
+        key: `team-player-out-${invite.id}`,
+        at: Date.parse(invite.respondedAt || invite.createdAt) || 0,
+        kind: "team-player" as const,
+        invite,
+        incoming: false,
+      })),
+    ].sort((a, b) => b.at - a.at);
+  }, [
+    notifications,
+    incoming,
+    outcomes,
+    challengeIncoming,
+    challengeOutcomes,
+    teamPlayerIncoming,
+    teamPlayerOutcomes,
+  ]);
 
-  const respond = async (id: number, action: "accept" | "reject") => {
-    setBusyKey(`invite-${id}`);
-    try {
-      await respondTeamInvite(id, action);
-      await load();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Əməliyyat alınmadı");
-    } finally {
-      setBusyKey(null);
-    }
-  };
-
-  const respondToPlayer = async (
-    id: number,
-    action: "accept" | "reject",
-  ) => {
-    setBusyKey(`player-${id}`);
-    try {
-      await respondPlayerSearchRequest(id, action);
-      await load();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Əməliyyat alınmadı");
-    } finally {
-      setBusyKey(null);
-    }
-  };
-
-  const respondToChallenge = async (
-    id: number,
-    action: "accept" | "reject",
-  ) => {
-    setBusyKey(`challenge-${id}`);
-    try {
-      await respondChallengeRequest(id, action);
-      await load();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Əməliyyat alınmadı");
-    } finally {
-      setBusyKey(null);
-    }
-  };
-
-  const respondToTeamPlayerInvite = async (
-    id: number,
-    action: "accept" | "reject",
-  ) => {
-    setBusyKey(`team-player-${id}`);
-    try {
-      await respondTeamPlayerInvite(id, action);
-      await load();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Əməliyyat alınmadı");
-    } finally {
-      setBusyKey(null);
-    }
-  };
-
-  const respondToFriendRequest = async (
+  const respondSocial = async (
     notification: AppNotification,
     action: "accept" | "reject",
   ) => {
     if (!notification.entityId) return;
-    setBusyKey(`friend-${notification.id}`);
+    const champPending = isPendingChampionshipInvite(notification);
+    const leaguePending = isPendingLeagueInvite(notification);
+    const joinPending = isPendingJoinRequest(notification) && isAdmin;
+    const champJoinPending =
+      isPendingChampionshipJoinRequest(notification) && isAdmin;
+    setBusyKey(
+      champPending
+        ? `champ-${notification.id}`
+        : leaguePending
+          ? `league-${notification.id}`
+          : joinPending
+            ? `join-${notification.id}`
+            : champJoinPending
+              ? `cjoin-${notification.id}`
+            : `friend-${notification.id}`,
+    );
     try {
-      if (action === "accept") {
-        await acceptFriendRequest(Number(notification.entityId));
+      if (champPending) {
+        await respondChampionshipInvite(Number(notification.entityId), action);
+        patchNotification(notification.id, {
+          championshipInviteStatus: action === "accept" ? "ACCEPTED" : "REJECTED",
+          isRead: true,
+        });
+      } else if (leaguePending) {
+        await respondTeamInvite(Number(notification.entityId), action);
+        patchNotification(notification.id, {
+          leagueInviteStatus: action === "accept" ? "ACCEPTED" : "REJECTED",
+          isRead: true,
+        });
+      } else if (joinPending) {
+        await respondLeagueJoinRequest(Number(notification.entityId), action);
+        patchNotification(notification.id, {
+          joinRequestStatus: action === "accept" ? "ACCEPTED" : "REJECTED",
+          isRead: true,
+        });
+      } else if (champJoinPending) {
+        await respondChampionshipJoinRequest(
+          Number(notification.entityId),
+          action,
+        );
+        patchNotification(notification.id, {
+          championshipJoinRequestStatus:
+            action === "accept" ? "ACCEPTED" : "REJECTED",
+          isRead: true,
+        });
       } else {
-        await rejectFriendRequest(Number(notification.entityId));
+        if (action === "accept") {
+          await acceptFriendRequest(Number(notification.entityId));
+        } else {
+          await rejectFriendRequest(Number(notification.entityId));
+        }
+        patchNotification(notification.id, {
+          friendRequestStatus: action === "accept" ? "ACCEPTED" : "REJECTED",
+          isRead: true,
+        });
       }
+      if (!notification.isRead) markLocalNotificationRead(notification.id);
       await markNotificationRead(notification.id);
-      await load();
       await refreshNotifications();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Əməliyyat alınmadı");
@@ -239,46 +292,6 @@ export default function NotificationsPage() {
       setBusyKey(null);
     }
   };
-
-  const friendIncoming = socialNotifications.filter(
-    (item) =>
-      item.type === "FRIEND_REQUEST" &&
-      (item.friendRequestStatus === "PENDING" || item.friendRequestStatus == null),
-  );
-  const friendResolved = socialNotifications.filter(
-    (item) =>
-      item.type === "FRIEND_REQUEST" &&
-      (item.friendRequestStatus === "ACCEPTED" ||
-        item.friendRequestStatus === "REJECTED"),
-  );
-  const friendAcceptedNotifications = socialNotifications.filter(
-    (item) => item.type === "FRIEND_ACCEPTED",
-  );
-  const messageNotifications = socialNotifications.filter(
-    (item) => item.type === "NEW_MESSAGE",
-  );
-
-  const championshipInviteOutcomes = socialNotifications.filter(
-    (item) =>
-      item.type === "CHAMPIONSHIP_INVITE" &&
-      (item.championshipInviteStatus === "ACCEPTED" ||
-        item.championshipInviteStatus === "REJECTED"),
-  );
-
-  const hasNotifications =
-    friendIncoming.length > 0 ||
-    friendResolved.length > 0 ||
-    friendAcceptedNotifications.length > 0 ||
-    messageNotifications.length > 0 ||
-    invites.length > 0 ||
-    championshipInvites.length > 0 ||
-    championshipInviteOutcomes.length > 0 ||
-    incoming.length > 0 ||
-    outcomes.length > 0 ||
-    challengeIncoming.length > 0 ||
-    challengeOutcomes.length > 0 ||
-    teamPlayerIncoming.length > 0 ||
-    teamPlayerOutcomes.length > 0;
 
   if (!user) {
     return (
@@ -307,22 +320,16 @@ export default function NotificationsPage() {
             Bildirişlər
           </h1>
           <p className={`${muted} text-sm mt-1`}>
-            {isAdminView
-              ? "Komanda dəvətlərinin cavabları və digər bildirişlər"
-              : "Dostluq sorğuları, liqa dəvətləri və digər sorğular"}
+            Bütün bildirişlər tarixə görə, ən yenilər üstdə
           </p>
         </div>
 
-        {loading ? (
+        {loading && entries.length === 0 ? (
           <p className={`${soft} text-center py-12`}>Yüklənir...</p>
         ) : error ? (
           <p className="text-rose-400 text-center py-12">{error}</p>
-        ) : !hasNotifications ? (
-          <div
-            className={`rounded-2xl border p-10 text-center ${
-              light ? `${card}` : `${card} border-white/10`
-            }`}
-          >
+        ) : entries.length === 0 ? (
+          <div className={`rounded-2xl border p-10 text-center ${card}`}>
             <Bell
               className={`mx-auto mb-3 ${light ? "text-gray-300" : "text-white/25"}`}
               size={28}
@@ -330,941 +337,66 @@ export default function NotificationsPage() {
             <p className={muted}>Bildiriş yoxdur</p>
           </div>
         ) : (
-          <div className="space-y-6">
-            {friendIncoming.length > 0 ? (
-              <section>
-                <h2
-                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
-                >
-                  Dostluq sorğuları
-                </h2>
-                <div className="space-y-3">
-                  {friendIncoming.map((notification) => {
-                    const actorName = notification.actor
-                      ? `${notification.actor.firstName} ${notification.actor.lastName}`.trim()
-                      : "İstifadəçi";
-
-                    return (
-                      <div
-                        key={notification.id}
-                        className={`rounded-2xl border p-4 ${card} ${pendingBorder}`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <Avatar
-                            name={actorName}
-                            src={notification.actor?.image || undefined}
-                            size="md"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <h3 className={`font-semibold ${title}`}>
-                              Yeni dostluq sorğusu
-                            </h3>
-                            <p className={`mt-1 text-sm ${body}`}>
-                              <span className={title}>{actorName}</span>{" "}
-                              sizə dostluq sorğusu göndərdi.
-                            </p>
-                            <p className={`mt-2 text-xs ${soft}`}>
-                              {new Date(notification.createdAt).toLocaleString("az")}
-                            </p>
-                            <div className="mt-4 flex gap-2">
-                              <button
-                                type="button"
-                                disabled={busyKey === `friend-${notification.id}`}
-                                onClick={() =>
-                                  void respondToFriendRequest(notification, "accept")
-                                }
-                                className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-                              >
-                                <Check size={14} />
-                                Qəbul et
-                              </button>
-                              <button
-                                type="button"
-                                disabled={busyKey === `friend-${notification.id}`}
-                                onClick={() =>
-                                  void respondToFriendRequest(notification, "reject")
-                                }
-                                className="inline-flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
-                              >
-                                <X size={14} />
-                                Rədd et
-                              </button>
-                            </div>
-                          </div>
-                        </div>
+          <div className="space-y-3">
+            {entries.map((entry) => {
+              if (entry.kind === "player") {
+                const request = entry.request;
+                const actorName = entry.incoming
+                  ? personName(request.user)
+                  : request.playerSearch.hostTeam.name;
+                const pending = entry.incoming && request.status === "PENDING";
+                const accepted = request.status === "ACCEPTED";
+                const rejected =
+                  request.status === "REJECTED" || request.status === "CANCELLED";
+                return (
+                  <div
+                    key={entry.key}
+                    className={`rounded-2xl border p-4 ${card} ${pending ? pendingBorder : ""}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-0.5 rounded-xl p-2 ${light ? "bg-emerald-500/15 text-emerald-600" : "bg-[#c5f135]/15 text-[#c5f135]"}`}>
+                        <UserPlus size={16} />
                       </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ) : null}
-
-            {friendResolved.length > 0 ? (
-              <section>
-                <h2
-                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
-                >
-                  Cavablandırdığınız dostluq sorğuları
-                </h2>
-                <div className="space-y-3">
-                  {friendResolved.map((notification) => {
-                    const actorName = notification.actor
-                      ? `${notification.actor.firstName} ${notification.actor.lastName}`.trim()
-                      : "İstifadəçi";
-                    const accepted =
-                      notification.friendRequestStatus === "ACCEPTED";
-
-                    return (
-                      <div
-                        key={notification.id}
-                        className={`rounded-2xl border p-4 ${card} ${
-                          accepted ? "border-emerald-500/20" : "border-rose-500/20"
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={`mt-0.5 rounded-xl p-2 ${
-                              accepted
-                                ? "bg-emerald-500/10 text-emerald-400"
-                                : "bg-rose-500/10 text-rose-400"
-                            }`}
-                          >
-                            {accepted ? (
-                              <CheckCircle2 size={16} />
-                            ) : (
-                              <XCircle size={16} />
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h3 className={`font-semibold ${title}`}>
-                              {accepted
-                                ? "Dostluq sorğusunu qəbul etdiniz"
-                                : "Dostluq sorğusunu rədd etdiniz"}
-                            </h3>
-                            <p className={`mt-1 text-sm ${body}`}>
-                              <span className={title}>{actorName}</span>
-                            </p>
-                            {accepted && notification.actor ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  navigate(`/chat?user=${notification.actor!.id}`)
-                                }
-                                className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-500"
-                              >
-                                <MessageCircle size={13} />
-                                Mesaj yaz
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ) : null}
-
-            {friendAcceptedNotifications.length > 0 ? (
-              <section>
-                <h2
-                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
-                >
-                  Dostluq sorğularınız qəbul olundu
-                </h2>
-                <div className="space-y-3">
-                  {friendAcceptedNotifications.map((notification) => {
-                    const actorName = notification.actor
-                      ? `${notification.actor.firstName} ${notification.actor.lastName}`.trim()
-                      : "İstifadəçi";
-
-                    return (
-                      <div
-                        key={notification.id}
-                        className={`rounded-2xl border p-4 ${card} border-emerald-500/20`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <Avatar
-                            name={actorName}
-                            src={notification.actor?.image || undefined}
-                            size="md"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <h3 className={`font-semibold ${title}`}>
-                              Dostluq sorğusu qəbul olundu
-                            </h3>
-                            <p className={`mt-1 text-sm ${body}`}>
-                              <span className={title}>{actorName}</span>{" "}
-                              dostluq sorğunuzu qəbul etdi.
-                            </p>
-                            {notification.actor ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  navigate(`/chat?user=${notification.actor!.id}`)
-                                }
-                                className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-500"
-                              >
-                                <MessageCircle size={13} />
-                                Mesaj yaz
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ) : null}
-
-            {messageNotifications.length > 0 ? (
-              <section>
-                <h2
-                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
-                >
-                  Yeni mesajlar
-                </h2>
-                <div className="space-y-3">
-                  {messageNotifications.map((notification) => {
-                    const actorName = notification.actor
-                      ? `${notification.actor.firstName} ${notification.actor.lastName}`.trim()
-                      : "İstifadəçi";
-
-                    return (
-                      <div
-                        key={notification.id}
-                        className={`rounded-2xl border p-4 ${card} ${pendingBorder}`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <Avatar
-                            name={actorName}
-                            src={notification.actor?.image || undefined}
-                            size="md"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <h3 className={`font-semibold ${title}`}>
-                              Yeni mesaj
-                            </h3>
-                            <p className={`mt-1 text-sm ${body}`}>
-                              <span className={title}>{actorName}</span> sizə mesaj
-                              göndərdi.
-                            </p>
-                            {notification.entityId ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  void markNotificationRead(notification.id);
-                                  navigate(
-                                    `/chat?conversation=${notification.entityId}`,
-                                  );
-                                }}
-                                className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-500"
-                              >
-                                <MessageCircle size={13} />
-                                Mesaja keç
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ) : null}
-
-            {teamPlayerIncoming.length > 0 ? (
-              <section>
-                <h2
-                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
-                >
-                  Komanda dəvətləri
-                </h2>
-                <div className="space-y-3">
-                  {teamPlayerIncoming.map((invite) => {
-                    const pending = invite.status === "PENDING";
-                    const accepted = invite.status === "ACCEPTED";
-                    return (
-                      <div
-                        key={invite.id}
-                        className={`rounded-2xl border p-4 ${card} ${
-                          pending
-                            ? pendingBorder
-                            : accepted
-                              ? "border-emerald-500/20"
-                              : "border-rose-500/20"
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={`mt-0.5 rounded-xl p-2 ${
-                              pending
-                                ? accentIcon
-                                : accepted
-                                  ? "bg-emerald-500/10 text-emerald-400"
-                                  : "bg-rose-500/10 text-rose-400"
-                            }`}
-                          >
-                            <UserPlus size={16} />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h3 className={`font-semibold ${title}`}>
-                              {pending
-                                ? "Komanda dəvəti"
-                                : accepted
-                                  ? "Komanda dəvətini qəbul etdiniz"
-                                  : "Komanda dəvətini rədd etdiniz"}
-                            </h3>
-                            <p className={`mt-1 text-sm ${body}`}>
-                              <span className={title}>{invite.team.name}</span>{" "}
-                              komandası sizi heyətinə dəvət edir. Kapitan:{" "}
-                              <span className={title}>
-                                @{invite.invitedBy.username}
-                              </span>
-                            </p>
-                            {invite.position ? (
-                              <p className={`mt-2 text-xs ${soft}`}>
-                                Pozisiya: {invite.position}
-                              </p>
-                            ) : null}
-                            {invite.message ? (
-                              <p className={`mt-2 text-xs italic ${soft}`}>
-                                “{invite.message}”
-                              </p>
-                            ) : null}
-                            {pending ? (
-                              <div className="mt-4 flex gap-2">
-                                <button
-                                  type="button"
-                                  disabled={
-                                    busyKey === `team-player-${invite.id}`
-                                  }
-                                  onClick={() =>
-                                    void respondToTeamPlayerInvite(
-                                      invite.id,
-                                      "accept",
-                                    )
-                                  }
-                                  className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-                                >
-                                  <Check size={14} />
-                                  Qəbul et
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={
-                                    busyKey === `team-player-${invite.id}`
-                                  }
-                                  onClick={() =>
-                                    void respondToTeamPlayerInvite(
-                                      invite.id,
-                                      "reject",
-                                    )
-                                  }
-                                  className="inline-flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
-                                >
-                                  <X size={14} />
-                                  Rədd et
-                                </button>
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ) : null}
-
-            {teamPlayerOutcomes.length > 0 ? (
-              <section>
-                <h2
-                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
-                >
-                  Göndərdiyiniz komanda dəvətləri
-                </h2>
-                <div className="space-y-3">
-                  {teamPlayerOutcomes.map((invite) => {
-                    const accepted = invite.status === "ACCEPTED";
-                    return (
-                      <div
-                        key={invite.id}
-                        className={`rounded-2xl border p-4 ${card} ${
-                          accepted
-                            ? "border-emerald-500/20"
-                            : "border-rose-500/20"
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={`mt-0.5 rounded-xl p-2 ${
-                              accepted
-                                ? "bg-emerald-500/10 text-emerald-400"
-                                : "bg-rose-500/10 text-rose-400"
-                            }`}
-                          >
-                            {accepted ? (
-                              <CheckCircle2 size={16} />
-                            ) : (
-                              <XCircle size={16} />
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h3 className={`font-semibold ${title}`}>
-                              @{invite.invitedUser.username} dəvəti{" "}
-                              {accepted ? "qəbul etdi" : "rədd etdi"}
-                            </h3>
-                            <p className={`mt-1 text-sm ${body}`}>
-                              <span className={title}>{invite.team.name}</span>{" "}
-                              komandasına oyunçu dəvəti
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ) : null}
-
-            {challengeIncoming.length > 0 ? (
-              <section>
-                <h2
-                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
-                >
-                  Gələn challenge sorğuları
-                </h2>
-                <div className="space-y-3">
-                  {challengeIncoming.map((request) => {
-                    const pending = request.status === "PENDING";
-                    const accepted = request.status === "ACCEPTED";
-                    return (
-                      <div
-                        key={request.id}
-                        className={`rounded-2xl border p-4 ${card} ${
-                          pending
-                            ? pendingBorder
-                            : accepted
-                              ? "border-emerald-500/20"
-                              : "border-rose-500/20"
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={`mt-0.5 rounded-xl p-2 ${
-                              pending
-                                ? accentIcon
-                                : accepted
-                                  ? "bg-emerald-500/10 text-emerald-400"
-                                  : "bg-rose-500/10 text-rose-400"
-                            }`}
-                          >
-                            <Swords size={16} />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h3 className={`font-semibold ${title}`}>
-                              {pending
-                                ? "Yeni challenge sorğusu"
-                                : accepted
-                                  ? "Challenge qəbul edildi"
-                                  : request.status === "REJECTED"
-                                    ? "Challenge rədd edildi"
-                                    : "Başqa rəqib seçildi"}
-                            </h3>
-                            <p className={`mt-1 text-sm ${body}`}>
-                              <span className={title}>{request.team.name}</span>{" "}
-                              komandası{" "}
-                              <span className={title}>
-                                {request.challenge.team.name}
-                              </span>{" "}
-                              komandasının challenge elanına sorğu göndərib
-                              {request.requestedBy?.username
-                                ? ` (@${request.requestedBy.username})`
-                                : ""}
-                              .
-                            </p>
-                            <div
-                              className={`mt-2 flex flex-wrap gap-3 text-xs ${soft}`}
-                            >
-                              <span className="flex items-center gap-1">
-                                <Clock size={12} />
-                                {new Date(
-                                  request.challenge.scheduledAt,
-                                ).toLocaleString()}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <MapPin size={12} />
-                                {request.challenge.venue}
-                              </span>
-                            </div>
-                            {request.message ? (
-                              <p className={`mt-2 text-xs italic ${soft}`}>
-                                “{request.message}”
-                              </p>
-                            ) : null}
-                            {pending ? (
-                              <div className="mt-4 flex gap-2">
-                                <button
-                                  type="button"
-                                  disabled={
-                                    busyKey === `challenge-${request.id}`
-                                  }
-                                  onClick={() =>
-                                    void respondToChallenge(
-                                      request.id,
-                                      "accept",
-                                    )
-                                  }
-                                  className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-                                >
-                                  <Check size={14} />
-                                  Qəbul et
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={
-                                    busyKey === `challenge-${request.id}`
-                                  }
-                                  onClick={() =>
-                                    void respondToChallenge(
-                                      request.id,
-                                      "reject",
-                                    )
-                                  }
-                                  className="inline-flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
-                                >
-                                  <X size={14} />
-                                  Rədd et
-                                </button>
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ) : null}
-
-            {challengeOutcomes.length > 0 ? (
-              <section>
-                <h2
-                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
-                >
-                  Challenge cavabları
-                </h2>
-                <div className="space-y-3">
-                  {challengeOutcomes.map((request) => {
-                    const accepted = request.status === "ACCEPTED";
-                    return (
-                      <div
-                        key={request.id}
-                        className={`rounded-2xl border p-4 ${card} ${
-                          accepted
-                            ? "border-emerald-500/20"
-                            : "border-rose-500/20"
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={`mt-0.5 rounded-xl p-2 ${
-                              accepted
-                                ? "bg-emerald-500/10 text-emerald-400"
-                                : "bg-rose-500/10 text-rose-400"
-                            }`}
-                          >
-                            {accepted ? (
-                              <CheckCircle2 size={16} />
-                            ) : (
-                              <XCircle size={16} />
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h3 className={`font-semibold ${title}`}>
-                              {accepted
-                                ? "Challenge sorğunuz qəbul edildi"
-                                : request.status === "REJECTED"
-                                  ? "Challenge sorğunuz rədd edildi"
-                                  : "Başqa rəqib komanda seçildi"}
-                            </h3>
-                            <p className={`mt-1 text-sm ${body}`}>
-                              <span className={title}>{request.team.name}</span>{" "}
-                              vs{" "}
-                              <span className={title}>
-                                {request.challenge.team.name}
-                              </span>
-                            </p>
-                            <div
-                              className={`mt-2 flex flex-wrap gap-3 text-xs ${soft}`}
-                            >
-                              <span className="flex items-center gap-1">
-                                <Clock size={12} />
-                                {new Date(
-                                  request.challenge.scheduledAt,
-                                ).toLocaleString()}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <MapPin size={12} />
-                                {request.challenge.venue}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ) : null}
-
-            {incoming.length > 0 ? (
-              <section>
-                <h2
-                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
-                >
-                  Oyunçu sorğuları
-                </h2>
-                <div className="space-y-3">
-                  {incoming.map((request) => (
-                    <div
-                      key={request.id}
-                      className={`rounded-2xl border p-4 ${card} ${pendingBorder}`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={`mt-0.5 rounded-xl p-2 ${accentIcon}`}
-                        >
-                          <UserPlus size={16} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h3 className={`font-semibold ${title}`}>
-                            Yeni oyunçu sorğusu
-                          </h3>
-                          <p className={`mt-1 text-sm ${body}`}>
-                            <span className={title}>
-                              @{request.user?.username}
-                            </span>{" "}
-                            <span className={title}>
-                              {request.playerSearch.hostTeam.name}
-                            </span>{" "}
-                            komandasının oyunçu axtarışına qoşulmaq istəyir.
-                          </p>
-                          <div
-                            className={`mt-2 flex flex-wrap gap-3 text-xs ${soft}`}
-                          >
-                            <span className="flex items-center gap-1">
-                              <Clock size={12} />
-                              {new Date(
-                                request.playerSearch.scheduledAt,
-                              ).toLocaleString()}
-                            </span>
-                            <span className="flex items-center gap-1">
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-sm ${title}`}>
+                          <span className="font-semibold">{actorName}</span>{" "}
+                          <span className={body}>
+                            {entry.incoming
+                              ? "komandanızın oyunçu axtarışına qoşulmaq istəyir"
+                              : accepted
+                                ? "oyunçu axtarışı sorğunuzu qəbul etdi"
+                                : request.status === "CANCELLED"
+                                  ? "oyunçu axtarışını bağladı"
+                                  : "oyunçu axtarışı sorğunuzu rədd etdi"}
+                          </span>
+                        </p>
+                        <NotificationTime value={request.createdAt} light={light} />
+                        {request.playerSearch.venue ? (
+                          <p className={`mt-2 flex flex-wrap gap-3 text-xs ${soft}`}>
+                            <span className="inline-flex items-center gap-1">
                               <MapPin size={12} />
                               {request.playerSearch.venue}
                             </span>
-                          </div>
-                          {request.message ? (
-                            <p className={`mt-2 text-xs italic ${soft}`}>
-                              “{request.message}”
-                            </p>
-                          ) : null}
-                          <div className="mt-4 flex gap-2">
-                            <button
-                              type="button"
-                              disabled={busyKey === `player-${request.id}`}
-                              onClick={() =>
-                                void respondToPlayer(request.id, "accept")
-                              }
-                              className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-                            >
-                              <Check size={14} />
-                              Qəbul et
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busyKey === `player-${request.id}`}
-                              onClick={() =>
-                                void respondToPlayer(request.id, "reject")
-                              }
-                              className="inline-flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
-                            >
-                              <X size={14} />
-                              Rədd et
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-
-            {outcomes.length > 0 ? (
-              <section>
-                <h2
-                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
-                >
-                  Sorğularınıza cavablar
-                </h2>
-                <div className="space-y-3">
-                  {outcomes.map((request) => {
-                    const accepted = request.status === "ACCEPTED";
-                    return (
-                      <div
-                        key={request.id}
-                        className={`rounded-2xl border p-4 ${card} ${
-                          accepted
-                            ? "border-emerald-500/20"
-                            : "border-rose-500/20"
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={`mt-0.5 rounded-xl p-2 ${
-                              accepted
-                                ? "bg-emerald-500/10 text-emerald-400"
-                                : "bg-rose-500/10 text-rose-400"
-                            }`}
-                          >
-                            {accepted ? (
-                              <CheckCircle2 size={16} />
-                            ) : (
-                              <XCircle size={16} />
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h3 className={`font-semibold ${title}`}>
-                              {accepted
-                                ? "Sorğunuz qəbul edildi"
-                                : request.status === "CANCELLED"
-                                  ? "Axtarış bağlandı"
-                                  : "Sorğunuz rədd edildi"}
-                            </h3>
-                            <p className={`mt-1 text-sm ${body}`}>
-                              <span className={title}>
-                                {request.playerSearch.hostTeam.name}
-                              </span>{" "}
-                              komandasının oyunçu axtarışı.
-                            </p>
-                            <div
-                              className={`mt-2 flex flex-wrap gap-3 text-xs ${soft}`}
-                            >
-                              <span className="flex items-center gap-1">
-                                <Clock size={12} />
-                                {new Date(
-                                  request.playerSearch.scheduledAt,
-                                ).toLocaleString()}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <MapPin size={12} />
-                                {request.playerSearch.venue}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ) : null}
-
-            {championshipInvites.length > 0 ? (
-              <section>
-                <h2
-                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
-                >
-                  Çempionat dəvətləri
-                </h2>
-                <div className="space-y-3">
-                  {championshipInvites.map((invite) => (
-                    <div
-                      key={invite.id}
-                      className={`rounded-2xl border p-4 ${card} ${pendingBorder}`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={`mt-0.5 rounded-xl p-2 ${accentIcon}`}
-                        >
-                          <Trophy size={16} />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className={`font-semibold ${title}`}>
-                            Çempionat dəvəti
-                          </h3>
-                          <p className={`mt-1 text-sm ${body}`}>
-                            <span className={title}>
-                              {invite.championship?.name ?? "Çempionat"}
-                            </span>{" "}
-                            çempionatı{" "}
-                            <span className={title}>{invite.team.name}</span>{" "}
-                            komandanızı dəvət etdi.
+                            <span className="inline-flex items-center gap-1">
+                              <Clock size={12} />
+                              {new Date(request.playerSearch.scheduledAt).toLocaleString()}
+                            </span>
                           </p>
-                          {invite.message ? (
-                            <p className={`mt-2 text-xs italic ${soft}`}>
-                              “{invite.message}”
-                            </p>
-                          ) : null}
-                          <div className="mt-4 flex gap-2">
+                        ) : null}
+                        {pending ? (
+                          <div className="mt-3 flex gap-2">
                             <button
                               type="button"
-                              disabled={busyKey === `champ-invite-${invite.id}`}
-                              onClick={() =>
-                                void respondChampionship(invite.id, "accept")
-                              }
-                              className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-                            >
-                              <Check size={14} />
-                              Qəbul et
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busyKey === `champ-invite-${invite.id}`}
-                              onClick={() =>
-                                void respondChampionship(invite.id, "reject")
-                              }
-                              className="inline-flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
-                            >
-                              <X size={14} />
-                              Rədd et
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-
-            {championshipInviteOutcomes.length > 0 ? (
-              <section>
-                <h2
-                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
-                >
-                  Çempionat dəvət cavabları
-                </h2>
-                <div className="space-y-3">
-                  {championshipInviteOutcomes.map((notification) => {
-                    const accepted =
-                      notification.championshipInviteStatus === "ACCEPTED";
-                    const teamName =
-                      notification.championshipInvite?.team.name ?? "Komanda";
-                    const champName =
-                      notification.championshipInvite?.championship.name ??
-                      "çempionat";
-                    const isCaptain =
-                      user != null &&
-                      notification.championshipInvite?.team.captainId ===
-                        user.id;
-                    return (
-                      <div
-                        key={notification.id}
-                        className={`rounded-2xl border p-4 ${card}`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={`mt-0.5 rounded-xl p-2 ${
-                              accepted
-                                ? accentIcon
-                                : light
-                                  ? "bg-rose-500/15 text-rose-600"
-                                  : "bg-rose-500/15 text-rose-400"
-                            }`}
-                          >
-                            {accepted ? (
-                              <CheckCircle2 size={16} />
-                            ) : (
-                              <XCircle size={16} />
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <h3 className={`font-semibold ${title}`}>
-                              {accepted
-                                ? isCaptain
-                                  ? "Dəvəti qəbul etdiniz"
-                                  : "Dəvət qəbul edildi"
-                                : isCaptain
-                                  ? "Dəvəti rədd etdiniz"
-                                  : "Dəvət rədd edildi"}
-                            </h3>
-                            <p className={`mt-1 text-sm ${body}`}>
-                              <span className={title}>{teamName}</span> ·{" "}
-                              <span className={title}>{champName}</span>
-                            </p>
-                            {!isCaptain &&
-                            notification.championshipInvite?.championship
-                              .id ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  navigate(
-                                    `/admin/football/championships/${notification.championshipInvite!.championship.id}`,
+                              disabled={busyKey === `player-${request.id}`}
+                              onClick={() => {
+                                setBusyKey(`player-${request.id}`);
+                                void respondPlayerSearchRequest(request.id, "accept")
+                                  .then(() => loadExtras())
+                                  .catch((err) =>
+                                    alert(err instanceof Error ? err.message : "Əməliyyat alınmadı"),
                                   )
-                                }
-                                className="mt-3 text-xs font-semibold text-emerald-600"
-                              >
-                                Çempionata keç
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ) : null}
-
-            {invites.length > 0 ? (
-              <section>
-                <h2
-                  className={`mb-3 text-xs font-semibold uppercase tracking-wider ${sectionLabel}`}
-                >
-                  Liqa dəvətləri
-                </h2>
-                <div className="space-y-3">
-                  {invites.map((invite) => (
-                    <div
-                      key={invite.id}
-                      className={`rounded-2xl border p-4 ${card} ${pendingBorder}`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={`mt-0.5 rounded-xl p-2 ${accentIcon}`}
-                        >
-                          <Trophy size={16} />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className={`font-semibold ${title}`}>
-                            Liqa dəvəti
-                          </h3>
-                          <p className={`mt-1 text-sm ${body}`}>
-                            <span className={title}>{invite.league.name}</span>{" "}
-                            liqası{" "}
-                            <span className={title}>{invite.team.name}</span>{" "}
-                            komandanızı dəvət etdi
-                            {invite.league.visibility === "PRIVATE"
-                              ? " (özəl liqa)"
-                              : " (ictimai liqa)"}
-                            .
-                          </p>
-                          {invite.message ? (
-                            <p className={`mt-2 text-xs italic ${soft}`}>
-                              “{invite.message}”
-                            </p>
-                          ) : null}
-                          <div className="mt-4 flex gap-2">
-                            <button
-                              type="button"
-                              disabled={busyKey === `invite-${invite.id}`}
-                              onClick={() =>
-                                void respond(invite.id, "accept")
-                              }
+                                  .finally(() => setBusyKey(null));
+                              }}
                               className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
                             >
                               <Check size={14} />
@@ -1272,23 +404,399 @@ export default function NotificationsPage() {
                             </button>
                             <button
                               type="button"
-                              disabled={busyKey === `invite-${invite.id}`}
-                              onClick={() =>
-                                void respond(invite.id, "reject")
-                              }
+                              disabled={busyKey === `player-${request.id}`}
+                              onClick={() => {
+                                setBusyKey(`player-${request.id}`);
+                                void respondPlayerSearchRequest(request.id, "reject")
+                                  .then(() => loadExtras())
+                                  .catch((err) =>
+                                    alert(err instanceof Error ? err.message : "Əməliyyat alınmadı"),
+                                  )
+                                  .finally(() => setBusyKey(null));
+                              }}
                               className="inline-flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
                             >
                               <X size={14} />
                               Rədd et
                             </button>
                           </div>
-                        </div>
+                        ) : null}
+                        {!pending && accepted && !entry.incoming ? (
+                          <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-500">
+                            <CheckCircle2 size={13} />
+                            Qəbul edildi
+                          </p>
+                        ) : null}
+                        {!pending && rejected && !entry.incoming ? (
+                          <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-rose-400">
+                            <XCircle size={13} />
+                            {request.status === "CANCELLED" ? "Bağlandı" : "Rədd edildi"}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
-                  ))}
+                  </div>
+                );
+              }
+
+              if (entry.kind === "challenge") {
+                const request = entry.request;
+                const actorName = entry.incoming
+                  ? request.team.name
+                  : request.challenge.team.name;
+                const pending = entry.incoming && request.status === "PENDING";
+                const accepted = request.status === "ACCEPTED";
+                const rejected =
+                  request.status === "REJECTED" || request.status === "CANCELLED";
+                return (
+                  <div
+                    key={entry.key}
+                    className={`rounded-2xl border p-4 ${card} ${pending ? pendingBorder : ""}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-0.5 rounded-xl p-2 ${light ? "bg-emerald-500/15 text-emerald-600" : "bg-[#c5f135]/15 text-[#c5f135]"}`}>
+                        <Swords size={16} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-sm ${title}`}>
+                          <span className="font-semibold">{actorName}</span>{" "}
+                          <span className={body}>
+                            {entry.incoming
+                              ? request.status === "PENDING"
+                                ? "sizin challenge elanınıza sorğu göndərdi"
+                                : accepted
+                                  ? "challenge sorğusunu qəbul etdiniz"
+                                  : "challenge sorğusunu rədd etdiniz"
+                              : accepted
+                                ? "challenge sorğunuzu qəbul etdi"
+                                : "challenge sorğunuzu rədd etdi"}
+                          </span>
+                        </p>
+                        <NotificationTime value={request.createdAt} light={light} />
+                        {pending ? (
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              type="button"
+                              disabled={busyKey === `challenge-${request.id}`}
+                              onClick={() => {
+                                setBusyKey(`challenge-${request.id}`);
+                                void respondChallengeRequest(request.id, "accept")
+                                  .then(() => loadExtras())
+                                  .catch((err) =>
+                                    alert(err instanceof Error ? err.message : "Əməliyyat alınmadı"),
+                                  )
+                                  .finally(() => setBusyKey(null));
+                              }}
+                              className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                            >
+                              <Check size={14} />
+                              Qəbul et
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busyKey === `challenge-${request.id}`}
+                              onClick={() => {
+                                setBusyKey(`challenge-${request.id}`);
+                                void respondChallengeRequest(request.id, "reject")
+                                  .then(() => loadExtras())
+                                  .catch((err) =>
+                                    alert(err instanceof Error ? err.message : "Əməliyyat alınmadı"),
+                                  )
+                                  .finally(() => setBusyKey(null));
+                              }}
+                              className="inline-flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
+                            >
+                              <X size={14} />
+                              Rədd et
+                            </button>
+                          </div>
+                        ) : null}
+                        {!pending && accepted && !entry.incoming ? (
+                          <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-500">
+                            <CheckCircle2 size={13} />
+                            Qəbul edildi
+                          </p>
+                        ) : null}
+                        {!pending && rejected && !entry.incoming ? (
+                          <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-rose-400">
+                            <XCircle size={13} />
+                            Rədd edildi
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (entry.kind === "team-player") {
+                const invite = entry.invite;
+                const pending = entry.incoming && invite.status === "PENDING";
+                const accepted = invite.status === "ACCEPTED";
+                return (
+                  <div
+                    key={entry.key}
+                    className={`rounded-2xl border p-4 ${card} ${pending ? pendingBorder : ""}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-0.5 rounded-xl p-2 ${light ? "bg-emerald-500/15 text-emerald-600" : "bg-[#c5f135]/15 text-[#c5f135]"}`}>
+                        <UserPlus size={16} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-sm ${title}`}>
+                          {entry.incoming ? (
+                            <>
+                              <span className="font-semibold">{invite.team.name}</span>{" "}
+                              <span className={body}>komandası sizi heyətinə dəvət edir</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-semibold">
+                                @{invite.invitedUser.username}
+                              </span>{" "}
+                              <span className={body}>
+                                dəvəti {accepted ? "qəbul etdi" : "rədd etdi"}
+                              </span>
+                            </>
+                          )}
+                        </p>
+                        <NotificationTime
+                          value={invite.respondedAt || invite.createdAt}
+                          light={light}
+                        />
+                        {pending ? (
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              type="button"
+                              disabled={busyKey === `team-player-${invite.id}`}
+                              onClick={() => {
+                                setBusyKey(`team-player-${invite.id}`);
+                                void respondTeamPlayerInvite(invite.id, "accept")
+                                  .then(() => loadExtras())
+                                  .catch((err) =>
+                                    alert(err instanceof Error ? err.message : "Əməliyyat alınmadı"),
+                                  )
+                                  .finally(() => setBusyKey(null));
+                              }}
+                              className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                            >
+                              <Check size={14} />
+                              Qəbul et
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busyKey === `team-player-${invite.id}`}
+                              onClick={() => {
+                                setBusyKey(`team-player-${invite.id}`);
+                                void respondTeamPlayerInvite(invite.id, "reject")
+                                  .then(() => loadExtras())
+                                  .catch((err) =>
+                                    alert(err instanceof Error ? err.message : "Əməliyyat alınmadı"),
+                                  )
+                                  .finally(() => setBusyKey(null));
+                              }}
+                              className="inline-flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
+                            >
+                              <X size={14} />
+                              Rədd et
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              const notification = entry.notification;
+              const actorName = personName(notification.actor);
+              const champPending = isPendingChampionshipInvite(notification);
+              const leaguePending = isPendingLeagueInvite(notification);
+              const joinPending = isPendingJoinRequest(notification) && isAdmin;
+              const champJoinPending =
+                isPendingChampionshipJoinRequest(notification) && isAdmin;
+              const pending =
+                isPendingFriendRequest(notification) ||
+                champPending ||
+                leaguePending ||
+                joinPending ||
+                champJoinPending;
+              const accepted = isAcceptedNotification(notification);
+              const rejected = isRejectedNotification(notification);
+              const busy =
+                busyKey === `champ-${notification.id}` ||
+                busyKey === `league-${notification.id}` ||
+                busyKey === `join-${notification.id}` ||
+                busyKey === `cjoin-${notification.id}` ||
+                busyKey === `friend-${notification.id}`;
+
+              return (
+                <div
+                  key={entry.key}
+                  className={`rounded-2xl border p-4 ${card} ${pending ? pendingBorder : ""}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <Avatar
+                      name={actorName}
+                      src={notification.actor?.image || undefined}
+                      size="md"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-sm ${title}`}>
+                        <span className="font-semibold">{actorName}</span>{" "}
+                        <span className={body}>
+                          {notificationLabel(notification)}
+                        </span>
+                      </p>
+                      <NotificationTime
+                        value={notification.createdAt}
+                        light={light}
+                      />
+
+                      {pending && notification.entityId ? (
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void respondSocial(notification, "accept")}
+                            className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                          >
+                            <Check size={14} />
+                            Qəbul et
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void respondSocial(notification, "reject")}
+                            className="inline-flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
+                          >
+                            <X size={14} />
+                            Rədd et
+                          </button>
+                        </div>
+                      ) : null}
+
+                      {accepted ? (
+                        <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-500">
+                          <CheckCircle2 size={13} />
+                          Qəbul edildi
+                        </p>
+                      ) : null}
+
+                      {rejected ? (
+                        <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-rose-400">
+                          <XCircle size={13} />
+                          {notification.joinRequestStatus === "CANCELLED"
+                            ? "Ləğv edildi"
+                            : "Rədd edildi"}
+                        </p>
+                      ) : null}
+
+                      {notification.type === "FRIEND_ACCEPTED" &&
+                      notification.actor ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(`/chat?user=${notification.actor!.id}`)
+                          }
+                          className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-500"
+                        >
+                          <MessageCircle size={13} />
+                          Mesaj yaz
+                        </button>
+                      ) : null}
+
+                      {notification.type === "NEW_MESSAGE" &&
+                      notification.entityId ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void markNotificationRead(notification.id);
+                            navigate(`/chat?conversation=${notification.entityId}`);
+                          }}
+                          className="mt-3 text-xs font-semibold text-emerald-500"
+                        >
+                          Mesaja keç
+                        </button>
+                      ) : null}
+
+                      {notification.type === "CHAMPIONSHIP_INVITE" &&
+                      notification.championshipInvite?.championship.id &&
+                      notification.championshipInviteStatus === "ACCEPTED" ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(
+                              isAdmin
+                                ? `/admin/football/championships/${notification.championshipInvite!.championship.id}`
+                                : `/sports/football/championships/${notification.championshipInvite!.championship.id}`,
+                            )
+                          }
+                          className="mt-3 w-full rounded-xl border px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                        >
+                          Çempionata keç
+                        </button>
+                      ) : null}
+
+                      {notification.type === "CHAMPIONSHIP_JOIN_REQUEST" &&
+                      notification.championshipJoinRequest?.championship.id &&
+                      notification.championshipJoinRequestStatus ===
+                        "ACCEPTED" ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(
+                              isAdmin
+                                ? `/admin/football/championships/${notification.championshipJoinRequest!.championship.id}`
+                                : `/sports/football/championships/${notification.championshipJoinRequest!.championship.id}`,
+                            )
+                          }
+                          className="mt-3 w-full rounded-xl border px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                        >
+                          Çempionata keç
+                        </button>
+                      ) : null}
+
+                      {notification.type === "LEAGUE_INVITE" &&
+                      notification.leagueInvite?.league.id &&
+                      notification.leagueInviteStatus === "ACCEPTED" ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(
+                              isAdmin
+                                ? `/admin/football/leagues/${notification.leagueInvite!.league.id}`
+                                : `/leagues/${notification.leagueInvite!.league.id}`,
+                            )
+                          }
+                          className="mt-3 w-full rounded-xl border px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                        >
+                          Liqaya keç
+                        </button>
+                      ) : null}
+
+                      {notification.type === "JOIN_REQUEST" &&
+                      notification.joinRequest?.league.id &&
+                      notification.joinRequestStatus === "ACCEPTED" ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(
+                              isAdmin
+                                ? `/admin/football/leagues/${notification.joinRequest!.league.id}`
+                                : `/leagues/${notification.joinRequest!.league.id}`,
+                            )
+                          }
+                          className="mt-3 w-full rounded-xl border px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                        >
+                          Liqaya keç
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
-              </section>
-            ) : null}
+              );
+            })}
           </div>
         )}
       </div>

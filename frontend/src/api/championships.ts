@@ -5,11 +5,13 @@ import type {
   Championship,
   ChampionshipFormat,
   ChampionshipGroup,
+  ChampionshipJoinRequest,
   ChampionshipListItem,
   ChampionshipMatchFormat,
   ChampionshipStatistics,
   ChampionshipStatus,
   ChampionshipTeamInvite,
+  ChampionshipVisibility,
   GroupStandingsBlock,
   PlayerStatistics,
   PlayoffTieGroup,
@@ -76,6 +78,7 @@ export type CreateChampionshipPayload = {
   maxTeams?: number;
   defaultQualifyCount?: number;
   logo?: string;
+  visibility?: ChampionshipVisibility;
 };
 
 export type CreateGroupsPayload = {
@@ -174,6 +177,45 @@ export function respondChampionshipInvite(
 ): Promise<ChampionshipTeamInvite> {
   return champFetch<ChampionshipTeamInvite>(
     `/api/championship-invites/${inviteId}/respond`,
+    {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    },
+  );
+}
+
+export function requestJoinChampionship(
+  championshipId: number,
+  payload: { teamId: number; message?: string },
+): Promise<unknown> {
+  return champFetch(`/api/championships/${championshipId}/join-requests`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function cancelChampionshipJoinRequest(
+  requestId: number,
+): Promise<unknown> {
+  return champFetch(`/api/championship-join-requests/${requestId}/cancel`, {
+    method: "POST",
+  });
+}
+
+export function fetchChampionshipJoinRequests(
+  championshipId: number,
+): Promise<ChampionshipJoinRequest[]> {
+  return champFetch<ChampionshipJoinRequest[]>(
+    `/api/championships/${championshipId}/join-requests`,
+  );
+}
+
+export function respondChampionshipJoinRequest(
+  requestId: number,
+  action: "accept" | "reject",
+): Promise<ChampionshipJoinRequest> {
+  return champFetch<ChampionshipJoinRequest>(
+    `/api/championship-join-requests/${requestId}/respond`,
     {
       method: "POST",
       body: JSON.stringify({ action }),
@@ -383,8 +425,11 @@ export function startPlayoff(
   });
 }
 
-export function fetchVisibleChampionships(): Promise<ChampionshipListItem[]> {
-  return champFetch<ChampionshipListItem[]>("/api/championships/public");
+export function fetchVisibleChampionships(
+  opts?: { includeAll?: boolean },
+): Promise<ChampionshipListItem[]> {
+  const qs = opts?.includeAll ? "?includeAll=true" : "";
+  return champFetch<ChampionshipListItem[]>(`/api/championships/public${qs}`);
 }
 
 export function fetchVisibleChampionship(

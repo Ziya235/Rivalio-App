@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Calendar, ChevronRight, Trophy, Users } from "lucide-react";
+import { Calendar, ChevronRight, Lock, Trophy, Users } from "lucide-react";
 import { fetchVisibleChampionships } from "../../api/championships";
 import { mediaUrl } from "../../api/base";
 import {
@@ -8,6 +8,7 @@ import {
   FORMAT_LABEL,
   formatChampDate,
   toUserFacingStatus,
+  userFacingChampLabel,
 } from "../../lib/championshipUi";
 import type { ChampionshipListItem } from "../../types/championship";
 import { Button, Card } from "../ui";
@@ -15,10 +16,10 @@ import { ChampEmpty, ChampError, ChampSkeleton, TeamCrest } from "./ChampShared"
 
 function statusBadge(status: ChampionshipListItem["status"]) {
   const label = toUserFacingStatus(status);
-  if (label === "Active") {
+  if (label === "ACTIVE") {
     return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
   }
-  if (label === "Finished") {
+  if (label === "FINISHED") {
     return "bg-sky-50 text-sky-700 ring-1 ring-sky-200";
   }
   return "bg-amber-50 text-amber-800 ring-1 ring-amber-200";
@@ -31,7 +32,7 @@ function ChampionshipCard({
   item: ChampionshipListItem;
   onOpen: () => void;
 }) {
-  const userStatus = toUserFacingStatus(item.status);
+  const userStatus = userFacingChampLabel(item.status);
   const stage = currentStageLabel(item.status, item.currentStage);
   const progress = item.progress;
   const pct =
@@ -58,6 +59,9 @@ function ChampionshipCard({
             <h3 className="truncate font-display text-lg font-bold text-gray-900">
               {item.name}
             </h3>
+            {item.canView === false ? (
+              <Lock size={14} className="shrink-0 text-gray-400" />
+            ) : null}
             <span
               className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusBadge(item.status)}`}
             >
@@ -81,7 +85,7 @@ function ChampionshipCard({
         </span>
       </div>
 
-      {item.myTeams.length > 0 ? (
+      {item.myTeams && item.myTeams.length > 0 ? (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {item.myTeams.map((team) => (
             <span
@@ -114,7 +118,7 @@ function ChampionshipCard({
         <p className="mt-4 text-[11px] text-gray-400">Oyun hələ başlamayıb</p>
       )}
 
-      {userStatus === "Active" && stage ? (
+      {toUserFacingStatus(item.status) === "ACTIVE" && stage ? (
         <p className="mt-3 text-xs font-semibold text-sky-700">
           Hazırkı mərhələ: {stage}
         </p>
@@ -144,7 +148,7 @@ export function ChampionshipList({
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchVisibleChampionships();
+      const data = await fetchVisibleChampionships({ includeAll: true });
       setRows(data);
     } catch (err) {
       setError(
@@ -166,8 +170,8 @@ export function ChampionshipList({
   if (rows.length === 0) {
     return (
       <ChampEmpty
-        title="Henüz heç bir çempionatda iştirak etmirsiniz"
-        hint="Komandanız çempionata əlavə olunduqda burada görünəcək."
+        title="Çempionat yoxdur"
+        hint="Public və private çempionatlar burada görünəcək."
         action={
           onCreateTeam
             ? { label: "Komanda yarat", onClick: onCreateTeam }
@@ -183,9 +187,10 @@ export function ChampionshipList({
         <ChampionshipCard
           key={item.id}
           item={item}
-          onOpen={() =>
-            navigate(`/sports/football/championships/${item.id}`)
-          }
+          onOpen={() => {
+            if (item.canView === false) return;
+            navigate(`/sports/football/championships/${item.id}`);
+          }}
         />
       ))}
     </div>

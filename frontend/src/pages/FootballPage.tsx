@@ -13,6 +13,7 @@ import {
   Clock,
   Hourglass,
   ImagePlus,
+  Lock,
   MapPin,
   Plus,
   Send,
@@ -22,18 +23,26 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { Button, Card, Input, SelectField, Tabs } from "../components/ui";
+import { Button, Card, Input, SelectField, Tabs, Badge } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import type { AppOutletContext } from "../App";
 import {
   createTeam,
   fetchTeams,
   requestJoinLeague,
+  cancelJoinLeagueRequest,
   uploadImage,
   type TeamSummary,
 } from "../api/teams";
 import { mediaUrl } from "../api/base";
 import { fetchLeagues } from "../api/leagues";
+import {
+  cancelChampionshipJoinRequest,
+  fetchVisibleChampionships,
+  requestJoinChampionship,
+} from "../api/championships";
+import type { ChampionshipListItem } from "../types/championship";
+import { userFacingChampLabel } from "../lib/championshipUi";
 import {
   createChallenge,
   createPlayerSearch,
@@ -47,7 +56,6 @@ import {
   type PlayerSearch,
 } from "../api/social";
 import type { League } from "../types/league";
-import { ChampionshipList } from "../components/championship/ChampionshipList";
 import { UserSearch } from "../components/UserSearch";
 
 const TABS = [
@@ -55,6 +63,8 @@ const TABS = [
   "Oyunçu axtarışı",
   "Challenge",
   "Public liqalar",
+  "Liqalar",
+  "Public çempionatlar",
   "Çempionatlar",
 ] as const;
 
@@ -65,7 +75,16 @@ const TAB_SLUG: Record<Tab, string> = {
   "Oyunçu axtarışı": "players",
   Challenge: "challenge",
   "Public liqalar": "leagues",
+  Liqalar: "all-leagues",
+  "Public çempionatlar": "public-championships",
   Çempionatlar: "championships",
+};
+
+const LEAGUE_STATUS_LABEL: Record<League["status"], string> = {
+  DRAFT: "Qaralama",
+  ACTIVE: "Aktiv",
+  FINISHED: "Bitib",
+  CANCELLED: "Ləğv",
 };
 
 const SLUG_TAB = Object.fromEntries(
@@ -167,6 +186,7 @@ export default function FootballPage() {
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [searches, setSearches] = useState<PlayerSearch[]>([]);
   const [leagues, setLeagues] = useState<League[]>([]);
+  const [championships, setChampionships] = useState<ChampionshipListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -202,8 +222,11 @@ export default function FootballPage() {
     {},
   );
 
-  // League join
+  // League / championship join
   const [joiningLeagueId, setJoiningLeagueId] = useState<number | null>(null);
+  const [joiningChampionshipId, setJoiningChampionshipId] = useState<
+    number | null
+  >(null);
   const [joinTeamId, setJoinTeamId] = useState("");
 
   const captainTeams = useMemo(
@@ -221,16 +244,18 @@ export default function FootballPage() {
     setLoading(true);
     setError(null);
     try {
-      const [mine, ch, ps, lg] = await Promise.all([
+      const [mine, ch, ps, lg, champs] = await Promise.all([
         fetchTeams({ mine: true }),
         fetchChallenges(),
         fetchPlayerSearches(),
-        fetchLeagues(),
+        fetchLeagues({ includeAll: true }),
+        fetchVisibleChampionships({ includeAll: true }),
       ]);
       setMyTeams(mine);
       setChallenges(ch);
       setSearches(ps);
-      setLeagues(lg.filter((l) => l.visibility === "PUBLIC"));
+      setLeagues(lg.filter((l) => !l.sport || l.sport.code === "FOOTBALL"));
+      setChampionships(champs);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Yüklənmədi");
     } finally {
@@ -421,6 +446,7 @@ export default function FootballPage() {
     try {
       await requestJoinLeague(leagueId, { teamId });
       flash("Qoşulma sorğusu göndərildi");
+      await load();
     } catch (err) {
       flash(err instanceof Error ? err.message : "Xəta", "error");
     } finally {
@@ -429,10 +455,404 @@ export default function FootballPage() {
     }
   };
 
+  const onCancelJoinLeague = async (requestId: number) => {
+    setBusy(true);
+    try {
+      await cancelJoinLeagueRequest(requestId);
+      flash("Sorğu ləğv edildi");
+      await load();
+    } catch (err) {
+      flash(err instanceof Error ? err.message : "Xəta", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onJoinChampionship = async (championshipId: number) => {
+    const teamId = Number(joinTeamId || primaryCaptainTeam?.id);
+    if (!teamId) {
+      flash("Əvvəlcə kapitan olduğunuz komanda seçin", "error");
+      return;
+    }
+    setBusy(true);
+    setJoiningChampionshipId(championshipId);
+    try {
+      await requestJoinChampionship(championshipId, { teamId });
+      flash("Qoşulma sorğusu göndərildi");
+      await load();
+    } catch (err) {
+      flash(err instanceof Error ? err.message : "Xəta", "error");
+    } finally {
+      setBusy(false);
+      setJoiningChampionshipId(null);
+    }
+  };
+
+  const onCancelJoinChampionship = async (requestId: number) => {
+    setBusy(true);
+    try {
+      await cancelChampionshipJoinRequest(requestId);
+      flash("Sorğu ləğv edildi");
+      await load();
+    } catch (err) {
+      flash(err instanceof Error ? err.message : "Xəta", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const captainOptions = [
     { label: "Komanda seçin", value: "" },
     ...captainTeams.map((t) => ({ label: t.name, value: String(t.id) })),
   ];
+
+  const selectedJoinTeamId = Number(joinTeamId || primaryCaptainTeam?.id || 0);
+
+  const teamInLeague = (leagueId: number, teamId: number) =>
+    myTeams.some(
+      (team) =>
+        team.id === teamId &&
+        team.leagueMemberships?.some((m) => m.league.id === leagueId),
+    );
+
+  const pendingJoinFor = (league: League, teamId: number) =>
+    league.myJoinRequests?.find(
+      (request) => request.teamId === teamId && request.status === "PENDING",
+    );
+
+  const publicLeagues = leagues.filter((l) => l.visibility === "PUBLIC");
+
+  const openLeague = (league: League) => {
+    if (league.canView === false) {
+      flash("Bu private liqaya yalnız iştirakçılar baxa bilər", "error");
+      return;
+    }
+    navigate(`/leagues/${league.id}`);
+  };
+
+  const renderLeagueList = (
+    items: League[],
+    emptyText: string,
+    hint: string,
+  ) => (
+    <div className="mt-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <p className={`text-sm ${light ? "text-gray-500" : "text-white/45"}`}>
+          {hint}
+        </p>
+        {isCaptain ? (
+          <SelectField
+            className="sm:w-56"
+            value={joinTeamId || String(primaryCaptainTeam?.id || "")}
+            onChange={setJoinTeamId}
+            options={captainOptions.filter((o) => o.value)}
+            light={light}
+          />
+        ) : null}
+      </div>
+
+      {!isCaptain ? (
+        <p className="text-xs text-amber-400/80 mb-4">
+          Liqaya request göndərmək üçün komanda kapitanı olmalısınız
+        </p>
+      ) : null}
+
+      {items.length === 0 ? (
+        <p className={`text-center py-10 ${light ? "text-gray-400" : "text-white/40"}`}>
+          {emptyText}
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {items.map((l) => {
+            const canView = l.canView !== false;
+            const alreadyIn = selectedJoinTeamId
+              ? teamInLeague(l.id, selectedJoinTeamId)
+              : false;
+            const pending = selectedJoinTeamId
+              ? pendingJoinFor(l, selectedJoinTeamId)
+              : undefined;
+            const canRequest = isCaptain && l.status === "DRAFT" && !alreadyIn;
+            return (
+              <div
+                key={l.id}
+                className={`rounded-2xl border p-5 flex flex-wrap items-center justify-between gap-3 ${light ? "bg-white/70 backdrop-blur-sm border-gray-200" : "border-white/10 bg-[#101017]"}`}
+              >
+                <button
+                  type="button"
+                  className="text-left min-w-0"
+                  onClick={() => openLeague(l)}
+                >
+                  <h3
+                    className={`font-semibold flex items-center gap-2 transition-colors ${
+                      canView
+                        ? light
+                          ? "text-gray-900 hover:text-emerald-600"
+                          : "text-white hover:text-[#c5f135]"
+                        : light
+                          ? "text-gray-500"
+                          : "text-white/60"
+                    }`}
+                  >
+                    <Trophy
+                      size={16}
+                      className={`shrink-0 ${light ? "text-emerald-500" : "text-[#c5f135]"}`}
+                    />
+                    {l.name}
+                    {!canView ? (
+                      <Lock
+                        size={13}
+                        className={light ? "text-gray-400" : "text-white/35"}
+                      />
+                    ) : null}
+                    <Badge variant={l.visibility === "PUBLIC" ? "public" : "private"}>
+                      {l.visibility === "PUBLIC" ? "Public" : "Private"}
+                    </Badge>
+                  </h3>
+                  <div
+                    className={`flex flex-wrap gap-3 text-xs mt-2 ${light ? "text-gray-400" : "text-white/45"}`}
+                  >
+                    {l.season ? <span>{l.season}</span> : null}
+                    <span>{LEAGUE_STATUS_LABEL[l.status]}</span>
+                    {l._count?.teams != null ? (
+                      <span>{l._count.teams} komanda</span>
+                    ) : null}
+                  </div>
+                  {l.description ? (
+                    <p
+                      className={`text-sm mt-2 line-clamp-2 ${light ? "text-gray-500" : "text-white/50"}`}
+                    >
+                      {l.description}
+                    </p>
+                  ) : null}
+                </button>
+                {alreadyIn ? (
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                      light
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-600"
+                        : "border-emerald-500/25 bg-emerald-500/10 text-emerald-400"
+                    }`}
+                  >
+                    <Check size={13} />
+                    Qoşulub
+                  </span>
+                ) : canRequest ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {pending ? (
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                          light
+                            ? "border-amber-200 bg-amber-50 text-amber-600"
+                            : "border-amber-400/25 bg-amber-400/10 text-amber-300"
+                        }`}
+                      >
+                        <Hourglass size={13} />
+                        Gözləyir
+                      </span>
+                    ) : null}
+                    <Button
+                      size="sm"
+                      disabled={
+                        Boolean(pending) || (busy && joiningLeagueId === l.id)
+                      }
+                      onClick={() => void onJoinLeague(l.id)}
+                    >
+                      <Send size={14} />
+                      Request göndər
+                    </Button>
+                    {pending ? (
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={busy}
+                        onClick={() => void onCancelJoinLeague(pending.id)}
+                      >
+                        <X size={14} />
+                        Ləğv et
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  const publicChampionships = championships.filter(
+    (c) => c.visibility === "PUBLIC",
+  );
+
+  const openChampionship = (item: ChampionshipListItem) => {
+    if (item.canView === false) {
+      flash("Bu private çempionata yalnız iştirakçılar baxa bilər", "error");
+      return;
+    }
+    navigate(`/sports/football/championships/${item.id}`);
+  };
+
+  const teamInChampionship = (item: ChampionshipListItem, teamId: number) =>
+    Boolean(
+      item.teams?.some((row) => row.teamId === teamId) ||
+        item.myTeams?.some((team) => team.id === teamId),
+    );
+
+  const pendingChampJoinFor = (item: ChampionshipListItem, teamId: number) =>
+    item.myJoinRequests?.find(
+      (request) => request.teamId === teamId && request.status === "PENDING",
+    );
+
+  const renderChampionshipList = (
+    items: ChampionshipListItem[],
+    emptyText: string,
+    hint: string,
+  ) => (
+    <div className="mt-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <p className={`text-sm ${light ? "text-gray-500" : "text-white/45"}`}>
+          {hint}
+        </p>
+        {isCaptain ? (
+          <SelectField
+            className="sm:w-56"
+            value={joinTeamId || String(primaryCaptainTeam?.id || "")}
+            onChange={setJoinTeamId}
+            options={captainOptions.filter((o) => o.value)}
+            light={light}
+          />
+        ) : null}
+      </div>
+
+      {!isCaptain ? (
+        <p className="text-xs text-amber-400/80 mb-4">
+          Çempionata request göndərmək üçün komanda kapitanı olmalısınız
+        </p>
+      ) : null}
+
+      {items.length === 0 ? (
+        <p className={`text-center py-10 ${light ? "text-gray-400" : "text-white/40"}`}>
+          {emptyText}
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {items.map((c) => {
+            const canView = c.canView !== false;
+            const alreadyIn = selectedJoinTeamId
+              ? teamInChampionship(c, selectedJoinTeamId)
+              : false;
+            const pending = selectedJoinTeamId
+              ? pendingChampJoinFor(c, selectedJoinTeamId)
+              : undefined;
+            const canRequest = isCaptain && c.status === "DRAFT" && !alreadyIn;
+            return (
+              <div
+                key={c.id}
+                className={`rounded-2xl border p-5 flex flex-wrap items-center justify-between gap-3 ${light ? "bg-white/70 backdrop-blur-sm border-gray-200" : "border-white/10 bg-[#101017]"}`}
+              >
+                <button
+                  type="button"
+                  className="text-left min-w-0"
+                  onClick={() => openChampionship(c)}
+                >
+                  <h3
+                    className={`font-semibold flex items-center gap-2 transition-colors ${
+                      canView
+                        ? light
+                          ? "text-gray-900 hover:text-emerald-600"
+                          : "text-white hover:text-[#c5f135]"
+                        : light
+                          ? "text-gray-500"
+                          : "text-white/60"
+                    }`}
+                  >
+                    <Trophy
+                      size={16}
+                      className={`shrink-0 ${light ? "text-emerald-500" : "text-[#c5f135]"}`}
+                    />
+                    {c.name}
+                    {!canView ? (
+                      <Lock
+                        size={13}
+                        className={light ? "text-gray-400" : "text-white/35"}
+                      />
+                    ) : null}
+                    <Badge variant={c.visibility === "PUBLIC" ? "public" : "private"}>
+                      {c.visibility === "PUBLIC" ? "Public" : "Private"}
+                    </Badge>
+                  </h3>
+                  <div
+                    className={`flex flex-wrap gap-3 text-xs mt-2 ${light ? "text-gray-400" : "text-white/45"}`}
+                  >
+                    <span>{userFacingChampLabel(c.status)}</span>
+                    <span>{c.teamCount} komanda</span>
+                  </div>
+                  {c.description ? (
+                    <p
+                      className={`text-sm mt-2 line-clamp-2 ${light ? "text-gray-500" : "text-white/50"}`}
+                    >
+                      {c.description}
+                    </p>
+                  ) : null}
+                </button>
+                {alreadyIn ? (
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                      light
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-600"
+                        : "border-emerald-500/25 bg-emerald-500/10 text-emerald-400"
+                    }`}
+                  >
+                    <Check size={13} />
+                    Qoşulub
+                  </span>
+                ) : canRequest ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {pending ? (
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                          light
+                            ? "border-amber-200 bg-amber-50 text-amber-600"
+                            : "border-amber-400/25 bg-amber-400/10 text-amber-300"
+                        }`}
+                      >
+                        <Hourglass size={13} />
+                        Gözləyir
+                      </span>
+                    ) : null}
+                    <Button
+                      size="sm"
+                      disabled={
+                        Boolean(pending) ||
+                        (busy && joiningChampionshipId === c.id)
+                      }
+                      onClick={() => void onJoinChampionship(c.id)}
+                    >
+                      <Send size={14} />
+                      Request göndər
+                    </Button>
+                    {pending ? (
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={busy}
+                        onClick={() => void onCancelJoinChampionship(pending.id)}
+                      >
+                        <X size={14} />
+                        Ləğv et
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
   if (!user) {
     return (
       <div className={`min-h-screen pt-24 text-center ${light ? "[background:linear-gradient(135deg,#E8FFF3_0%,#EAF8FF_48%,#F2EDFF_100%)]" : "bg-[#08080e]"}`}>
@@ -460,7 +880,7 @@ export default function FootballPage() {
           <div>
             <h1 className={`font-display text-5xl font-bold ${light ? "text-gray-900" : "text-white"}`}>Futbol</h1>
             <p className={`mt-1 ${light ? "text-gray-500" : "text-white/45"}`}>
-              Komandanız, oyunçu axtarışı, challenge, public liqalar və çempionatlar
+              Komandanız, oyunçu axtarışı, challenge, liqalar və çempionatlar
             </p>
           </div>
           <UserSearch light={light} />
@@ -489,9 +909,9 @@ export default function FootballPage() {
           light={light}
         />
 
-        {tab !== "Çempionatlar" && loading ? (
+        {loading ? (
           <p className={`text-center py-16 ${light ? "text-gray-400" : "text-white/40"}`}>Yüklənir...</p>
-        ) : tab !== "Çempionatlar" && error ? (
+        ) : error ? (
           <p className="text-rose-400 text-center py-16">{error}</p>
         ) : null}
 
@@ -1293,92 +1713,38 @@ export default function FootballPage() {
         ) : null}
 
         {/* ── Public liqalar ── */}
-        {!loading && !error && tab === "Public liqalar" ? (
-          <div className="mt-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-              <p className={`text-sm ${light ? "text-gray-500" : "text-white/45"}`}>
-                Public liqalara baxın və kapitan kimi sorğu göndərin
-              </p>
-              {isCaptain ? (
-                <SelectField
-                  className="sm:w-56"
-                  value={joinTeamId || String(primaryCaptainTeam?.id || "")}
-                  onChange={setJoinTeamId}
-                  options={captainOptions.filter((o) => o.value)}
-                  light={light}
-                />
-              ) : null}
-            </div>
+        {!loading && !error && tab === "Public liqalar"
+          ? renderLeagueList(
+              publicLeagues,
+              "Public liqa yoxdur",
+              "Public liqalara baxın və DRAFT statusunda kapitan kimi sorğu göndərin",
+            )
+          : null}
 
-            {!isCaptain ? (
-              <p className="text-xs text-amber-400/80 mb-4">
-                Liqaya request göndərmək üçün komanda kapitanı olmalısınız
-              </p>
-            ) : null}
+        {/* ── Liqalar ── */}
+        {!loading && !error && tab === "Liqalar"
+          ? renderLeagueList(
+              leagues,
+              "Liqa yoxdur",
+              "Public və private liqalar. Private liqanın içinə yalnız iştirakçılar girə bilər",
+            )
+          : null}
 
-            {leagues.length === 0 ? (
-              <p className={`text-center py-10 ${light ? "text-gray-400" : "text-white/40"}`}>
-                Public liqa yoxdur
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {leagues.map((l) => (
-                  <div
-                    key={l.id}
-                    className={`rounded-2xl border p-5 flex flex-wrap items-center justify-between gap-3 ${light ? "bg-white/70 backdrop-blur-sm border-gray-200" : "border-white/10 bg-[#101017]"}`}
-                  >
-                    <button
-                      type="button"
-                      className="text-left min-w-0"
-                      onClick={() => navigate(`/leagues/${l.id}`)}
-                    >
-                      <h3 className={`font-semibold flex items-center gap-2 transition-colors ${light ? "text-gray-900 hover:text-emerald-600" : "text-white hover:text-[#c5f135]"}`}>
-                        <Trophy size={16} className={`shrink-0 ${light ? "text-emerald-500" : "text-[#c5f135]"}`} />
-                        {l.name}
-                      </h3>
-                      <div className={`flex flex-wrap gap-3 text-xs mt-2 ${light ? "text-gray-400" : "text-white/45"}`}>
-                        {l.season ? <span>{l.season}</span> : null}
-                        <span>{l.status}</span>
-                        {l._count?.teams != null ? (
-                          <span>{l._count.teams} komanda</span>
-                        ) : null}
-                      </div>
-                      {l.description ? (
-                        <p className={`text-sm mt-2 line-clamp-2 ${light ? "text-gray-500" : "text-white/50"}`}>
-                          {l.description}
-                        </p>
-                      ) : null}
-                    </button>
-                    {isCaptain ? (
-                      <Button
-                        size="sm"
-                        disabled={busy && joiningLeagueId === l.id}
-                        onClick={() => void onJoinLeague(l.id)}
-                      >
-                        <Send size={14} />
-                        Request göndər
-                      </Button>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : null}
+        {!loading && !error && tab === "Public çempionatlar"
+          ? renderChampionshipList(
+              publicChampionships,
+              "Public çempionat yoxdur",
+              "Public çempionatlara baxın və DRAFT statusunda kapitan kimi sorğu göndərin",
+            )
+          : null}
 
-        {tab === "Çempionatlar" ? (
-          <div className="mt-6">
-            <p className={`mb-4 text-sm ${light ? "text-gray-500" : "text-white/45"}`}>
-              Komandanızın iştirak etdiyi çempionatlar
-            </p>
-            <ChampionshipList
-              onCreateTeam={() => {
-                setActiveTab("Komanda profilim");
-                setModal("team");
-              }}
-            />
-          </div>
-        ) : null}
+        {!loading && !error && tab === "Çempionatlar"
+          ? renderChampionshipList(
+              championships,
+              "Çempionat yoxdur",
+              "Public və private çempionatlar. Private çempionatın içinə yalnız iştirakçılar girə bilər",
+            )
+          : null}
       </div>
 
       {/* Create team modal */}

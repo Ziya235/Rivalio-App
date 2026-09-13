@@ -28,8 +28,13 @@ async function apiFetch<T>(path: string): Promise<T> {
   return (data as ApiSuccess<T>).data;
 }
 
-export function fetchLeagues(): Promise<League[]> {
-  return apiFetch<League[]>("/api/leagues");
+export function fetchLeagues(opts?: { includeAll?: boolean }): Promise<League[]> {
+  const query = opts?.includeAll ? "?includeAll=true" : "";
+  return apiFetch<League[]>(`/api/leagues${query}`);
+}
+
+export function fetchLeague(leagueId: number): Promise<League> {
+  return apiFetch<League>(`/api/leagues/${leagueId}`);
 }
 
 export function fetchLeagueStandings(

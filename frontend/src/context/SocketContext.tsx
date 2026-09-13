@@ -50,7 +50,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
   const refreshNotifications = useCallback(async () => {
     if (!user) return;
-    const data = await fetchNotifications();
+    const data = await fetchNotifications(100);
     if (!mountedRef.current) return;
     setNotifications(data.notifications);
     setUnreadCount(data.unreadCount);
@@ -129,7 +129,10 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       }) => {
         prependNotification(payload.notification);
         setUnreadCount(payload.unreadCount);
-        if (payload.notification.type === "CHAMPIONSHIP_INVITE") {
+        if (payload.notification.type === "CHAMPIONSHIP_INVITE" ||
+          payload.notification.type === "LEAGUE_INVITE" ||
+          payload.notification.type === "JOIN_REQUEST" ||
+          payload.notification.type === "CHAMPIONSHIP_JOIN_REQUEST") {
           void refreshNotifications();
         }
       }),

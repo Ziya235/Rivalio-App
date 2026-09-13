@@ -5,14 +5,15 @@ import {
   FORMAT_LABEL,
   formatChampDate,
   toUserFacingStatus,
+  userFacingChampLabel,
 } from "../../lib/championshipUi";
 import type { ChampionshipListItem } from "../../types/championship";
 import { mediaUrl } from "../../api/base";
 
 function statusClass(status: ChampionshipListItem["status"]) {
   const label = toUserFacingStatus(status);
-  if (label === "Active") return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
-  if (label === "Finished") return "bg-sky-50 text-sky-700 ring-1 ring-sky-200";
+  if (label === "ACTIVE") return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
+  if (label === "FINISHED") return "bg-sky-50 text-sky-700 ring-1 ring-sky-200";
   return "bg-amber-50 text-amber-800 ring-1 ring-amber-200";
 }
 
@@ -21,7 +22,7 @@ export function ChampionshipHeader({
 }: {
   championship: ChampionshipListItem;
 }) {
-  const userStatus = toUserFacingStatus(championship.status);
+  const userStatus = userFacingChampLabel(championship.status);
   const stage = currentStageLabel(championship.status, championship.currentStage);
 
   return (
@@ -73,6 +74,17 @@ export function ChampionshipHeader({
               >
                 {userStatus}
               </span>
+              {championship.visibility ? (
+                <span
+                  className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                    championship.visibility === "PUBLIC"
+                      ? "bg-sky-50 text-sky-700 ring-1 ring-sky-200"
+                      : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+                  }`}
+                >
+                  {championship.visibility === "PUBLIC" ? "Public" : "Private"}
+                </span>
+              ) : null}
             </div>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs font-medium text-gray-500">
               <span className="inline-flex items-center gap-1.5">

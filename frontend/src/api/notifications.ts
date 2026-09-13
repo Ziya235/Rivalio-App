@@ -37,7 +37,8 @@ export type NotificationType =
   | "LEAGUE_INVITE"
   | "MATCH_INVITE"
   | "JOIN_REQUEST"
-  | "CHAMPIONSHIP_INVITE";
+  | "CHAMPIONSHIP_INVITE"
+  | "CHAMPIONSHIP_JOIN_REQUEST";
 
 export type AppNotification = {
   id: number;
@@ -56,6 +57,57 @@ export type AppNotification = {
     | "CANCELLED"
     | null;
   championshipInvite?: {
+    id: number;
+    status: "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED";
+    championship: { id: number; name: string; logo: string | null };
+    team: {
+      id: number;
+      name: string;
+      logo: string | null;
+      captainId: number;
+    };
+  } | null;
+  leagueInviteStatus?:
+    | "PENDING"
+    | "ACCEPTED"
+    | "REJECTED"
+    | "CANCELLED"
+    | null;
+  leagueInvite?: {
+    id: number;
+    status: "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED";
+    league: { id: number; name: string; logo: string | null };
+    team: {
+      id: number;
+      name: string;
+      logo: string | null;
+      captainId: number;
+    };
+  } | null;
+  joinRequestStatus?:
+    | "PENDING"
+    | "ACCEPTED"
+    | "REJECTED"
+    | "CANCELLED"
+    | null;
+  joinRequest?: {
+    id: number;
+    status: "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED";
+    league: { id: number; name: string; logo: string | null };
+    team: {
+      id: number;
+      name: string;
+      logo: string | null;
+      captainId: number;
+    };
+  } | null;
+  championshipJoinRequestStatus?:
+    | "PENDING"
+    | "ACCEPTED"
+    | "REJECTED"
+    | "CANCELLED"
+    | null;
+  championshipJoinRequest?: {
     id: number;
     status: "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED";
     championship: { id: number; name: string; logo: string | null };

@@ -264,3 +264,19 @@ export function requestJoinLeague(
     body: JSON.stringify(payload),
   });
 }
+
+export function cancelJoinLeagueRequest(requestId: number): Promise<unknown> {
+  return apiFetch(`/api/league-join-requests/${requestId}/cancel`, {
+    method: "POST",
+  });
+}
+
+export function respondLeagueJoinRequest(
+  requestId: number,
+  action: "accept" | "reject",
+): Promise<unknown> {
+  return apiFetch(`/api/league-join-requests/${requestId}/respond`, {
+    method: "POST",
+    body: JSON.stringify({ action }),
+  });
+}

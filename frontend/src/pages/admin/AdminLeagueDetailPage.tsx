@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Calendar,
@@ -48,6 +48,7 @@ import {
 } from "../../api/leagues";
 import type { League, LeaguePlayerRow, StandingRow } from "../../types/league";
 import type { Match, MatchStatus } from "../../types/match";
+import { useSocket } from "../../context/SocketContext";
 
 type TabId = "standings" | "matches" | "goals" | "assists" | "ga";
 
@@ -440,14 +441,28 @@ export function AdminLeagueDetailPage() {
   const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const { notifications } = useSocket();
+  const leagueNoticeSignature = notifications
+    .filter(
+      (item) => item.type === "JOIN_REQUEST" || item.type === "LEAGUE_INVITE",
+    )
+    .map(
+      (item) =>
+        `${item.id}:${item.joinRequestStatus ?? ""}:${item.leagueInviteStatus ?? ""}`,
+    )
+    .join("|");
+  const skipNoticeReload = useRef(true);
+
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!Number.isInteger(leagueId) || leagueId <= 0) {
       setError("Yanlış liqa");
       setLoading(false);
       return;
     }
-    setLoading(true);
-    setError(null);
+    if (!opts?.silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const [leagues, standingsRes, inviteRes, joinRes, matchRows, playerRows] =
         await Promise.all([
@@ -474,17 +489,28 @@ export function AdminLeagueDetailPage() {
         setPlayers(playerRows);
         setInvites(inviteRes);
         setJoinRequests(joinRes);
+        if (opts?.silent) setError(null);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Məlumat yüklənmədi");
+      if (!opts?.silent) {
+        setError(err instanceof Error ? err.message : "Məlumat yüklənmədi");
+      }
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [leagueId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (skipNoticeReload.current) {
+      skipNoticeReload.current = false;
+      return;
+    }
+    void load({ silent: true });
+  }, [leagueNoticeSignature, load]);
 
   const liveMatches = useMemo(
     () =>
@@ -860,7 +886,7 @@ export function AdminLeagueDetailPage() {
               Qoşulma sorğuları ({pendingJoins.length})
             </h2>
             <p className="text-xs text-slate-500">
-              Public liqaya komanda kapitanlarından gələn sorğular
+              DRAFT liqaya komanda kapitanlarından gələn sorğular
             </p>
           </div>
           <ul className="divide-y divide-amber-100">

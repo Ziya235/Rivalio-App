@@ -23,6 +23,12 @@ export type League = {
   updatedAt: string;
   sport: LeagueSport;
   createdBy: LeagueCreator;
+  canView?: boolean;
+  myJoinRequests?: Array<{
+    id: number;
+    teamId: number;
+    status: "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED";
+  }>;
   _count: {
     teams: number;
     members: number;

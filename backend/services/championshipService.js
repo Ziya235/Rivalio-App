@@ -33,9 +33,11 @@ import {
   MATCH_ERRORS,
   canEditCompetitionMatch,
   canStartMatch,
+  isChampionshipAcceptingTeams,
   isChampionshipFinished,
   matchEditBlockReason,
 } from "../utils/matchEditPolicy.js";
+import { canViewChampionship } from "../utils/championshipAccess.js";
 import {
   enrichMatches,
   enrichOneMatch,
@@ -176,6 +178,7 @@ export function formatChampionship(c) {
     logo: c.logo,
     format: c.format,
     matchFormat: c.matchFormat ?? "SINGLE",
+    visibility: c.visibility ?? "PRIVATE",
     status: c.status,
     startDate: c.startDate,
     endDate: c.endDate,
@@ -347,6 +350,7 @@ export async function createChampionship(userId, body) {
       logo: body.logo || null,
       format,
       matchFormat,
+      visibility: body.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE",
       status: "DRAFT",
       startDate,
       endDate,
@@ -404,6 +408,15 @@ export async function updateChampionship(championshipId, userId, body) {
       throw httpError("Match format can only change in DRAFT/REGISTRATION");
     }
     data.matchFormat = body.matchFormat;
+  }
+  if (body.visibility != null) {
+    if (!["PUBLIC", "PRIVATE"].includes(body.visibility)) {
+      throw httpError("Invalid visibility");
+    }
+    if (c.status !== "DRAFT" && c.status !== "REGISTRATION") {
+      throw httpError("Visibility can only change in DRAFT/REGISTRATION");
+    }
+    data.visibility = body.visibility;
   }
 
   const nextFormat = data.format ?? c.format;
@@ -575,22 +588,13 @@ async function notifyChampionshipInvite(userId, actorId, inviteId) {
 
 export async function addTeamToChampionship(championshipId, userId, teamIdRaw, message) {
   const c = await getOwnedChampionship(championshipId, userId);
-  if (!["DRAFT", "REGISTRATION"].includes(c.status)) {
-    throw httpError("Teams can only be added in DRAFT or REGISTRATION");
+  if (!isChampionshipAcceptingTeams(c.status)) {
+    throw httpError(MATCH_ERRORS.CHAMPIONSHIP_NOT_ACCEPTING_INVITES);
   }
   const teamId = parseId(teamIdRaw, "teamId");
 
   const team = await prisma.team.findUnique({ where: { id: teamId } });
   if (!team) throw httpError("Team not found", 404);
-
-  const limit = championshipTeamLimit(c);
-  if (occupiedChampionshipSlots(c) >= limit) {
-    throw httpError(
-      c.format === "PLAYOFF_ONLY" && c.maxTeams != null
-        ? `Championship is limited to ${c.maxTeams} teams`
-        : `Maksimum ${GROUP_CHAMP_TEAM_MAX} komanda ola bilər`,
-    );
-  }
 
   const existing = await prisma.championshipTeam.findUnique({
     where: {
@@ -604,6 +608,24 @@ export async function addTeamToChampionship(championshipId, userId, teamIdRaw, m
   });
   if (pending) {
     throw httpError("Bu komandaya artıq dəvət göndərilib", 409);
+  }
+
+  const pendingJoin = await prisma.championshipJoinRequest.findFirst({
+    where: { championshipId: c.id, teamId, status: "PENDING" },
+  });
+  if (pendingJoin) {
+    throw httpError("Bu komandadan artıq qoşulma sorğusu var", 409);
+  }
+
+  const pendingJoins = await prisma.championshipJoinRequest.count({
+    where: { championshipId: c.id, status: "PENDING" },
+  });
+  if (occupiedChampionshipSlots(c) + pendingJoins >= championshipTeamLimit(c)) {
+    throw httpError(
+      c.format === "PLAYOFF_ONLY" && c.maxTeams != null
+        ? `Championship is limited to ${c.maxTeams} teams`
+        : `Maksimum ${GROUP_CHAMP_TEAM_MAX} komanda ola bilər`,
+    );
   }
 
   const inviteMessage = String(message || "").trim() || null;
@@ -629,8 +651,8 @@ export async function cancelChampionshipTeamInvite(
   const c = await getOwnedChampionship(championshipId, userId, {
     include: undefined,
   });
-  if (!["DRAFT", "REGISTRATION"].includes(c.status)) {
-    throw httpError("Invites can only be cancelled in DRAFT or REGISTRATION");
+  if (!isChampionshipAcceptingTeams(c.status)) {
+    throw httpError(MATCH_ERRORS.CHAMPIONSHIP_NOT_ACCEPTING_INVITES);
   }
   const inviteId = parseId(inviteIdRaw, "inviteId");
   const invite = await prisma.championshipTeamInvite.findFirst({
@@ -703,8 +725,8 @@ export async function respondChampionshipTeamInvite(inviteIdRaw, userId, actionR
     return formatChampionshipInvite(updated);
   }
 
-  if (!["DRAFT", "REGISTRATION"].includes(invite.championship.status)) {
-    throw httpError("Çempionat artıq komanda qəbul etmir");
+  if (!isChampionshipAcceptingTeams(invite.championship.status)) {
+    throw httpError(MATCH_ERRORS.CHAMPIONSHIP_NOT_ACCEPTING_INVITES);
   }
 
   const teamCount = await prisma.championshipTeam.count({
@@ -2043,15 +2065,6 @@ const PLAYOFF_STAGE_ORDER = [
   "FINAL",
 ];
 
-const VISIBLE_STATUSES = [
-  "REGISTRATION",
-  "GROUP_STAGE",
-  "PLAYOFF",
-  "COMPLETED",
-  "FINISHED",
-  "CANCELLED",
-];
-
 function userTeamWhere(userId) {
   return {
     OR: [{ captainId: userId }, { players: { some: { userId } } }],
@@ -2096,19 +2109,26 @@ function progressFromMatches(matches = []) {
   };
 }
 
-async function getVisibleChampionshipRecord(championshipId) {
+async function getVisibleChampionshipRecord(championshipId, userId) {
   const id = parseId(championshipId, "championshipId");
+  const { allowed, championship } = await canViewChampionship(userId, id);
+  if (!championship) {
+    throw httpError("Championship not found", 404);
+  }
+  if (!allowed) {
+    throw httpError("You do not have access to this championship", 403);
+  }
   const c = await prisma.championship.findUnique({
     where: { id },
     include: championshipInclude,
   });
-  if (!c || c.status === "DRAFT") {
+  if (!c) {
     throw httpError("Championship not found", 404);
   }
   return c;
 }
 
-function withViewerFields(championship, userTeamIds, matchRows) {
+function withViewerFields(championship, userTeamIds, matchRows, extras = {}) {
   const { pendingInvites: _pendingInvites, ...rest } = championship;
   const myTeams = (rest.teams ?? [])
     .filter((row) => userTeamIds.has(row.teamId))
@@ -2118,38 +2138,73 @@ function withViewerFields(championship, userTeamIds, matchRows) {
     currentStage: deriveCurrentStage(rest.status, matchRows),
     progress: progressFromMatches(matchRows),
     myTeams,
+    ...extras,
   };
 }
 
-export async function listVisibleChampionships(userId) {
+export async function listVisibleChampionships(userId, { includeAll = false } = {}) {
   const userTeamIds = await getUserTeamIds(userId);
-  if (userTeamIds.size === 0) return [];
+  const where = {
+    sport: { code: "FOOTBALL" },
+    status: { not: "CANCELLED" },
+  };
+
+  if (!includeAll) {
+    where.OR = [
+      { visibility: "PUBLIC" },
+      { visibility: "PRIVATE", createdById: userId },
+      userTeamIds.size > 0
+        ? {
+            visibility: "PRIVATE",
+            teams: { some: { teamId: { in: [...userTeamIds] } } },
+          }
+        : null,
+    ].filter(Boolean);
+  }
+
   const rows = await prisma.championship.findMany({
-    where: {
-      status: { in: VISIBLE_STATUSES.filter((s) => s !== "CANCELLED") },
-      sport: { code: "FOOTBALL" },
-      teams: {
-        some: {
-          teamId: { in: [...userTeamIds] },
-        },
-      },
-    },
+    where,
     include: championshipInclude,
     orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
   });
 
   const ids = rows.map((r) => r.id);
-  const matchRows =
+  const viewableIds = new Set();
+  rows.forEach((c) => {
+    if (c.visibility === "PUBLIC") viewableIds.add(c.id);
+    else if (c.createdById === userId) viewableIds.add(c.id);
+    else if ((c.teams ?? []).some((row) => userTeamIds.has(row.teamId))) {
+      viewableIds.add(c.id);
+    }
+  });
+
+  const [matchRows, pendingRequests] = await Promise.all([
     ids.length === 0
-      ? []
-      : await prisma.match.findMany({
+      ? Promise.resolve([])
+      : prisma.match.findMany({
           where: { championshipId: { in: ids } },
           select: {
             championshipId: true,
             status: true,
             stage: true,
           },
-        });
+        }),
+    userId && ids.length > 0
+      ? prisma.championshipJoinRequest.findMany({
+          where: {
+            requestedById: userId,
+            status: "PENDING",
+            championshipId: { in: ids },
+          },
+          select: {
+            id: true,
+            championshipId: true,
+            teamId: true,
+            status: true,
+          },
+        })
+      : Promise.resolve([]),
+  ]);
 
   const byChamp = new Map();
   for (const m of matchRows) {
@@ -2158,23 +2213,40 @@ export async function listVisibleChampionships(userId) {
     byChamp.set(m.championshipId, list);
   }
 
+  const pendingByChamp = pendingRequests.reduce((map, request) => {
+    const list = map.get(request.championshipId) || [];
+    list.push({
+      id: request.id,
+      teamId: request.teamId,
+      status: request.status,
+    });
+    map.set(request.championshipId, list);
+    return map;
+  }, new Map());
+
   return rows.map((c) =>
-    withViewerFields(formatChampionship(c), userTeamIds, byChamp.get(c.id) ?? []),
+    withViewerFields(formatChampionship(c), userTeamIds, byChamp.get(c.id) ?? [], {
+      canView: viewableIds.has(c.id),
+      myJoinRequests: pendingByChamp.get(c.id) || [],
+    }),
   );
 }
 
 export async function getVisibleChampionship(championshipId, userId) {
-  const c = await getVisibleChampionshipRecord(championshipId);
+  const c = await getVisibleChampionshipRecord(championshipId, userId);
   const userTeamIds = await getUserTeamIds(userId);
   const matchRows = await prisma.match.findMany({
     where: { championshipId: c.id },
     select: { status: true, stage: true },
   });
-  return withViewerFields(formatChampionship(c), userTeamIds, matchRows);
+  return withViewerFields(formatChampionship(c), userTeamIds, matchRows, {
+    canView: true,
+    myJoinRequests: [],
+  });
 }
 
-export async function getVisibleChampionshipStandings(championshipId) {
-  const c = await getVisibleChampionshipRecord(championshipId);
+export async function getVisibleChampionshipStandings(championshipId, userId) {
+  const c = await getVisibleChampionshipRecord(championshipId, userId);
   const result = [];
   for (const g of c.groups ?? []) {
     const standings = await computeGroupStandingsForGroup(g);
@@ -2188,8 +2260,8 @@ export async function getVisibleChampionshipStandings(championshipId) {
   return result;
 }
 
-export async function listVisibleChampionshipMatches(championshipId, query = {}) {
-  const c = await getVisibleChampionshipRecord(championshipId);
+export async function listVisibleChampionshipMatches(championshipId, userId, query = {}) {
+  const c = await getVisibleChampionshipRecord(championshipId, userId);
   const where = { championshipId: c.id };
   if (query.groupId) where.groupId = Number(query.groupId);
   if (query.stage) where.stage = query.stage;
@@ -2204,18 +2276,21 @@ export async function listVisibleChampionshipMatches(championshipId, query = {})
   );
 }
 
-export async function getVisibleChampionshipMatch(matchId) {
+export async function getVisibleChampionshipMatch(matchId, userId) {
   const id = parseId(matchId, "matchId");
   const match = await prisma.match.findUnique({
     where: { id },
     include: {
       ...matchInclude,
-      championship: { select: { id: true, name: true, status: true } },
+      championship: {
+        select: { id: true, name: true, status: true, visibility: true, createdById: true },
+      },
     },
   });
-  if (!match || !match.championshipId || match.championship?.status === "DRAFT") {
+  if (!match || !match.championshipId || !match.championship) {
     throw httpError("Match not found", 404);
   }
+  await getVisibleChampionshipRecord(match.championshipId, userId);
   const expired = await persistIfClockExpired(match);
   if (expired.changed) {
     if (expired.championshipFinished) {
@@ -2225,7 +2300,9 @@ export async function getVisibleChampionshipMatch(matchId) {
       where: { id },
       include: {
         ...matchInclude,
-        championship: { select: { id: true, name: true, status: true } },
+        championship: {
+          select: { id: true, name: true, status: true, visibility: true, createdById: true },
+        },
       },
     });
     return enrichOneMatch(reloaded);
@@ -2233,8 +2310,8 @@ export async function getVisibleChampionshipMatch(matchId) {
   return enrichOneMatch(match);
 }
 
-export async function getVisibleChampionshipStatistics(championshipId) {
-  const c = await getVisibleChampionshipRecord(championshipId);
+export async function getVisibleChampionshipStatistics(championshipId, userId) {
+  const c = await getVisibleChampionshipRecord(championshipId, userId);
   return buildChampionshipStatistics(c.id);
 }
 

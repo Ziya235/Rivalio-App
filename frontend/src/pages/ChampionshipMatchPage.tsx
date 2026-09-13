@@ -107,7 +107,14 @@ export default function ChampionshipMatchPage() {
     return (
       <div className={`min-h-screen pt-24 ${bg}`}>
         <div className="mx-auto max-w-3xl px-4">
-          <ChampError message={error || undefined} onRetry={() => void load()} />
+          <ChampError
+            message={
+              error?.includes("do not have access") || error?.includes("giriş")
+                ? "Bu private çempionata yalnız iştirakçılar baxa bilər"
+                : error || undefined
+            }
+            onRetry={() => void load()}
+          />
           <div className="mt-4 text-center">
             <Button onClick={() => navigate(backTo)}>Geri</Button>
           </div>

@@ -38,6 +38,10 @@ export const MATCH_ERRORS = {
     "Set the match date, time, and location before starting it.",
   CHAMPIONSHIP_FINISH_NEED_FINAL:
     "Finish the final match before finishing the championship.",
+  CHAMPIONSHIP_NOT_ACCEPTING_REQUESTS:
+    "This championship is no longer accepting team requests.",
+  CHAMPIONSHIP_NOT_ACCEPTING_INVITES:
+    "This championship is no longer accepting team invitations.",
   CHAMPIONSHIP_ALREADY_FINISHED: "This championship is already finished.",
   CHAMPIONSHIP_CANNOT_REOPEN: "A finished championship cannot be reopened.",
   CHAMPIONSHIP_NOT_PLAYOFF:
@@ -49,6 +53,10 @@ export function isChampionshipFinished(status) {
 }
 
 export function isLeagueAcceptingTeams(status) {
+  return status === "DRAFT";
+}
+
+export function isChampionshipAcceptingTeams(status) {
   return status === "DRAFT";
 }
 

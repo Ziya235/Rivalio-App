@@ -40,9 +40,20 @@ export const MATCH_STATUS_LABEL: Record<MatchStatus, string> = {
 export function toUserFacingStatus(
   status: ChampionshipStatus,
 ): UserFacingChampStatus {
-  if (status === "COMPLETED" || status === "FINISHED") return "Finished";
-  if (status === "GROUP_STAGE" || status === "PLAYOFF") return "Active";
-  return "Upcoming";
+  if (status === "COMPLETED" || status === "FINISHED" || status === "CANCELLED") {
+    return "FINISHED";
+  }
+  if (status === "GROUP_STAGE" || status === "PLAYOFF" || status === "REGISTRATION") {
+    return "ACTIVE";
+  }
+  return "DRAFT";
+}
+
+export function userFacingChampLabel(status: ChampionshipStatus): string {
+  const face = toUserFacingStatus(status);
+  if (face === "ACTIVE") return "Aktiv";
+  if (face === "FINISHED") return "Bitib";
+  return "DRAFT";
 }
 
 export function currentStageLabel(

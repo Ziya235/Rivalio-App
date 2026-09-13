@@ -33,6 +33,7 @@ import {
   updateGroupHandler,
   updateMatchHandler,
 } from "../controllers/championshipController.js";
+import { listChampionshipJoinRequests } from "../controllers/championshipJoinController.js";
 
 const router = express.Router();
 
@@ -87,6 +88,11 @@ router.post(
 );
 
 router.get("/:championshipId/teams", ...adminRead, listTeamsHandler);
+router.get(
+  "/:championshipId/join-requests",
+  ...adminRead,
+  listChampionshipJoinRequests,
+);
 router.post("/:championshipId/teams", ...adminWrite, addTeamHandler);
 router.delete(
   "/:championshipId/team-invites/:inviteId",

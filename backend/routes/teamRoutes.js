@@ -7,6 +7,7 @@ import {
   listMyTeamInvites,
   removeTeamFromLeague,
   requestJoinPublicLeague,
+  cancelJoinRequest,
   respondJoinRequest,
   respondTeamInvite,
 } from "../controllers/leagueRequestController.js";
@@ -27,6 +28,11 @@ import {
   listMyChampionshipInvitesHandler,
   respondChampionshipInviteHandler,
 } from "../controllers/championshipController.js";
+import {
+  cancelChampionshipJoinRequest,
+  requestJoinChampionship,
+  respondChampionshipJoinRequest,
+} from "../controllers/championshipJoinController.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { adminMiddleware } from "../middlewares/adminMiddleware.js";
 import { permissionMiddleware } from "../middlewares/permissionMiddleware.js";
@@ -88,6 +94,23 @@ router.post(
 );
 
 router.post(
+  "/championships/:championshipId/join-requests",
+  authMiddleware,
+  requestJoinChampionship,
+);
+router.post(
+  "/championship-join-requests/:requestId/cancel",
+  authMiddleware,
+  cancelChampionshipJoinRequest,
+);
+router.post(
+  "/championship-join-requests/:requestId/respond",
+  authMiddleware,
+  adminMiddleware,
+  respondChampionshipJoinRequest,
+);
+
+router.post(
   "/leagues/:leagueId/team-invites",
   authMiddleware,
   adminMiddleware,
@@ -111,6 +134,11 @@ router.get(
   authMiddleware,
   adminMiddleware,
   listLeagueJoinRequests,
+);
+router.post(
+  "/league-join-requests/:requestId/cancel",
+  authMiddleware,
+  cancelJoinRequest,
 );
 router.post(
   "/league-join-requests/:requestId/respond",

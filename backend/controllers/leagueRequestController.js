@@ -5,6 +5,46 @@ import {
   MATCH_ERRORS,
   isLeagueAcceptingTeams,
 } from "../utils/matchEditPolicy.js";
+import { createNotification } from "../services/notificationService.js";
+
+async function notifyLeagueInvite(userId, actorId, inviteId) {
+  if (!userId || userId === actorId) return;
+  try {
+    await createNotification({
+      userId,
+      actorId,
+      type: "LEAGUE_INVITE",
+      entityId: inviteId,
+    });
+  } catch (error) {
+    console.log("Error notifying league invite:", error);
+  }
+}
+
+async function notifyJoinRequest(userId, actorId, requestId) {
+  if (!userId || userId === actorId) return;
+  try {
+    await createNotification({
+      userId,
+      actorId,
+      type: "JOIN_REQUEST",
+      entityId: requestId,
+    });
+  } catch (error) {
+    console.log("Error notifying league join request:", error);
+  }
+}
+
+async function markNotificationsRead(userId, type, entityId) {
+  await prisma.notification.updateMany({
+    where: {
+      userId,
+      type,
+      entityId: String(entityId),
+    },
+    data: { isRead: true },
+  });
+}
 
 const inviteInclude = {
   league: {
@@ -98,10 +138,14 @@ export const inviteTeamToLeague = async (req, res) => {
           message: "Invalid team id",
         });
       }
-      team = await prisma.team.findUnique({ where: { id } });
+      team = await prisma.team.findUnique({
+        where: { id },
+        select: { id: true, name: true, captainId: true },
+      });
     } else if (teamName?.trim()) {
       team = await prisma.team.findUnique({
         where: { name: teamName.trim() },
+        select: { id: true, name: true, captainId: true },
       });
     } else {
       return res.status(400).json({
@@ -154,6 +198,8 @@ export const inviteTeamToLeague = async (req, res) => {
       },
       include: inviteInclude,
     });
+
+    await notifyLeagueInvite(team.captainId, req.user.id, invite.id);
 
     return res.status(201).json({
       success: true,
@@ -302,6 +348,8 @@ export const respondTeamInvite = async (req, res) => {
         },
         include: inviteInclude,
       });
+      await markNotificationsRead(req.user.id, "LEAGUE_INVITE", inviteId);
+      await notifyLeagueInvite(invite.invitedById, req.user.id, invite.id);
       return res.status(200).json({
         success: true,
         message: "Invite rejected",
@@ -322,6 +370,9 @@ export const respondTeamInvite = async (req, res) => {
       });
     });
 
+    await markNotificationsRead(req.user.id, "LEAGUE_INVITE", inviteId);
+    await notifyLeagueInvite(invite.invitedById, req.user.id, invite.id);
+
     return res.status(200).json({
       success: true,
       message: "Team joined the league",
@@ -337,7 +388,7 @@ export const respondTeamInvite = async (req, res) => {
 };
 
 /**
- * Captain requests to join a PUBLIC league.
+ * Captain requests to join a DRAFT league (public or private).
  */
 export const requestJoinPublicLeague = async (req, res) => {
   try {
@@ -367,13 +418,6 @@ export const requestJoinPublicLeague = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "League not found",
-      });
-    }
-
-    if (league.visibility !== "PUBLIC") {
-      return res.status(403).json({
-        success: false,
-        message: "You can only request to join public leagues",
       });
     }
 
@@ -441,6 +485,8 @@ export const requestJoinPublicLeague = async (req, res) => {
       include: joinInclude,
     });
 
+    await notifyJoinRequest(league.createdById, req.user.id, request.id);
+
     return res.status(201).json({
       success: true,
       message: "Join request sent to league admin",
@@ -448,6 +494,67 @@ export const requestJoinPublicLeague = async (req, res) => {
     });
   } catch (error) {
     console.log("Error in requestJoinPublicLeague:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const cancelJoinRequest = async (req, res) => {
+  try {
+    const requestId = parsePositiveInt(req.params.requestId);
+    if (!requestId) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid request id",
+      });
+    }
+
+    const request = await prisma.leagueJoinRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        league: { select: { createdById: true } },
+      },
+    });
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Request not found",
+      });
+    }
+
+    if (request.requestedById !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the requester can cancel this request",
+      });
+    }
+
+    if (request.status !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        message: "Request is no longer pending",
+      });
+    }
+
+    const updated = await prisma.leagueJoinRequest.update({
+      where: { id: requestId },
+      data: {
+        status: "CANCELLED",
+        respondedAt: new Date(),
+      },
+      include: joinInclude,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Join request cancelled",
+      data: updated,
+    });
+  } catch (error) {
+    console.log("Error in cancelJoinRequest:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -523,6 +630,7 @@ export const respondJoinRequest = async (req, res) => {
       where: { id: requestId },
       include: {
         league: { select: { createdById: true, status: true } },
+        team: { select: { captainId: true } },
       },
     });
 
@@ -563,6 +671,8 @@ export const respondJoinRequest = async (req, res) => {
         },
         include: joinInclude,
       });
+      await markNotificationsRead(req.user.id, "JOIN_REQUEST", requestId);
+      await notifyJoinRequest(request.requestedById, req.user.id, request.id);
       return res.status(200).json({
         success: true,
         message: "Join request rejected",
@@ -582,6 +692,9 @@ export const respondJoinRequest = async (req, res) => {
         include: joinInclude,
       });
     });
+
+    await markNotificationsRead(req.user.id, "JOIN_REQUEST", requestId);
+    await notifyJoinRequest(request.requestedById, req.user.id, request.id);
 
     return res.status(200).json({
       success: true,

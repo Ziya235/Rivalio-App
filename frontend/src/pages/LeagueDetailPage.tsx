@@ -9,10 +9,10 @@ import {
 import { Calendar, Lock, Radio, Target, Trophy } from "lucide-react";
 import { Badge, Button } from "../components/ui";
 import {
+  fetchLeague,
   fetchLeagueMatches,
   fetchLeaguePlayers,
   fetchLeagueStandings,
-  fetchLeagues,
 } from "../api/leagues";
 import { mediaUrl } from "../api/base";
 import type { League, LeaguePlayerRow, StandingRow } from "../types/league";
@@ -99,26 +99,21 @@ export default function LeagueDetailPage() {
     setLoading(true);
     setError(null);
     try {
-      const [leagues, standingsRes, matchRows, playerRows] = await Promise.all([
-        fetchLeagues(),
+      const [found, standingsRes, matchRows, playerRows] = await Promise.all([
+        fetchLeague(leagueId),
         fetchLeagueStandings(leagueId),
         fetchLeagueMatches(leagueId),
         fetchLeaguePlayers(leagueId),
       ]);
-      const found = leagues.find((l) => l.id === leagueId) || null;
-      if (!found) {
-        setError("Liqa tapılmadı və ya giriş yoxdur");
-        setLeague(null);
-        setStandings([]);
-        setMatches([]);
-        setPlayers([]);
-      } else {
-        setLeague(found);
-        setStandings(standingsRes.standings);
-        setMatches(matchRows);
-        setPlayers(playerRows);
-      }
+      setLeague(found);
+      setStandings(standingsRes.standings);
+      setMatches(matchRows);
+      setPlayers(playerRows);
     } catch (err) {
+      setLeague(null);
+      setStandings([]);
+      setMatches([]);
+      setPlayers([]);
       setError(err instanceof Error ? err.message : "Yüklənmədi");
     } finally {
       setLoading(false);
@@ -243,7 +238,12 @@ export default function LeagueDetailPage() {
   if (error || !league) {
     return (
       <div className={`min-h-screen pt-24 text-center ${bg}`}>
-        <p className="mb-4 text-rose-400">{error || "Tapılmadı"}</p>
+        <p className="mb-4 text-rose-400">
+          {error?.includes("do not have access") ||
+          error?.includes("giriş")
+            ? "Bu private liqaya yalnız iştirakçılar baxa bilər"
+            : error || "Tapılmadı"}
+        </p>
         <Button onClick={() => navigate("/sports/football")} variant="outline">
           Geri
         </Button>

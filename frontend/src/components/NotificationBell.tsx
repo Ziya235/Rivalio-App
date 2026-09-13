@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, CheckCircle2, XCircle } from "lucide-react";
 import { Avatar } from "./ui";
+import { NotificationTime } from "./NotificationTime";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 import { acceptFriendRequest, rejectFriendRequest } from "../api/friends";
@@ -10,7 +11,11 @@ import {
   markNotificationRead,
   type AppNotification,
 } from "../api/notifications";
-import { respondChampionshipInvite } from "../api/championships";
+import { respondChampionshipInvite, respondChampionshipJoinRequest } from "../api/championships";
+import {
+  respondLeagueJoinRequest,
+  respondTeamInvite,
+} from "../api/teams";
 import {
   fetchMyChallengeNotifications,
   fetchMyPlayerSearchNotifications,
@@ -19,95 +24,21 @@ import {
   type ChallengeNotificationRequest,
   type PlayerSearchNotificationRequest,
 } from "../api/social";
+import {
+  isAcceptedNotification,
+  isPendingChampionshipInvite,
+  isPendingChampionshipJoinRequest,
+  isPendingFriendRequest,
+  isPendingJoinRequest,
+  isPendingLeagueInvite,
+  isRejectedNotification,
+  notificationLabel,
+  personName,
+} from "../lib/notificationDisplay";
 
 type NotificationBellProps = {
   isLightMode?: boolean;
 };
-
-function formatTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString("az", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function notificationLabel(notification: AppNotification) {
-  if (
-    notification.type === "FRIEND_REQUEST" &&
-    notification.friendRequestStatus === "ACCEPTED"
-  ) {
-    return "dostluq sorğusunu qəbul etdiniz";
-  }
-  if (
-    notification.type === "FRIEND_REQUEST" &&
-    notification.friendRequestStatus === "REJECTED"
-  ) {
-    return "dostluq sorğusunu rədd etdiniz";
-  }
-
-  const champName =
-    notification.championshipInvite?.championship.name ?? "çempionata";
-  const teamName = notification.championshipInvite?.team.name;
-
-  if (notification.type === "CHAMPIONSHIP_INVITE") {
-    if (notification.championshipInviteStatus === "ACCEPTED") {
-      return teamName
-        ? `${teamName} komandası ${champName} dəvətini qəbul etdi`
-        : `${champName} dəvətini qəbul etdi`;
-    }
-    if (notification.championshipInviteStatus === "REJECTED") {
-      return teamName
-        ? `${teamName} komandası ${champName} dəvətini rədd etdi`
-        : `${champName} dəvətini rədd etdi`;
-    }
-    if (notification.championshipInviteStatus === "CANCELLED") {
-      return `${champName} dəvəti ləğv edildi`;
-    }
-    return teamName
-      ? `${teamName} komandanızı ${champName} çempionatına dəvət etdi`
-      : `komandanızı ${champName} çempionatına dəvət etdi`;
-  }
-
-  switch (notification.type) {
-    case "FRIEND_REQUEST":
-      return "sizə dostluq sorğusu göndərdi";
-    case "FRIEND_ACCEPTED":
-      return "dostluq sorğunuzu qəbul etdi";
-    case "NEW_MESSAGE":
-      return "yeni mesaj göndərdi";
-    default:
-      return "bildiriş göndərdi";
-  }
-}
-
-function isPendingFriendRequest(notification: AppNotification) {
-  return (
-    notification.type === "FRIEND_REQUEST" &&
-    (notification.friendRequestStatus === "PENDING" ||
-      notification.friendRequestStatus == null)
-  );
-}
-
-function isPendingChampionshipInvite(notification: AppNotification) {
-  return (
-    notification.type === "CHAMPIONSHIP_INVITE" &&
-    notification.championshipInviteStatus === "PENDING"
-  );
-}
-
-function personName(person?: {
-  firstName?: string;
-  lastName?: string;
-  username?: string;
-} | null) {
-  if (!person) return "İstifadəçi";
-  const full = `${person.firstName || ""} ${person.lastName || ""}`.trim();
-  return full || person.username || "İstifadəçi";
-}
 
 function playerSearchLabel(
   request: PlayerSearchNotificationRequest,
@@ -360,6 +291,70 @@ export default function NotificationBell({
     }
   };
 
+  const handleLeagueInviteRespond = async (
+    notification: AppNotification,
+    action: "accept" | "reject",
+  ) => {
+    if (!notification.entityId) return;
+    setBusyKey(`league-${notification.id}`);
+    try {
+      await respondTeamInvite(Number(notification.entityId), action);
+      patchNotification(notification.id, {
+        leagueInviteStatus: action === "accept" ? "ACCEPTED" : "REJECTED",
+        isRead: true,
+      });
+      if (!notification.isRead) {
+        markLocalNotificationRead(notification.id);
+      }
+      await refreshNotifications();
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const handleJoinRequestRespond = async (
+    notification: AppNotification,
+    action: "accept" | "reject",
+  ) => {
+    if (!notification.entityId) return;
+    setBusyKey(`join-${notification.id}`);
+    try {
+      await respondLeagueJoinRequest(Number(notification.entityId), action);
+      patchNotification(notification.id, {
+        joinRequestStatus: action === "accept" ? "ACCEPTED" : "REJECTED",
+        isRead: true,
+      });
+      if (!notification.isRead) {
+        markLocalNotificationRead(notification.id);
+      }
+      await refreshNotifications();
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const handleChampionshipJoinRespond = async (
+    notification: AppNotification,
+    action: "accept" | "reject",
+  ) => {
+    if (!notification.entityId) return;
+    setBusyKey(`cjoin-${notification.id}`);
+    try {
+      await respondChampionshipJoinRequest(Number(notification.entityId), action);
+      patchNotification(notification.id, {
+        championshipJoinRequestStatus:
+          action === "accept" ? "ACCEPTED" : "REJECTED",
+        isRead: true,
+      });
+      if (!notification.isRead) {
+        markLocalNotificationRead(notification.id);
+      }
+      await refreshNotifications();
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
   const handlePlayerRespond = async (
     request: PlayerSearchNotificationRequest,
     action: "accept" | "reject",
@@ -510,9 +505,10 @@ export default function NotificationBell({
                               {playerSearchLabel(request, entry.incoming)}
                             </span>
                           </p>
-                          <p className={`mt-1 text-[11px] ${mutedText}`}>
-                            {formatTime(request.createdAt)}
-                          </p>
+                          <NotificationTime
+                            value={request.createdAt}
+                            light={isLightMode}
+                          />
                           {pending ? (
                             <div className="mt-2 flex gap-2">
                               <button
@@ -598,9 +594,10 @@ export default function NotificationBell({
                               {challengeLabel(request, entry.incoming)}
                             </span>
                           </p>
-                          <p className={`mt-1 text-[11px] ${mutedText}`}>
-                            {formatTime(request.createdAt)}
-                          </p>
+                          <NotificationTime
+                            value={request.createdAt}
+                            light={isLightMode}
+                          />
                           {pending ? (
                             <div className="mt-2 flex gap-2">
                               <button
@@ -650,21 +647,28 @@ export default function NotificationBell({
                 const notification = entry.notification;
                 const actorName = personName(notification.actor);
                 const champPending = isPendingChampionshipInvite(notification);
+                const leaguePending = isPendingLeagueInvite(notification);
+                const joinPending =
+                  isPendingJoinRequest(notification) && isAdmin;
+                const champJoinPending =
+                  isPendingChampionshipJoinRequest(notification) && isAdmin;
                 const busy = champPending
                   ? busyKey === `champ-${notification.id}`
-                  : busyKey === `friend-${notification.id}`;
+                  : leaguePending
+                    ? busyKey === `league-${notification.id}`
+                    : joinPending
+                      ? busyKey === `join-${notification.id}`
+                      : champJoinPending
+                        ? busyKey === `cjoin-${notification.id}`
+                      : busyKey === `friend-${notification.id}`;
                 const pending =
-                  isPendingFriendRequest(notification) || champPending;
-                const accepted =
-                  (notification.type === "FRIEND_REQUEST" &&
-                    notification.friendRequestStatus === "ACCEPTED") ||
-                  (notification.type === "CHAMPIONSHIP_INVITE" &&
-                    notification.championshipInviteStatus === "ACCEPTED");
-                const rejected =
-                  (notification.type === "FRIEND_REQUEST" &&
-                    notification.friendRequestStatus === "REJECTED") ||
-                  (notification.type === "CHAMPIONSHIP_INVITE" &&
-                    notification.championshipInviteStatus === "REJECTED");
+                  isPendingFriendRequest(notification) ||
+                  champPending ||
+                  leaguePending ||
+                  joinPending ||
+                  champJoinPending;
+                const accepted = isAcceptedNotification(notification);
+                const rejected = isRejectedNotification(notification);
 
                 return (
                   <div
@@ -686,9 +690,10 @@ export default function NotificationBell({
                             {notificationLabel(notification)}
                           </span>
                         </p>
-                        <p className={`mt-1 text-[11px] ${mutedText}`}>
-                          {formatTime(notification.createdAt)}
-                        </p>
+                        <NotificationTime
+                          value={notification.createdAt}
+                          light={isLightMode}
+                        />
 
                         {pending && notification.entityId ? (
                           <div className="mt-2 flex gap-2">
@@ -701,7 +706,22 @@ export default function NotificationBell({
                                       notification,
                                       "accept",
                                     )
-                                  : handleAccept(notification)
+                                  : leaguePending
+                                    ? void handleLeagueInviteRespond(
+                                        notification,
+                                        "accept",
+                                      )
+                                    : joinPending
+                                      ? void handleJoinRequestRespond(
+                                          notification,
+                                          "accept",
+                                        )
+                                      : champJoinPending
+                                        ? void handleChampionshipJoinRespond(
+                                            notification,
+                                            "accept",
+                                          )
+                                      : handleAccept(notification)
                               }
                               className="px-3 py-1.5 rounded-lg bg-[#c5f135] text-[#08080e] text-xs font-semibold disabled:opacity-50"
                             >
@@ -716,7 +736,22 @@ export default function NotificationBell({
                                       notification,
                                       "reject",
                                     )
-                                  : handleReject(notification)
+                                  : leaguePending
+                                    ? void handleLeagueInviteRespond(
+                                        notification,
+                                        "reject",
+                                      )
+                                    : joinPending
+                                      ? void handleJoinRequestRespond(
+                                          notification,
+                                          "reject",
+                                        )
+                                      : champJoinPending
+                                        ? void handleChampionshipJoinRespond(
+                                            notification,
+                                            "reject",
+                                          )
+                                      : handleReject(notification)
                               }
                               className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
                                 isLightMode
@@ -739,7 +774,9 @@ export default function NotificationBell({
                         {rejected ? (
                           <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-rose-400">
                             <XCircle size={13} />
-                            Rədd edildi
+                            {notification.joinRequestStatus === "CANCELLED"
+                              ? "Ləğv edildi"
+                              : "Rədd edildi"}
                           </p>
                         ) : null}
 
@@ -777,22 +814,98 @@ export default function NotificationBell({
 
                         {notification.type === "CHAMPIONSHIP_INVITE" &&
                         notification.championshipInvite?.championship.id &&
-                        isAdmin &&
-                        notification.championshipInviteStatus !== "PENDING" ? (
+                        notification.championshipInviteStatus === "ACCEPTED" ? (
                           <button
                             type="button"
                             onClick={() => {
                               handleRead(notification);
                               navigate(
-                                `/admin/football/championships/${notification.championshipInvite!.championship.id}`,
+                                isAdmin
+                                  ? `/admin/football/championships/${notification.championshipInvite!.championship.id}`
+                                  : `/sports/football/championships/${notification.championshipInvite!.championship.id}`,
                               );
                               setOpen(false);
                             }}
-                            className={`mt-2 text-xs font-semibold ${
-                              isLightMode ? "text-emerald-600" : "text-[#c5f135]"
+                            className={`mt-2 w-full rounded-lg border px-3 py-1.5 text-xs font-semibold ${
+                              isLightMode
+                                ? "border-slate-900/15 text-slate-800 hover:bg-slate-900/5"
+                                : "border-white/15 text-white/80 hover:bg-white/5"
                             }`}
                           >
                             Çempionata keç
+                          </button>
+                        ) : null}
+
+                        {notification.type === "CHAMPIONSHIP_JOIN_REQUEST" &&
+                        notification.championshipJoinRequest?.championship.id &&
+                        notification.championshipJoinRequestStatus ===
+                          "ACCEPTED" ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleRead(notification);
+                              navigate(
+                                isAdmin
+                                  ? `/admin/football/championships/${notification.championshipJoinRequest!.championship.id}`
+                                  : `/sports/football/championships/${notification.championshipJoinRequest!.championship.id}`,
+                              );
+                              setOpen(false);
+                            }}
+                            className={`mt-2 w-full rounded-lg border px-3 py-1.5 text-xs font-semibold ${
+                              isLightMode
+                                ? "border-slate-900/15 text-slate-800 hover:bg-slate-900/5"
+                                : "border-white/15 text-white/80 hover:bg-white/5"
+                            }`}
+                          >
+                            Çempionata keç
+                          </button>
+                        ) : null}
+
+                        {notification.type === "LEAGUE_INVITE" &&
+                        notification.leagueInvite?.league.id &&
+                        notification.leagueInviteStatus === "ACCEPTED" ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleRead(notification);
+                              navigate(
+                                isAdmin
+                                  ? `/admin/football/leagues/${notification.leagueInvite!.league.id}`
+                                  : `/leagues/${notification.leagueInvite!.league.id}`,
+                              );
+                              setOpen(false);
+                            }}
+                            className={`mt-2 w-full rounded-lg border px-3 py-1.5 text-xs font-semibold ${
+                              isLightMode
+                                ? "border-slate-900/15 text-slate-800 hover:bg-slate-900/5"
+                                : "border-white/15 text-white/80 hover:bg-white/5"
+                            }`}
+                          >
+                            Liqaya keç
+                          </button>
+                        ) : null}
+
+                        {notification.type === "JOIN_REQUEST" &&
+                        notification.joinRequest?.league.id &&
+                        notification.joinRequestStatus === "ACCEPTED" ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleRead(notification);
+                              navigate(
+                                isAdmin
+                                  ? `/admin/football/leagues/${notification.joinRequest!.league.id}`
+                                  : `/leagues/${notification.joinRequest!.league.id}`,
+                              );
+                              setOpen(false);
+                            }}
+                            className={`mt-2 w-full rounded-lg border px-3 py-1.5 text-xs font-semibold ${
+                              isLightMode
+                                ? "border-slate-900/15 text-slate-800 hover:bg-slate-900/5"
+                                : "border-white/15 text-white/80 hover:bg-white/5"
+                            }`}
+                          >
+                            Liqaya keç
                           </button>
                         ) : null}
                       </div>

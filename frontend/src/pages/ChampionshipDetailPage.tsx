@@ -179,7 +179,11 @@ export default function ChampionshipDetailPage() {
       <div className={`min-h-screen pt-24 ${bg}`}>
         <div className="mx-auto max-w-[1100px] px-4 sm:px-6">
           <ChampError
-            message={error || "Çempionat məlumatlarını yükləmək mümkün olmadı."}
+            message={
+              error?.includes("do not have access") || error?.includes("giriş")
+                ? "Bu private çempionata yalnız iştirakçılar baxa bilər"
+                : error || "Çempionat məlumatlarını yükləmək mümkün olmadı."
+            }
             onRetry={() => void load()}
           />
           <div className="mt-4 text-center">
