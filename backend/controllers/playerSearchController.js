@@ -1,6 +1,7 @@
 import { prisma } from "../config/db.js";
 import { parsePositiveInt, teamSelect, userBriefSelect } from "../utils/helpers.js";
 import { expirePastListings } from "../utils/expireListings.js";
+import { emitSocialRequestsChanged } from "../socket/socket.emit.js";
 
 const searchInclude = {
   hostTeam: {
@@ -353,6 +354,7 @@ export const requestJoinPlayerSearch = async (req, res) => {
 
     const search = await prisma.playerSearch.findUnique({
       where: { id: searchId },
+      include: { hostTeam: { select: { captainId: true } } },
     });
 
     if (!search || search.status !== "OPEN") {
@@ -439,6 +441,8 @@ export const requestJoinPlayerSearch = async (req, res) => {
           include,
         });
 
+    emitSocialRequestsChanged([search.hostTeam.captainId]);
+
     return res.status(201).json({
       success: true,
       message: "Request sent to team captain",
@@ -464,7 +468,7 @@ export const listMyPlayerSearchNotifications = async (req, res) => {
     const [incoming, outcomes] = await Promise.all([
       prisma.playerSearchRequest.findMany({
         where: {
-          status: "PENDING",
+          status: { in: ["PENDING", "ACCEPTED", "REJECTED"] },
           playerSearch: {
             hostTeam: { captainId: req.user.id },
           },
@@ -478,7 +482,8 @@ export const listMyPlayerSearchNotifications = async (req, res) => {
             },
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+        take: 80,
       }),
       prisma.playerSearchRequest.findMany({
         where: {
@@ -504,6 +509,65 @@ export const listMyPlayerSearchNotifications = async (req, res) => {
     });
   } catch (error) {
     console.log("Error in listMyPlayerSearchNotifications:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const cancelPlayerSearchRequest = async (req, res) => {
+  try {
+    const requestId = parsePositiveInt(req.params.requestId);
+    if (!requestId) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid request id",
+      });
+    }
+
+    const request = await prisma.playerSearchRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        playerSearch: {
+          include: { hostTeam: { select: { captainId: true } } },
+        },
+      },
+    });
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Request not found",
+      });
+    }
+
+    if (request.userId !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the requester can cancel this request",
+      });
+    }
+
+    if (request.status !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        message: "Request is no longer pending",
+      });
+    }
+
+    await prisma.playerSearchRequest.delete({
+      where: { id: requestId },
+    });
+
+    emitSocialRequestsChanged([request.playerSearch.hostTeam.captainId]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Request cancelled",
+    });
+  } catch (error) {
+    console.log("Error in cancelPlayerSearchRequest:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -573,6 +637,10 @@ export const respondPlayerSearchRequest = async (req, res) => {
         where: { id: requestId },
         data: { status: "REJECTED", respondedAt: new Date() },
       });
+      emitSocialRequestsChanged([
+        request.user.id,
+        request.playerSearch.hostTeam.captainId,
+      ]);
       return res.status(200).json({
         success: true,
         message: "Request rejected",
@@ -598,6 +666,16 @@ export const respondPlayerSearchRequest = async (req, res) => {
       const filled = request.playerSearch.playersFilled + 1;
       const isFull = filled >= request.playerSearch.playersNeeded;
 
+      const leftover = isFull
+        ? await tx.playerSearchRequest.findMany({
+            where: {
+              playerSearchId: request.playerSearchId,
+              status: "PENDING",
+            },
+            select: { userId: true },
+          })
+        : [];
+
       const search = await tx.playerSearch.update({
         where: { id: request.playerSearchId },
         data: {
@@ -618,15 +696,24 @@ export const respondPlayerSearchRequest = async (req, res) => {
       }
 
       return {
-        ...search,
-        spotsLeft: Math.max(0, search.playersNeeded - search.playersFilled),
+        leftoverUserIds: leftover.map((row) => row.userId),
+        search: {
+          ...search,
+          spotsLeft: Math.max(0, search.playersNeeded - search.playersFilled),
+        },
       };
     });
+
+    emitSocialRequestsChanged([
+      request.user.id,
+      request.playerSearch.hostTeam.captainId,
+      ...result.leftoverUserIds,
+    ]);
 
     return res.status(200).json({
       success: true,
       message: "Player accepted",
-      data: result,
+      data: result.search,
     });
   } catch (error) {
     console.log("Error in respondPlayerSearchRequest:", error);

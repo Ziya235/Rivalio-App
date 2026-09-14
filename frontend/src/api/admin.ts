@@ -150,6 +150,16 @@ export function fetchLeagueInvites(leagueId: number): Promise<LeagueInvite[]> {
   return adminFetch<LeagueInvite[]>(`/api/leagues/${leagueId}/team-invites`);
 }
 
+export function cancelLeagueInvite(
+  leagueId: number,
+  inviteId: number,
+): Promise<LeagueInvite> {
+  return adminFetch<LeagueInvite>(
+    `/api/leagues/${leagueId}/team-invites/${inviteId}`,
+    { method: "DELETE" },
+  );
+}
+
 export function fetchLeagueJoinRequests(
   leagueId: number,
 ): Promise<LeagueJoinRequest[]> {

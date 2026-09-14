@@ -65,3 +65,7 @@ export function fetchLeaguePlayers(
 export function fetchLeagueMatches(leagueId: number): Promise<Match[]> {
   return apiFetch<Match[]>(`/api/leagues/${leagueId}/matches`);
 }
+
+export function fetchLeagueMatch(matchId: number): Promise<Match> {
+  return apiFetch<Match>(`/api/matches/${matchId}`);
+}

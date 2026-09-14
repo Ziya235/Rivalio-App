@@ -42,6 +42,7 @@ import {
 } from "../api/notifications";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
+import { subscribeSocketEvent } from "../services/socket";
 import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import type { AppOutletContext } from "../App";
 import {
@@ -126,6 +127,7 @@ export default function NotificationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const {
+    isConnected,
     notifications,
     refreshNotifications,
     patchNotification,
@@ -160,6 +162,13 @@ export default function NotificationsPage() {
   useEffect(() => {
     void loadExtras();
   }, [loadExtras, notifications]);
+
+  useEffect(() => {
+    if (!user || !isConnected) return;
+    return subscribeSocketEvent("social_requests_changed", () => {
+      void loadExtras();
+    });
+  }, [user, isConnected, loadExtras]);
 
   const entries = useMemo<FeedEntry[]>(() => {
     return [
@@ -362,7 +371,11 @@ export default function NotificationsPage() {
                           <span className="font-semibold">{actorName}</span>{" "}
                           <span className={body}>
                             {entry.incoming
-                              ? "komandanızın oyunçu axtarışına qoşulmaq istəyir"
+                              ? accepted
+                                ? "oyunçu axtarışı sorğusunu qəbul etdiniz"
+                                : request.status === "REJECTED"
+                                  ? "oyunçu axtarışı sorğusunu rədd etdiniz"
+                                  : "komandanızın oyunçu axtarışına qoşulmaq istəyir"
                               : accepted
                                 ? "oyunçu axtarışı sorğunuzu qəbul etdi"
                                 : request.status === "CANCELLED"
@@ -421,13 +434,13 @@ export default function NotificationsPage() {
                             </button>
                           </div>
                         ) : null}
-                        {!pending && accepted && !entry.incoming ? (
+                        {!pending && accepted ? (
                           <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-500">
                             <CheckCircle2 size={13} />
                             Qəbul edildi
                           </p>
                         ) : null}
-                        {!pending && rejected && !entry.incoming ? (
+                        {!pending && rejected ? (
                           <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-rose-400">
                             <XCircle size={13} />
                             {request.status === "CANCELLED" ? "Bağlandı" : "Rədd edildi"}
@@ -511,13 +524,13 @@ export default function NotificationsPage() {
                             </button>
                           </div>
                         ) : null}
-                        {!pending && accepted && !entry.incoming ? (
+                        {!pending && accepted ? (
                           <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-500">
                             <CheckCircle2 size={13} />
                             Qəbul edildi
                           </p>
                         ) : null}
-                        {!pending && rejected && !entry.incoming ? (
+                        {!pending && rejected ? (
                           <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-rose-400">
                             <XCircle size={13} />
                             Rədd edildi

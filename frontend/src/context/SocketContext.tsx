@@ -136,6 +136,16 @@ export function SocketProvider({ children }: { children: ReactNode }) {
           void refreshNotifications();
         }
       }),
+      subscribeSocketEvent("notifications_removed", (payload: {
+        notificationIds: number[];
+        unreadCount: number;
+      }) => {
+        const removed = new Set(payload.notificationIds ?? []);
+        setNotifications((current) =>
+          current.filter((item) => !removed.has(item.id)),
+        );
+        setUnreadCount(payload.unreadCount);
+      }),
       subscribeSocketEvent("friend_request_received", () => {
         refreshNotifications();
       }),

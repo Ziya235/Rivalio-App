@@ -207,7 +207,7 @@ export function AdminLayout() {
         </div>
       </aside>
 
-      <div className="flex min-h-screen flex-1 flex-col lg:ml-64">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:ml-64">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-6">
           <button
             type="button"
@@ -233,7 +233,7 @@ export function AdminLayout() {
           </div>
         </header>
 
-        <main className="flex-1 p-4 sm:p-6">
+        <main className="min-w-0 flex-1 overflow-x-hidden p-4 sm:p-6">
           <Outlet />
         </main>
       </div>
@@ -253,7 +253,7 @@ export function AdminPageShell({
   children: ReactNode;
 }) {
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto w-full min-w-0 max-w-6xl">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-ink">

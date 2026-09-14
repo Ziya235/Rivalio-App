@@ -1,4 +1,4 @@
-﻿import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Calendar,
@@ -63,13 +63,13 @@ import {
   type SlotMode,
 } from "../../lib/championshipGroups";
 import { parsePlayoffNotes } from "../../lib/playoffBracket";
+import { groupMatchesByRound, sortMatchesByRound } from "../../lib/championshipUi";
 import type {
   Championship,
   ChampionshipGroup,
   ChampionshipJoinRequest,
   ChampionshipStatistics,
   ChampionshipStatus,
-  ChampionshipTeamStatistics,
   MatchStage,
   PlayoffTieGroup,
   StandingRow,
@@ -243,21 +243,6 @@ function formatCompactWhen(iso: string | null | undefined): string {
   if (Number.isNaN(d.getTime())) return "Vaxt yoxdur";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${formatCompactDate(iso)} • ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function teamGroupCaption(
-  groups: ChampionshipGroup[],
-  teamId: number,
-): string | null {
-  for (const group of groups) {
-    const row = group.teams.find((t) => t.teamId === teamId);
-    if (!row) continue;
-    const letter =
-      group.name.match(/\b([A-Da-d])\b/)?.[1]?.toUpperCase() ??
-      group.name.replace(/^qrup\s+/i, "").slice(0, 1).toUpperCase();
-    return `${letter}${row.seed}`;
-  }
-  return null;
 }
 
 function toDatetimeLocal(iso: string | null | undefined): string {
@@ -436,11 +421,23 @@ function MatchListSection({
         </p>
       ) : (
         <ul className="divide-y divide-slate-100">
-          {matches.map((match) => {
-            const meta = parsePlayoffNotes(match.notes);
-            const ready = isFixtureReady(match);
-            const editable = canEditSchedule(match);
-            return (
+          {groupMatchesByRound(matches).flatMap((group) => {
+            const items: ReactNode[] = [];
+            if (group.label) {
+              items.push(
+                <li
+                  key={group.key}
+                  className="bg-slate-50 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-500"
+                >
+                  {group.label}
+                </li>,
+              );
+            }
+            for (const match of group.matches) {
+              const meta = parsePlayoffNotes(match.notes);
+              const ready = isFixtureReady(match);
+              const editable = canEditSchedule(match);
+              items.push(
             <li key={match.id}>
               <div
                 className={`flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 ${
@@ -539,8 +536,10 @@ function MatchListSection({
                   </button>
                 </div>
               </div>
-            </li>
-            );
+            </li>,
+              );
+            }
+            return items;
           })}
         </ul>
       )}
@@ -777,104 +776,69 @@ function PlayoffPlaceholderCard({ item }: { item: PlayoffPlaceholder }) {
   );
 }
 
-function ChampionshipOverallTeamTable({
-  rows,
-}: {
-  rows: ChampionshipTeamStatistics[];
-}) {
-  return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-100 px-4 py-3">
-        <h3 className="text-sm font-bold text-ink">Komanda statistikası</h3>
-        <p className="mt-0.5 text-xs text-slate-400">
-          Çempionat qolları komandanın ümumi GF/GA göstəricisinə düşür.
-        </p>
-      </div>
-      {rows.length === 0 ? (
-        <p className="px-4 py-10 text-center text-sm text-slate-500">
-          Komanda statistikası hələ yoxdur.
-        </p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                <th className="px-3 py-2.5 text-center">#</th>
-                <th className="px-3 py-2.5">Komanda</th>
-                <th className="px-2 py-2.5 text-center">O</th>
-                <th className="px-2 py-2.5 text-center">Q</th>
-                <th className="px-2 py-2.5 text-center">He</th>
-                <th className="px-2 py-2.5 text-center">M</th>
-                <th className="px-2 py-2.5 text-center">V</th>
-                <th className="px-2 py-2.5 text-center">B</th>
-                <th className="px-2 py-2.5 text-center">+</th>
-                <th className="px-3 py-2.5 text-center">Xal</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {rows.map((row, index) => (
-                <tr key={row.teamId} className="hover:bg-slate-50/70">
-                  <td className="px-3 py-2.5 text-center font-bold tabular-nums text-slate-400">
-                    {index + 1}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <TeamMark name={row.teamName} logo={row.logo} size="sm" />
-                  </td>
-                  <td className="px-2 py-2.5 text-center tabular-nums">{row.played}</td>
-                  <td className="px-2 py-2.5 text-center tabular-nums">{row.wins}</td>
-                  <td className="px-2 py-2.5 text-center tabular-nums">{row.draws}</td>
-                  <td className="px-2 py-2.5 text-center tabular-nums">{row.losses}</td>
-                  <td className="px-2 py-2.5 text-center font-semibold tabular-nums text-ink">
-                    {row.goalsFor}
-                  </td>
-                  <td className="px-2 py-2.5 text-center tabular-nums">{row.goalsAgainst}</td>
-                  <td className="px-2 py-2.5 text-center tabular-nums">
-                    {formatDiff(row.goalDifference)}
-                  </td>
-                  <td className="px-3 py-2.5 text-center font-bold tabular-nums text-ink">
-                    {row.points}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
 function ChampionshipStatsBlock({
   players,
-  teams,
 }: {
   players: ChampScorerRow[];
-  teams: ChampionshipTeamStatistics[];
 }) {
+  const goalRows = [...players]
+    .filter((row) => row.goals > 0)
+    .sort(
+      (a, b) =>
+        b.goals - a.goals ||
+        b.assists - a.assists ||
+        playerDisplayName(a).localeCompare(playerDisplayName(b), "az"),
+    );
+  const assistRows = [...players]
+    .filter((row) => row.assists > 0)
+    .sort(
+      (a, b) =>
+        b.assists - a.assists ||
+        b.goals - a.goals ||
+        playerDisplayName(a).localeCompare(playerDisplayName(b), "az"),
+    );
+
   return (
-    <>
-      <ChampionshipOverallTeamTable rows={teams} />
-      <ChampionshipScorerTable rows={players} />
-    </>
+    <div className="space-y-4">
+      <ChampionshipPlayerStatTable
+        title="Top Goal"
+        icon={<CircleDot className="h-4 w-4 text-emerald-600" />}
+        rows={goalRows}
+        value="goals"
+        empty="Hələ qol yoxdur."
+      />
+      <ChampionshipPlayerStatTable
+        title="Top Asist"
+        icon={<Handshake className="h-4 w-4 text-sky-600" />}
+        rows={assistRows}
+        value="assists"
+        empty="Hələ asist yoxdur."
+      />
+    </div>
   );
 }
 
-function ChampionshipScorerTable({
+function ChampionshipPlayerStatTable({
+  title,
+  icon,
   rows,
+  value,
+  empty,
 }: {
+  title: string;
+  icon: ReactNode;
   rows: ChampScorerRow[];
+  value: "goals" | "assists";
+  empty: string;
 }) {
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
-        <CircleDot className="h-4 w-4 text-emerald-600" />
-        <Handshake className="h-4 w-4 text-sky-600" />
-        <h3 className="text-sm font-bold text-ink">Qol və asist bombardirləri</h3>
+        {icon}
+        <h3 className="text-sm font-bold text-ink">{title}</h3>
       </div>
       {rows.length === 0 ? (
-        <p className="px-4 py-10 text-center text-sm text-slate-500">
-          Hələ qol və ya asist yoxdur.
-        </p>
+        <p className="px-4 py-10 text-center text-sm text-slate-500">{empty}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -883,9 +847,9 @@ function ChampionshipScorerTable({
                 <th className="px-3 py-2.5 text-center">#</th>
                 <th className="px-3 py-2.5">Oyunçu</th>
                 <th className="px-3 py-2.5">Komanda</th>
-                <th className="px-3 py-2.5 text-center">Qol</th>
-                <th className="px-3 py-2.5 text-center">Asist</th>
-                <th className="px-3 py-2.5 text-center">Q+A</th>
+                <th className="px-3 py-2.5 text-center">
+                  {value === "goals" ? "Qol" : "Asist"}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -934,13 +898,7 @@ function ChampionshipScorerTable({
                     </div>
                   </td>
                   <td className="px-3 py-2.5 text-center text-base font-black tabular-nums text-ink">
-                    {row.goals}
-                  </td>
-                  <td className="px-3 py-2.5 text-center text-base font-black tabular-nums text-ink">
-                    {row.assists}
-                  </td>
-                  <td className="px-3 py-2.5 text-center font-bold tabular-nums text-slate-500">
-                    {row.goals + row.assists}
+                    {value === "goals" ? row.goals : row.assists}
                   </td>
                 </tr>
               ))}
@@ -970,8 +928,8 @@ function PlayoffStageColumn({
   showConnector: boolean;
 }) {
   return (
-    <div className="flex min-w-[16.5rem] flex-1">
-      <div className="flex w-full min-w-[16.5rem] flex-col">
+    <div className="flex w-[17rem] shrink-0">
+      <div className="flex w-full flex-col">
         <div
           className={`mb-3 rounded-lg px-3 py-2 text-center text-sm font-bold shadow-sm ${STAGE_COLUMN_CLASS[stage]}`}
         >
@@ -1031,7 +989,9 @@ export function AdminChampionshipDetailPage() {
   const [scheduleMatch, setScheduleMatch] = useState<Match | null>(null);
   const [scheduleAt, setScheduleAt] = useState("");
   const [scheduleVenue, setScheduleVenue] = useState("");
-  const [playoffView, setPlayoffView] = useState<"playoff" | "groups">("playoff");
+  const [playoffView, setPlayoffView] = useState<"playoff" | "groups" | "stats">(
+    "playoff",
+  );
   const [playoffBoardTab, setPlayoffBoardTab] = useState<PlayoffBoardTab>("overview");
   const [tieGroups, setTieGroups] = useState<PlayoffTieGroup[] | null>(null);
   const [tieOrders, setTieOrders] = useState<Record<string, number[]>>({});
@@ -1065,6 +1025,11 @@ export function AdminChampionshipDetailPage() {
     name: string;
   } | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const [deleteGroupTarget, setDeleteGroupTarget] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
+  const [deleteGroupError, setDeleteGroupError] = useState<string | null>(null);
 
   const { notifications } = useSocket();
   const champNoticeSignature = notifications
@@ -1123,6 +1088,12 @@ export function AdminChampionshipDetailPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (championship?.status === "GROUP_STAGE") {
+      setPlayoffView((current) => (current === "playoff" ? "groups" : current));
+    }
+  }, [championship?.status]);
 
   useEffect(() => {
     if (skipNoticeReload.current) {
@@ -1253,20 +1224,24 @@ export function AdminChampionshipDetailPage() {
   }, [matches, activeGroupId]);
 
   const liveMatches = useMemo(
-    () => groupMatches.filter((m) => m.status === "LIVE"),
+    () => sortMatchesByRound(groupMatches.filter((m) => m.status === "LIVE")),
     [groupMatches],
   );
   const upcomingMatches = useMemo(
     () =>
-      groupMatches.filter(
-        (m) => m.status === "SCHEDULED" || m.status === "POSTPONED",
+      sortMatchesByRound(
+        groupMatches.filter(
+          (m) => m.status === "SCHEDULED" || m.status === "POSTPONED",
+        ),
       ),
     [groupMatches],
   );
   const finishedMatches = useMemo(
     () =>
-      groupMatches.filter(
-        (m) => m.status === "FINISHED" || m.status === "CANCELLED",
+      sortMatchesByRound(
+        groupMatches.filter(
+          (m) => m.status === "FINISHED" || m.status === "CANCELLED",
+        ),
       ),
     [groupMatches],
   );
@@ -1507,6 +1482,12 @@ export function AdminChampionshipDetailPage() {
     setRemoveError(null);
   };
 
+  const closeDeleteGroupModal = () => {
+    if (busy) return;
+    setDeleteGroupTarget(null);
+    setDeleteGroupError(null);
+  };
+
   const handleRemoveTeam = async () => {
     if (!removeTarget) return;
     setBusy(true);
@@ -1559,6 +1540,12 @@ export function AdminChampionshipDetailPage() {
   };
 
   const handleStartGroupStage = () => {
+    if (pendingInvites.length > 0) {
+      setActionError(
+        "Gözləyən dəvətlər var. Əvvəlcə dəvətlər qəbul olunmalı və ya ləğv edilməlidir.",
+      );
+      return;
+    }
     if (
       !window.confirm(
         "Are you sure you want to start this championship? Teams cannot be added after the group stage begins.",
@@ -1589,6 +1576,12 @@ export function AdminChampionshipDetailPage() {
   };
 
   const handleStartPlayoff = (playoffOnly = false, tieBreakTeamIds?: number[]) => {
+    if (playoffOnly && pendingInvites.length > 0) {
+      setActionError(
+        "Gözləyən dəvətlər var. Əvvəlcə dəvətlər qəbul olunmalı və ya ləğv edilməlidir.",
+      );
+      return;
+    }
     const msg = playoffOnly
       ? "Playoff merhelesini baslatmaq isteyirsiniz? Komanda sayina uygun bracket yaradilacaq."
       : "Qrup merhelesini bitirib playoff baslatmaq isteyirsiniz?";
@@ -1682,12 +1675,20 @@ export function AdminChampionshipDetailPage() {
     }
   };
 
-  const handleDeleteGroup = async (groupId: number) => {
-    if (!window.confirm("Qrupu silmek isteyirsiniz?")) return;
-    await runAction(async () => {
-      await deleteChampionshipGroup(groupId);
+  const handleDeleteGroup = async () => {
+    if (!deleteGroupTarget) return;
+    setBusy(true);
+    setDeleteGroupError(null);
+    setActionError(null);
+    try {
+      await deleteChampionshipGroup(deleteGroupTarget.id);
+      setDeleteGroupTarget(null);
       await load();
-    });
+    } catch (err) {
+      setDeleteGroupError(err instanceof Error ? err.message : "Silinmədi");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleRemoveFromGroup = async (groupId: number, teamId: number) => {
@@ -2107,7 +2108,13 @@ export function AdminChampionshipDetailPage() {
                           <button
                             type="button"
                             disabled={busy}
-                            onClick={() => void handleDeleteGroup(group.id)}
+                            onClick={() => {
+                              setDeleteGroupError(null);
+                              setDeleteGroupTarget({
+                                id: group.id,
+                                name: group.name,
+                              });
+                            }}
                             className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
                             title="Sil"
                           >
@@ -2158,7 +2165,7 @@ export function AdminChampionshipDetailPage() {
             {isPlayoffOnlyFormat ? (
               <button
                 type="button"
-                disabled={busy || !playoffReady}
+                disabled={busy || !playoffReady || pendingInvites.length > 0}
                 onClick={() => handleStartPlayoff(true)}
                 className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 disabled:opacity-50"
               >
@@ -2174,7 +2181,8 @@ export function AdminChampionshipDetailPage() {
                 disabled={
                   busy ||
                   championship.groups.length === 0 ||
-                  championship.teams.length < GROUP_CHAMP_TEAM_MIN
+                  championship.teams.length < GROUP_CHAMP_TEAM_MIN ||
+                  pendingInvites.length > 0
                 }
                 onClick={handleStartGroupStage}
                 className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-ink shadow-sm hover:bg-brand-dark disabled:opacity-50"
@@ -2183,6 +2191,12 @@ export function AdminChampionshipDetailPage() {
                 Cempionati baslat
               </button>
             )}
+            {pendingInvites.length > 0 ? (
+              <p className="w-full text-xs text-amber-700">
+                Gözləyən dəvətlər var. Çempionatı başlatmaq üçün dəvətlər qəbul
+                olunmalı və ya ləğv edilməlidir.
+              </p>
+            ) : null}
             {!isPlayoffOnlyFormat &&
             championship.teams.length < GROUP_CHAMP_TEAM_MIN ? (
               <p className="w-full text-xs text-slate-500">
@@ -2197,21 +2211,29 @@ export function AdminChampionshipDetailPage() {
       {isGroupStage ? (
         <div className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-              {championship.groups.map((g) => (
-                <button
-                  key={g.id}
-                  type="button"
-                  onClick={() => setActiveGroupId(g.id)}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
-                    activeGroupId === g.id
-                      ? "bg-brand text-ink shadow-sm"
-                      : "text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  {g.name}
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setPlayoffView("groups")}
+                className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                  playoffView !== "stats"
+                    ? "bg-brand text-ink"
+                    : "bg-white text-slate-600 ring-1 ring-slate-200"
+                }`}
+              >
+                Qrup mərhələsi
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlayoffView("stats")}
+                className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                  playoffView === "stats"
+                    ? "bg-brand text-ink"
+                    : "bg-white text-slate-600 ring-1 ring-slate-200"
+                }`}
+              >
+                Statistika
+              </button>
             </div>
             <div className="flex flex-wrap gap-2">
               <button
@@ -2231,8 +2253,26 @@ export function AdminChampionshipDetailPage() {
             </div>
           </div>
 
+          {playoffView === "stats" ? (
+            <ChampionshipStatsBlock players={scorerRows} />
+          ) : (
           <div className="space-y-4">
-          
+            <div className="flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+              {championship.groups.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => setActiveGroupId(g.id)}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                    activeGroupId === g.id
+                      ? "bg-brand text-ink shadow-sm"
+                      : "text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {g.name}
+                </button>
+              ))}
+            </div>
             <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-4 py-3">
                 <h3 className="text-sm font-bold text-ink">
@@ -2256,19 +2296,14 @@ export function AdminChampionshipDetailPage() {
               onSelect={openSchedule}
               onEnter={enterMatch}
             />
-
-            <ChampionshipStatsBlock
-              players={scorerRows}
-              teams={statistics.teams}
-            />
           </div>
+          )}
         </div>
       ) : null}
 
       {isPlayoff ? (
         <div className="space-y-6">
-          {championship.groups.length > 0 ? (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setPlayoffView("playoff")}
@@ -2280,21 +2315,35 @@ export function AdminChampionshipDetailPage() {
               >
                 Playoff
               </button>
+              {championship.groups.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setPlayoffView("groups")}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                    playoffView === "groups"
+                      ? "bg-brand text-ink"
+                      : "bg-white text-slate-600 ring-1 ring-slate-200"
+                  }`}
+                >
+                  Qrup mərhələsi
+                </button>
+              ) : null}
               <button
                 type="button"
-                onClick={() => setPlayoffView("groups")}
+                onClick={() => setPlayoffView("stats")}
                 className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
-                  playoffView === "groups"
+                  playoffView === "stats"
                     ? "bg-brand text-ink"
                     : "bg-white text-slate-600 ring-1 ring-slate-200"
                 }`}
               >
-                Qrup merhelesine qayit
+                Statistika
               </button>
             </div>
-          ) : null}
 
-          {playoffView === "groups" && championship.groups.length > 0 ? (
+          {playoffView === "stats" ? (
+            <ChampionshipStatsBlock players={scorerRows} />
+          ) : playoffView === "groups" && championship.groups.length > 0 ? (
             <div className="space-y-6">
               <div className="flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
                 {championship.groups.map((g) => (
@@ -2332,14 +2381,10 @@ export function AdminChampionshipDetailPage() {
                 onSelect={openSchedule}
                 onEnter={enterMatch}
               />
-              <ChampionshipStatsBlock
-              players={scorerRows}
-              teams={statistics.teams}
-            />
             </div>
           ) : (
-            <div className="space-y-6">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="min-w-0 space-y-6">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                 {playoffStatCards.map((stat) => (
                   <div
                     key={stat.label}
@@ -2399,7 +2444,7 @@ export function AdminChampionshipDetailPage() {
                     </h3>
                   </div>
                   <div className="overflow-x-auto px-4 py-5">
-                    <div className="flex min-w-max items-stretch gap-1">
+                    <div className="flex items-stretch gap-1">
                       {visiblePlayoffStages.map((stage, index) => (
                         <PlayoffStageColumn
                           key={stage}
@@ -2419,7 +2464,7 @@ export function AdminChampionshipDetailPage() {
                   </div>
                 </section>
               ) : (
-                <section className="space-y-3">
+                <section className="mx-auto w-full max-w-xl space-y-3">
                   {focusedPlayoffMatches.map((match) => (
                     <PlayoffMatchCard
                       key={match.id}
@@ -2433,55 +2478,6 @@ export function AdminChampionshipDetailPage() {
                   ))}
                 </section>
               )}
-
-              {championship.teams.length > 0 ? (
-                <section>
-                  <h3 className="mb-3 text-sm font-bold text-ink">
-                    İştirak edən komandalar
-                  </h3>
-                  <div className="flex gap-3 overflow-x-auto pb-1">
-                    {championship.teams.map((row) => {
-                      const badge = teamGroupCaption(
-                        championship.groups,
-                        row.teamId,
-                      );
-                      return (
-                        <div
-                          key={row.id}
-                          className="flex min-w-[9.5rem] items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
-                        >
-                          {row.team.logo ? (
-                            <img
-                              src={mediaUrl(row.team.logo)}
-                              alt=""
-                              className="h-8 w-8 rounded-full object-cover"
-                            />
-                          ) : (
-                            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${teamInitialTone(row.team.name)}`}>
-                              {row.team.name.slice(0, 1).toUpperCase()}
-                            </span>
-                          )}
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-ink">
-                              {row.team.name}
-                            </p>
-                            {badge ? (
-                              <p className="text-[11px] font-semibold text-slate-400">
-                                {badge} qrupu
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              ) : null}
-
-              <ChampionshipStatsBlock
-              players={scorerRows}
-              teams={statistics.teams}
-            />
             </div>
           )}
         </div>
@@ -2803,7 +2799,7 @@ export function AdminChampionshipDetailPage() {
               onChange={(e) => setAutoAssign(e.target.checked)}
               className="rounded border-slate-300"
             />
-            Komandalari avtomatik payla
+            Komandaları avtomatik, təsadüfi payla
           </label>
           {groupsSlotError ? (
             <p className="text-sm font-medium text-rose-600">{groupsSlotError}</p>
@@ -3022,6 +3018,43 @@ export function AdminChampionshipDetailPage() {
         </p>
         {removeError ? (
           <p className="mt-3 text-sm font-medium text-rose-600">{removeError}</p>
+        ) : null}
+      </AdminModal>
+
+      <AdminModal
+        open={deleteGroupTarget != null}
+        title="Qrupu sil"
+        onClose={closeDeleteGroupModal}
+        footer={
+          <>
+            <ModalCancelButton
+              onClick={closeDeleteGroupModal}
+              disabled={busy}
+            />
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void handleDeleteGroup()}
+              className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-700 disabled:opacity-60"
+            >
+              {busy ? "Gözləyin..." : "Sil"}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm leading-relaxed text-slate-700">
+          <span className="font-semibold text-ink">
+            {deleteGroupTarget?.name}
+          </span>{" "}
+          qrupunu silməyə əminsiniz?
+        </p>
+        <p className="mt-2 text-xs text-slate-500">
+          Qrupdakı komandalar çempionatda qalacaq, yalnız qrup silinəcək.
+        </p>
+        {deleteGroupError ? (
+          <p className="mt-3 text-sm font-medium text-rose-600">
+            {deleteGroupError}
+          </p>
         ) : null}
       </AdminModal>
     </AdminPageShell>

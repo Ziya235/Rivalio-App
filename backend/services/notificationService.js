@@ -338,3 +338,31 @@ export const markAllNotificationsRead = async (userId) => {
 
   return 0;
 };
+
+export const deleteNotificationsForEntity = async ({ type, entityId }) => {
+  if (entityId == null || !type) return;
+  const id = String(entityId);
+  const rows = await prisma.notification.findMany({
+    where: { type, entityId: id },
+    select: { id: true, userId: true },
+  });
+  if (rows.length === 0) return;
+
+  await prisma.notification.deleteMany({
+    where: { type, entityId: id },
+  });
+
+  const byUser = new Map();
+  for (const row of rows) {
+    const list = byUser.get(row.userId) ?? [];
+    list.push(row.id);
+    byUser.set(row.userId, list);
+  }
+
+  for (const [userId, notificationIds] of byUser.entries()) {
+    emitToUser(userId, "notifications_removed", {
+      notificationIds,
+      unreadCount: await getUnreadCount(userId),
+    });
+  }
+};

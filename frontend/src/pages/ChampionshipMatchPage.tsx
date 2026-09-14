@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, MapPin, Radio } from "lucide-react";
 import { fetchVisibleChampionshipMatch } from "../api/championships";
+import { fetchLeagueMatch } from "../api/leagues";
 import { ChampError, TeamCrest } from "../components/championship/ChampShared";
 import { Button } from "../components/ui";
 import {
   formatChampWhen,
+  formatMatchStamp,
   MATCH_STATUS_LABEL,
   STAGE_LABEL,
   venueOf,
@@ -13,29 +15,77 @@ import {
 import type { Match, MatchEvent } from "../types/match";
 import { computeMatchClock } from "../lib/matchClock";
 
-function eventLine(event: MatchEvent): string {
-  const who = event.player
-    ? `${event.player.firstName} ${event.player.lastName}`
-    : "";
-  switch (event.type) {
+function playerLabel(
+  player: MatchEvent["player"] | MatchEvent["playerIn"],
+): string {
+  if (!player) return "";
+  return `${player.firstName} ${player.lastName}`.trim();
+}
+
+function eventIcon(type: MatchEvent["type"]): string {
+  switch (type) {
     case "GOAL":
-      return `⚽ ${event.minute}' ${who}`;
     case "OWN_GOAL":
-      return `⚽ ${event.minute}' ${who} (avtoqol)`;
+      return "⚽";
     case "YELLOW_CARD":
-      return `🟨 ${event.minute}' ${who}`;
+      return "🟨";
     case "RED_CARD":
-      return `🟥 ${event.minute}' ${who}`;
+      return "🟥";
     case "SUBSTITUTION":
-      return `🔄 ${event.minute}' ${event.playerOut ? `${event.playerOut.firstName} ${event.playerOut.lastName}` : ""} → ${event.playerIn ? `${event.playerIn.firstName} ${event.playerIn.lastName}` : ""}`;
+      return "🔄";
     default:
-      return event.note || "Qeyd";
+      return "📝";
   }
 }
 
+function eventDetail(event: MatchEvent): string {
+  if (event.type === "SUBSTITUTION") {
+    const outName = playerLabel(event.playerOut) || "—";
+    const inName = playerLabel(event.playerIn) || "—";
+    return `${outName} → ${inName}`;
+  }
+  if (event.type === "NOTE") {
+    return event.note || "Qeyd";
+  }
+  const who = playerLabel(event.player) || "—";
+  if (event.type === "OWN_GOAL") return `${who} (avtoqol)`;
+  if (event.assistPlayer) {
+    return `${who} · asist: ${playerLabel(event.assistPlayer)}`;
+  }
+  return who;
+}
+
+function EventRow({
+  event,
+  side,
+}: {
+  event: MatchEvent;
+  side: "home" | "away";
+}) {
+  const icon = eventIcon(event.type);
+  const minute = `${event.minute}'`;
+  const detail = eventDetail(event);
+  const isHome = side === "home";
+
+  return (
+    <li
+      className={`flex items-start gap-2 text-sm text-gray-700 ${
+        isHome ? "flex-row-reverse text-right" : "text-left"
+      }`}
+    >
+      <span className="mt-0.5 shrink-0 text-base leading-none">{icon}</span>
+      <span className="shrink-0 font-semibold tabular-nums text-gray-500">
+        {minute}
+      </span>
+      <span className="min-w-0 leading-snug">{detail}</span>
+    </li>
+  );
+}
+
 export default function ChampionshipMatchPage() {
-  const { championshipId, matchId: matchIdParam } = useParams();
+  const { championshipId, leagueId, matchId: matchIdParam } = useParams();
   const matchId = Number(matchIdParam);
+  const isLeague = Boolean(leagueId);
   const navigate = useNavigate();
   const [match, setMatch] = useState<Match | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,18 +103,22 @@ export default function ChampionshipMatchPage() {
       setError(null);
     }
     try {
-      const data = await fetchVisibleChampionshipMatch(matchId);
+      const data = isLeague
+        ? await fetchLeagueMatch(matchId)
+        : await fetchVisibleChampionshipMatch(matchId);
       setMatch(data);
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Çempionat məlumatlarını yükləmək mümkün olmadı.",
+          : isLeague
+            ? "Liqa məlumatlarını yükləmək mümkün olmadı."
+            : "Çempionat məlumatlarını yükləmək mümkün olmadı.",
       );
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [matchId]);
+  }, [isLeague, matchId]);
 
   useEffect(() => {
     void load();
@@ -93,7 +147,10 @@ export default function ChampionshipMatchPage() {
 
   const bg =
     "[background:linear-gradient(135deg,#E8FFF3_0%,#EAF8FF_48%,#F2EDFF_100%)]";
-  const backTo = `/sports/football/championships/${championshipId}?tab=matches`;
+  const backTo = isLeague
+    ? `/leagues/${leagueId}?tab=matches`
+    : `/sports/football/championships/${championshipId}?tab=matches`;
+  const backLabel = isLeague ? "Liqaya qayıt" : "Çempionata qayıt";
 
   if (loading) {
     return (
@@ -110,7 +167,9 @@ export default function ChampionshipMatchPage() {
           <ChampError
             message={
               error?.includes("do not have access") || error?.includes("giriş")
-                ? "Bu private çempionata yalnız iştirakçılar baxa bilər"
+                ? isLeague
+                  ? "Bu private liqaya yalnız iştirakçılar baxa bilər"
+                  : "Bu private çempionata yalnız iştirakçılar baxa bilər"
                 : error || undefined
             }
             onRetry={() => void load()}
@@ -125,16 +184,24 @@ export default function ChampionshipMatchPage() {
 
   const scheduled =
     match.status === "SCHEDULED" || match.status === "POSTPONED";
+  const events = [...(match.events ?? [])].sort((a, b) => a.minute - b.minute);
+  const homeEvents = events.filter((event) => event.teamId === match.homeTeamId);
+  const awayEvents = events.filter((event) => event.teamId === match.awayTeamId);
+  const unassignedEvents = events.filter(
+    (event) =>
+      event.teamId !== match.homeTeamId && event.teamId !== match.awayTeamId,
+  );
+  const hasEvents = events.length > 0;
 
   return (
     <div className={`min-h-screen overflow-x-hidden pt-24 pb-20 ${bg}`}>
-      <div className="mx-auto max-w-3xl px-4 sm:px-6">
+      <div className="mx-auto max-w-4xl px-4 sm:px-6">
         <Link
           to={backTo}
           className="mb-4 inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600"
         >
           <ArrowLeft size={15} />
-          Çempionata qayıt
+          {backLabel}
         </Link>
 
         <div className="rounded-3xl border border-gray-200 bg-white/85 p-5 shadow-sm sm:p-8">
@@ -144,8 +211,16 @@ export default function ChampionshipMatchPage() {
                 <span className="rounded-md bg-sky-50 px-2 py-0.5 font-semibold text-sky-700">
                   {STAGE_LABEL[match.stage]}
                 </span>
+              ) : match.round ? (
+                <span className="rounded-md bg-sky-50 px-2 py-0.5 font-semibold text-sky-700">
+                  {match.round}-ci tur
+                </span>
               ) : null}
-              <span>{formatChampWhen(match.scheduledAt)}</span>
+              <span>
+                {isLeague
+                  ? formatMatchStamp(match.scheduledAt)
+                  : formatChampWhen(match.scheduledAt)}
+              </span>
             </div>
             {match.status === "LIVE" ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-2.5 py-1 text-xs font-bold text-white">
@@ -194,16 +269,40 @@ export default function ChampionshipMatchPage() {
             {venueOf(match)}
           </p>
 
-          {(match.events ?? []).length > 0 ? (
+          {hasEvents ? (
             <div className="mt-6 border-t border-gray-100 pt-4">
-              <h3 className="mb-3 text-sm font-bold text-gray-800">Hadisələr</h3>
-              <ul className="space-y-1.5">
-                {(match.events ?? []).map((event) => (
-                  <li key={event.id} className="text-sm text-gray-600">
-                    {eventLine(event)}
-                  </li>
-                ))}
-              </ul>
+              <h3 className="mb-3 text-center text-sm font-bold text-gray-800">
+                Hadisələr
+              </h3>
+              <div className="grid grid-cols-2 gap-x-4 sm:gap-x-8">
+                <ul className="space-y-2.5 border-r border-gray-100 pr-3 sm:pr-5">
+                  {homeEvents.length > 0 ? (
+                    homeEvents.map((event) => (
+                      <EventRow key={event.id} event={event} side="home" />
+                    ))
+                  ) : (
+                    <li className="text-right text-xs text-gray-300">—</li>
+                  )}
+                </ul>
+                <ul className="space-y-2.5 pl-3 sm:pl-5">
+                  {awayEvents.length > 0 ? (
+                    awayEvents.map((event) => (
+                      <EventRow key={event.id} event={event} side="away" />
+                    ))
+                  ) : (
+                    <li className="text-left text-xs text-gray-300">—</li>
+                  )}
+                </ul>
+              </div>
+              {unassignedEvents.length > 0 ? (
+                <ul className="mt-4 space-y-1.5 border-t border-gray-50 pt-3 text-center">
+                  {unassignedEvents.map((event) => (
+                    <li key={event.id} className="text-sm text-gray-500">
+                      {eventIcon(event.type)} {event.minute}' {eventDetail(event)}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
           ) : (
             <p className="mt-6 text-center text-sm text-gray-400">

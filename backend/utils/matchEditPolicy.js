@@ -19,6 +19,8 @@ export const MATCH_ERRORS = {
   LEAGUE_TEAMS_LOCKED_REMOVE:
     "Teams cannot be removed after the league has started.",
   LEAGUE_MIN_TEAMS: "At least 2 teams are required to start the league.",
+  LEAGUE_PENDING_INVITES:
+    "Gözləyən dəvətlər var. Əvvəlcə dəvətlər qəbul olunmalı və ya ləğv edilməlidir.",
   LEAGUE_NOT_DRAFT: "Only a draft league can be started.",
   LEAGUE_NOT_ACTIVE: "Only an active league can be finished.",
   LEAGUE_FINISHED_IMMUTABLE:
@@ -38,6 +40,8 @@ export const MATCH_ERRORS = {
     "Set the match date, time, and location before starting it.",
   CHAMPIONSHIP_FINISH_NEED_FINAL:
     "Finish the final match before finishing the championship.",
+  CHAMPIONSHIP_PENDING_INVITES:
+    "Gözləyən dəvətlər var. Əvvəlcə dəvətlər qəbul olunmalı və ya ləğv edilməlidir.",
   CHAMPIONSHIP_NOT_ACCEPTING_REQUESTS:
     "This championship is no longer accepting team requests.",
   CHAMPIONSHIP_NOT_ACCEPTING_INVITES:

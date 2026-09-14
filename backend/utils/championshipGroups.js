@@ -5,6 +5,16 @@ export const GROUP_COUNT_MAX = 4;
 export const GROUP_CAPACITY_MIN = 3;
 export const GROUP_CAPACITY_MAX = 7;
 
+/** Fisher–Yates shuffle so auto-assign is not join-order sequential. */
+export function shuffleItems(list) {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 /**
  * Validate that team count fits group count × capacities.
  * @param {{

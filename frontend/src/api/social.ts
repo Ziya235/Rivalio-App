@@ -232,6 +232,12 @@ export function respondChallengeRequest(
   });
 }
 
+export function cancelChallengeRequest(requestId: number): Promise<unknown> {
+  return apiFetch(`/api/challenge-requests/${requestId}/cancel`, {
+    method: "POST",
+  });
+}
+
 export function fetchPlayerSearches(): Promise<PlayerSearch[]> {
   return apiFetch<PlayerSearch[]>("/api/player-searches");
 }
@@ -287,5 +293,11 @@ export function respondPlayerSearchRequest(
   return apiFetch(`/api/player-search-requests/${requestId}/respond`, {
     method: "POST",
     body: JSON.stringify({ action }),
+  });
+}
+
+export function cancelPlayerSearchRequest(requestId: number): Promise<unknown> {
+  return apiFetch(`/api/player-search-requests/${requestId}/cancel`, {
+    method: "POST",
   });
 }

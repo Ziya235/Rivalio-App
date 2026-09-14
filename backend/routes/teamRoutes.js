@@ -1,6 +1,7 @@
 import express from "express";
 import { deleteTeam } from "../controllers/teamController.js";
 import {
+  cancelLeagueInvite,
   inviteTeamToLeague,
   listLeagueInvites,
   listLeagueJoinRequests,
@@ -122,6 +123,13 @@ router.get(
   authMiddleware,
   adminMiddleware,
   listLeagueInvites,
+);
+router.delete(
+  "/leagues/:leagueId/team-invites/:inviteId",
+  authMiddleware,
+  adminMiddleware,
+  permissionMiddleware("football", "update"),
+  cancelLeagueInvite,
 );
 
 router.post(

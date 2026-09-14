@@ -1,6 +1,7 @@
 import { prisma } from "../config/db.js";
 import { parsePositiveInt, teamSelect, userBriefSelect } from "../utils/helpers.js";
 import { expirePastListings } from "../utils/expireListings.js";
+import { emitSocialRequestsChanged } from "../socket/socket.emit.js";
 
 const challengeInclude = {
   team: {
@@ -283,6 +284,8 @@ export const requestChallenge = async (req, res) => {
           include,
         });
 
+    emitSocialRequestsChanged([request.challenge.team.captainId]);
+
     return res.status(201).json({
       success: true,
       message: "Challenge request sent",
@@ -311,6 +314,7 @@ export const listMyChallengeNotifications = async (req, res) => {
     const [incoming, outcomes] = await Promise.all([
       prisma.challengeRequest.findMany({
         where: {
+          status: { in: ["PENDING", "ACCEPTED", "REJECTED"] },
           challenge: {
             team: { captainId: req.user.id },
             scheduledAt: { gt: now },
@@ -326,7 +330,8 @@ export const listMyChallengeNotifications = async (req, res) => {
             },
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+        take: 80,
       }),
       prisma.challengeRequest.findMany({
         where: {
@@ -354,6 +359,69 @@ export const listMyChallengeNotifications = async (req, res) => {
     });
   } catch (error) {
     console.log("Error in listMyChallengeNotifications:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const cancelChallengeRequest = async (req, res) => {
+  try {
+    const requestId = parsePositiveInt(req.params.requestId);
+    if (!requestId) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid request id",
+      });
+    }
+
+    const request = await prisma.challengeRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        team: { select: { captainId: true } },
+        challenge: {
+          include: { team: { select: { captainId: true } } },
+        },
+      },
+    });
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Request not found",
+      });
+    }
+
+    if (
+      request.requestedById !== req.user.id &&
+      request.team.captainId !== req.user.id
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the requester can cancel this request",
+      });
+    }
+
+    if (request.status !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        message: "Request is no longer pending",
+      });
+    }
+
+    await prisma.challengeRequest.delete({
+      where: { id: requestId },
+    });
+
+    emitSocialRequestsChanged([request.challenge.team.captainId]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Request cancelled",
+    });
+  } catch (error) {
+    console.log("Error in cancelChallengeRequest:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -414,6 +482,10 @@ export const respondChallengeRequest = async (req, res) => {
         where: { id: requestId },
         data: { status: "REJECTED", respondedAt: new Date() },
       });
+      emitSocialRequestsChanged([
+        request.requestedById,
+        request.challenge.team.captainId,
+      ]);
       return res.status(200).json({
         success: true,
         message: "Request rejected",
@@ -439,6 +511,15 @@ export const respondChallengeRequest = async (req, res) => {
         data: { status: "ACCEPTED", respondedAt: new Date() },
       });
 
+      const leftover = await tx.challengeRequest.findMany({
+        where: {
+          challengeId: request.challengeId,
+          id: { not: requestId },
+          status: "PENDING",
+        },
+        select: { requestedById: true },
+      });
+
       await tx.challengeRequest.updateMany({
         where: {
           challengeId: request.challengeId,
@@ -458,13 +539,23 @@ export const respondChallengeRequest = async (req, res) => {
         include: challengeInclude,
       });
 
-      return { challenge, match };
+      return {
+        challenge,
+        match,
+        leftoverUserIds: leftover.map((row) => row.requestedById),
+      };
     });
+
+    emitSocialRequestsChanged([
+      request.requestedById,
+      request.challenge.team.captainId,
+      ...result.leftoverUserIds,
+    ]);
 
     return res.status(200).json({
       success: true,
       message: "Challenge accepted — match created",
-      data: result,
+      data: { challenge: result.challenge, match: result.match },
     });
   } catch (error) {
     console.log("Error in respondChallengeRequest:", error);

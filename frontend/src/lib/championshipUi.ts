@@ -98,12 +98,65 @@ export function formatChampWhen(iso: string | null | undefined): string {
   return `${d.getDate()} ${AZ_MONTHS[d.getMonth()]} ${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+export function formatMatchStamp(iso: string | null | undefined): string {
+  if (!iso) return "Vaxt təyin edilməyib";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Vaxt təyin edilməyib";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}  ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function formatChampTime(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export function roundLabel(round: number | null | undefined): string | null {
+  if (round == null || !Number.isFinite(round) || round < 1) return null;
+  return `${round}-ci tur`;
+}
+
+function stageRank(stage?: string | null): number {
+  if (!stage || stage === "GROUP_STAGE") return 0;
+  const index = PLAYOFF_STAGES.indexOf(stage as MatchStage);
+  return index >= 0 ? index + 1 : 99;
+}
+
+export function sortMatchesByRound<
+  T extends { id: number; round?: number | null; stage?: string | null },
+>(matches: T[]): T[] {
+  return [...matches].sort(
+    (a, b) =>
+      stageRank(a.stage) - stageRank(b.stage) ||
+      (a.round ?? Number.MAX_SAFE_INTEGER) -
+        (b.round ?? Number.MAX_SAFE_INTEGER) ||
+      a.id - b.id,
+  );
+}
+
+export function groupMatchesByRound<
+  T extends { id: number; round?: number | null; stage?: string | null },
+>(matches: T[]): { key: string; label: string | null; matches: T[] }[] {
+  const groups: { key: string; label: string | null; matches: T[] }[] = [];
+  for (const match of sortMatchesByRound(matches)) {
+    const isGroup = !match.stage || match.stage === "GROUP_STAGE";
+    const key = isGroup
+      ? `round-${match.round ?? "none"}`
+      : `stage-${match.stage}`;
+    const label = isGroup
+      ? roundLabel(match.round)
+      : (STAGE_LABEL[match.stage as MatchStage] ?? null);
+    const last = groups[groups.length - 1];
+    if (!last || last.key !== key) {
+      groups.push({ key, label, matches: [match] });
+    } else {
+      last.matches.push(match);
+    }
+  }
+  return groups;
 }
 
 export function formatCountdown(iso: string | null | undefined): string | null {

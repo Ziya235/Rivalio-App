@@ -50,6 +50,8 @@ import {
   fetchPlayerSearches,
   requestChallenge,
   requestJoinPlayerSearch,
+  cancelChallengeRequest,
+  cancelPlayerSearchRequest,
   respondChallengeRequest,
   respondPlayerSearchRequest,
   type Challenge,
@@ -62,9 +64,7 @@ const TABS = [
   "Komanda profilim",
   "Oyunçu axtarışı",
   "Challenge",
-  "Public liqalar",
   "Liqalar",
-  "Public çempionatlar",
   "Çempionatlar",
 ] as const;
 
@@ -74,9 +74,7 @@ const TAB_SLUG: Record<Tab, string> = {
   "Komanda profilim": "team",
   "Oyunçu axtarışı": "players",
   Challenge: "challenge",
-  "Public liqalar": "leagues",
   Liqalar: "all-leagues",
-  "Public çempionatlar": "public-championships",
   Çempionatlar: "championships",
 };
 
@@ -87,9 +85,13 @@ const LEAGUE_STATUS_LABEL: Record<League["status"], string> = {
   CANCELLED: "Ləğv",
 };
 
-const SLUG_TAB = Object.fromEntries(
-  Object.entries(TAB_SLUG).map(([label, slug]) => [slug, label]),
-) as Record<string, Tab>;
+const SLUG_TAB = {
+  ...Object.fromEntries(
+    Object.entries(TAB_SLUG).map(([label, slug]) => [slug, label]),
+  ),
+  leagues: "Liqalar",
+  "public-championships": "Çempionatlar",
+} as Record<string, Tab>;
 type ModalKind = "team" | "playerSearch" | "challenge" | null;
 
 const MIN_MATCH_LEAD_MS = 60 * 60 * 1000;
@@ -501,6 +503,32 @@ export default function FootballPage() {
     }
   };
 
+  const onCancelPlayerSearchRequest = async (requestId: number) => {
+    setBusy(true);
+    try {
+      await cancelPlayerSearchRequest(requestId);
+      flash("Sorğu ləğv edildi");
+      await load();
+    } catch (err) {
+      flash(err instanceof Error ? err.message : "Xəta", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onCancelChallengeRequest = async (requestId: number) => {
+    setBusy(true);
+    try {
+      await cancelChallengeRequest(requestId);
+      flash("Sorğu ləğv edildi");
+      await load();
+    } catch (err) {
+      flash(err instanceof Error ? err.message : "Xəta", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const captainOptions = [
     { label: "Komanda seçin", value: "" },
     ...captainTeams.map((t) => ({ label: t.name, value: String(t.id) })),
@@ -519,8 +547,6 @@ export default function FootballPage() {
     league.myJoinRequests?.find(
       (request) => request.teamId === teamId && request.status === "PENDING",
     );
-
-  const publicLeagues = leagues.filter((l) => l.visibility === "PUBLIC");
 
   const openLeague = (league: League) => {
     if (league.canView === false) {
@@ -679,10 +705,6 @@ export default function FootballPage() {
         </div>
       )}
     </div>
-  );
-
-  const publicChampionships = championships.filter(
-    (c) => c.visibility === "PUBLIC",
   );
 
   const openChampionship = (item: ChampionshipListItem) => {
@@ -1119,7 +1141,8 @@ export default function FootballPage() {
                         s.hostTeam.captainId === user.id ||
                         s.hostTeam.captain?.username === user.username
                       ) ? (
-                        s.myRequest?.status === "PENDING" ? (
+                        s.myRequest?.status === "PENDING" && s.myRequest.id ? (
+                        <div className="flex flex-wrap items-center gap-2">
                         <span
                           className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${
                             light
@@ -1130,6 +1153,18 @@ export default function FootballPage() {
                           <Hourglass size={13} />
                           Gözləyir
                         </span>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          disabled={busy}
+                          onClick={() =>
+                            void onCancelPlayerSearchRequest(s.myRequest!.id)
+                          }
+                        >
+                          <X size={14} />
+                          Ləğv et
+                        </Button>
+                        </div>
                       ) : s.myRequest?.status === "ACCEPTED" ? (
                         <span
                           className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${
@@ -1458,7 +1493,8 @@ export default function FootballPage() {
                     ) : null}
                       </div>
                       {!isHost ? (
-                        c.myRequest?.status === "PENDING" ? (
+                        c.myRequest?.status === "PENDING" && c.myRequest.id ? (
+                          <div className="flex flex-wrap items-center gap-2">
                           <span
                             className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${
                               light
@@ -1469,6 +1505,18 @@ export default function FootballPage() {
                             <Hourglass size={13} />
                             Gözləyir
                           </span>
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            disabled={busy}
+                            onClick={() =>
+                              void onCancelChallengeRequest(c.myRequest!.id)
+                            }
+                          >
+                            <X size={14} />
+                            Ləğv et
+                          </Button>
+                          </div>
                         ) : c.myRequest?.status === "ACCEPTED" ||
                           c.status === "ACCEPTED" ? (
                           <span
@@ -1712,29 +1760,11 @@ export default function FootballPage() {
           </div>
         ) : null}
 
-        {/* ── Public liqalar ── */}
-        {!loading && !error && tab === "Public liqalar"
-          ? renderLeagueList(
-              publicLeagues,
-              "Public liqa yoxdur",
-              "Public liqalara baxın və DRAFT statusunda kapitan kimi sorğu göndərin",
-            )
-          : null}
-
-        {/* ── Liqalar ── */}
         {!loading && !error && tab === "Liqalar"
           ? renderLeagueList(
               leagues,
               "Liqa yoxdur",
               "Public və private liqalar. Private liqanın içinə yalnız iştirakçılar girə bilər",
-            )
-          : null}
-
-        {!loading && !error && tab === "Public çempionatlar"
-          ? renderChampionshipList(
-              publicChampionships,
-              "Public çempionat yoxdur",
-              "Public çempionatlara baxın və DRAFT statusunda kapitan kimi sorğu göndərin",
             )
           : null}
 

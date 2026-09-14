@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Bell, CheckCircle2, XCircle } from "lucide-react";
 import { Avatar } from "./ui";
 import { NotificationTime } from "./NotificationTime";
+import { subscribeSocketEvent } from "../services/socket";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 import { acceptFriendRequest, rejectFriendRequest } from "../api/friends";
@@ -45,6 +46,12 @@ function playerSearchLabel(
   incoming: boolean,
 ) {
   if (incoming) {
+    if (request.status === "ACCEPTED") {
+      return "oyunçu axtarışı sorğusunu qəbul etdiniz";
+    }
+    if (request.status === "REJECTED") {
+      return "oyunçu axtarışı sorğusunu rədd etdiniz";
+    }
     return "komandanızın oyunçu axtarışına qoşulmaq istəyir";
   }
   if (request.status === "ACCEPTED") {
@@ -110,6 +117,7 @@ export default function NotificationBell({
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
   const {
+    isConnected,
     notifications,
     unreadCount,
     refreshNotifications,
@@ -176,6 +184,13 @@ export default function NotificationBell({
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [loadExtraNotifications]);
+
+  useEffect(() => {
+    if (!user || !isConnected) return;
+    return subscribeSocketEvent("social_requests_changed", () => {
+      void loadExtraNotifications();
+    });
+  }, [user, isConnected, loadExtraNotifications]);
 
   useEffect(() => {
     if (!open) return;
@@ -537,13 +552,13 @@ export default function NotificationBell({
                               </button>
                             </div>
                           ) : null}
-                          {!pending && accepted && !entry.incoming ? (
+                          {!pending && accepted ? (
                             <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-500">
                               <CheckCircle2 size={13} />
                               Qəbul edildi
                             </p>
                           ) : null}
-                          {!pending && rejected && !entry.incoming ? (
+                          {!pending && rejected ? (
                             <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-rose-400">
                               <XCircle size={13} />
                               {request.status === "CANCELLED"
@@ -626,13 +641,13 @@ export default function NotificationBell({
                               </button>
                             </div>
                           ) : null}
-                          {!pending && accepted && !entry.incoming ? (
+                          {!pending && accepted ? (
                             <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-500">
                               <CheckCircle2 size={13} />
                               Qəbul edildi
                             </p>
                           ) : null}
-                          {!pending && rejected && !entry.incoming ? (
+                          {!pending && rejected ? (
                             <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-rose-400">
                               <XCircle size={13} />
                               Rədd edildi

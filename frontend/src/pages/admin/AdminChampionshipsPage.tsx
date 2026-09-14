@@ -66,11 +66,10 @@ function statusClass(status: ChampionshipStatus): string {
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("az-AZ", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
 }
 
 export function AdminChampionshipsPage() {

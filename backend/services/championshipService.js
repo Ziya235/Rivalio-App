@@ -21,9 +21,10 @@ import {
   GROUP_CHAMP_TEAM_MIN,
   GROUP_COUNT_MAX,
   GROUP_COUNT_MIN,
+  shuffleItems,
   validateGroupSlots,
 } from "../utils/championshipGroups.js";
-import { createNotification } from "./notificationService.js";
+import { createNotification, deleteNotificationsForEntity } from "./notificationService.js";
 import {
   MatchClockError,
   buildStatusUpdate,
@@ -562,6 +563,15 @@ function occupiedChampionshipSlots(c) {
   return (c.teams?.length ?? 0) + pending;
 }
 
+async function assertNoPendingChampionshipInvites(championshipId) {
+  const pending = await prisma.championshipTeamInvite.count({
+    where: { championshipId, status: "PENDING" },
+  });
+  if (pending > 0) {
+    throw httpError(MATCH_ERRORS.CHAMPIONSHIP_PENDING_INVITES);
+  }
+}
+
 async function markChampionshipInviteNotificationsRead(userId, inviteId) {
   await prisma.notification.updateMany({
     where: {
@@ -666,6 +676,11 @@ export async function cancelChampionshipTeamInvite(
   await prisma.championshipTeamInvite.update({
     where: { id: inviteId },
     data: { status: "CANCELLED", respondedAt: new Date() },
+  });
+
+  await deleteNotificationsForEntity({
+    type: "CHAMPIONSHIP_INVITE",
+    entityId: inviteId,
   });
 
   return getChampionship(c.id, userId);
@@ -912,7 +927,7 @@ export async function createGroups(championshipId, userId, body) {
       }
 
       if (body.autoAssign && c.teams.length > 0) {
-        const teamIds = c.teams.map((t) => t.teamId);
+        const teamIds = shuffleItems(c.teams.map((t) => t.teamId));
         await tx.championshipGroupTeam.deleteMany({
           where: { group: { championshipId: c.id } },
         });
@@ -1134,6 +1149,7 @@ export async function startGroupStage(championshipId, userId) {
   const previous = await getOwnedChampionship(championshipId, userId, {
     include: undefined,
   });
+  await assertNoPendingChampionshipInvites(previous.id);
   const prevStatus = previous.status;
   await transitionChampionshipStatus(championshipId, userId, "GROUP_STAGE");
   try {
@@ -1327,7 +1343,7 @@ export async function listChampionshipMatches(championshipId, userId, query = {}
     await prisma.match.findMany({
       where,
       include: matchInclude,
-      orderBy: [{ scheduledAt: { sort: "asc", nulls: "first" } }, { id: "asc" }],
+      orderBy: [{ round: "asc" }, { id: "asc" }],
     }),
   );
 }
@@ -1747,6 +1763,9 @@ export async function startPlayoff(
   if (isPlayoffOnly) {
     if (!["DRAFT", "REGISTRATION", "PLAYOFF"].includes(c.status)) {
       throw httpError("Playoff can only start from draft or registration");
+    }
+    if (c.status === "DRAFT" || c.status === "REGISTRATION") {
+      await assertNoPendingChampionshipInvites(c.id);
     }
     const teamIds = c.teams.map((t) => t.teamId);
     if (!PLAYOFF_ONLY_SIZES.includes(teamIds.length)) {
@@ -2271,7 +2290,7 @@ export async function listVisibleChampionshipMatches(championshipId, userId, que
     await prisma.match.findMany({
       where,
       include: matchInclude,
-      orderBy: [{ scheduledAt: { sort: "asc", nulls: "first" } }, { id: "asc" }],
+      orderBy: [{ round: "asc" }, { id: "asc" }],
     }),
   );
 }

@@ -174,6 +174,16 @@ export const startLeague = async (req, res) => {
       });
     }
 
+    const pendingInvites = await prisma.leagueTeamInvite.count({
+      where: { leagueId, status: "PENDING" },
+    });
+    if (pendingInvites > 0) {
+      return res.status(400).json({
+        success: false,
+        message: MATCH_ERRORS.LEAGUE_PENDING_INVITES,
+      });
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
       await tx.league.update({
         where: { id: leagueId },

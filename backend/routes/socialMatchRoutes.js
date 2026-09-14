@@ -1,6 +1,7 @@
 import express from "express";
 import {
   cancelChallenge,
+  cancelChallengeRequest,
   createChallenge,
   listMyChallengeNotifications,
   listChallenges,
@@ -8,6 +9,7 @@ import {
   respondChallengeRequest,
 } from "../controllers/challengeController.js";
 import {
+  cancelPlayerSearchRequest,
   createFriendly,
   createPlayerSearch,
   listMyPlayerSearchNotifications,
@@ -32,6 +34,11 @@ router.post(
   authMiddleware,
   respondChallengeRequest,
 );
+router.post(
+  "/challenge-requests/:requestId/cancel",
+  authMiddleware,
+  cancelChallengeRequest,
+);
 router.delete("/challenges/:challengeId", authMiddleware, cancelChallenge);
 
 router.get("/player-searches", authMiddleware, listPlayerSearches);
@@ -51,6 +58,11 @@ router.post(
   "/player-search-requests/:requestId/respond",
   authMiddleware,
   respondPlayerSearchRequest,
+);
+router.post(
+  "/player-search-requests/:requestId/cancel",
+  authMiddleware,
+  cancelPlayerSearchRequest,
 );
 
 export default router;

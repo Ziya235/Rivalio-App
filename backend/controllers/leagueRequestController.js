@@ -5,7 +5,10 @@ import {
   MATCH_ERRORS,
   isLeagueAcceptingTeams,
 } from "../utils/matchEditPolicy.js";
-import { createNotification } from "../services/notificationService.js";
+import {
+  createNotification,
+  deleteNotificationsForEntity,
+} from "../services/notificationService.js";
 
 async function notifyLeagueInvite(userId, actorId, inviteId) {
   if (!userId || userId === actorId) return;
@@ -253,6 +256,93 @@ export const listLeagueInvites = async (req, res) => {
     return res.status(200).json({ success: true, data: invites });
   } catch (error) {
     console.log("Error in listLeagueInvites:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const cancelLeagueInvite = async (req, res) => {
+  try {
+    const leagueId = parsePositiveInt(req.params.leagueId);
+    const inviteId = parsePositiveInt(req.params.inviteId);
+
+    if (!leagueId || !inviteId) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid league or invite id",
+      });
+    }
+
+    const league = await prisma.league.findUnique({
+      where: { id: leagueId },
+      select: { id: true, createdById: true, status: true },
+    });
+
+    if (!league) {
+      return res.status(404).json({
+        success: false,
+        message: "League not found",
+      });
+    }
+
+    if (league.createdById !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only cancel invites for your own league",
+      });
+    }
+
+    if (!isLeagueAcceptingTeams(league.status)) {
+      return res.status(400).json({
+        success: false,
+        message: MATCH_ERRORS.LEAGUE_NOT_ACCEPTING_INVITES,
+      });
+    }
+
+    const invite = await prisma.leagueTeamInvite.findFirst({
+      where: { id: inviteId, leagueId },
+      include: {
+        team: { select: { captainId: true } },
+      },
+    });
+
+    if (!invite) {
+      return res.status(404).json({
+        success: false,
+        message: "Invite not found",
+      });
+    }
+
+    if (invite.status !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        message: "Invite is no longer pending",
+      });
+    }
+
+    const updated = await prisma.leagueTeamInvite.update({
+      where: { id: inviteId },
+      data: {
+        status: "CANCELLED",
+        respondedAt: new Date(),
+      },
+      include: inviteInclude,
+    });
+
+    await deleteNotificationsForEntity({
+      type: "LEAGUE_INVITE",
+      entityId: invite.id,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Invite cancelled",
+      data: updated,
+    });
+  } catch (error) {
+    console.log("Error in cancelLeagueInvite:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",

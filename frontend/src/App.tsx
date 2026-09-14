@@ -231,6 +231,10 @@ export default function App() {
           <Route path="teams/:teamId" element={<TeamDetailPage />} />
           <Route path="find-opponent" element={<FindOpponentPage />} />
           <Route path="leagues/:leagueId" element={<LeagueDetailPage />} />
+          <Route
+            path="leagues/:leagueId/matches/:matchId"
+            element={<ChampionshipMatchPage />}
+          />
           <Route path="players/:playerId" element={<PlayerProfilePage />} />
           <Route path="users/:userId" element={<PlayerProfilePage />} />
           <Route path="chat" element={<ChatPage />} />

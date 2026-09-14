@@ -27,7 +27,7 @@ export function ChampionshipHeader({
 
   return (
     <>
-    <div className="sticky top-16 z-20 -mx-4 border-b border-emerald-100/80 bg-white/85 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6">
+    <div className="-mx-4 border-b border-emerald-100/80 bg-white/85 px-4 py-3 sm:-mx-6 sm:px-6">
       <div className="mx-auto max-w-[1100px]">
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-gray-500">
           <Link to="/sports/football" className="hover:text-emerald-600">

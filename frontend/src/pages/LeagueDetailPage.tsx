@@ -18,6 +18,7 @@ import { mediaUrl } from "../api/base";
 import type { League, LeaguePlayerRow, StandingRow } from "../types/league";
 import type { Match, MatchStatus } from "../types/match";
 import type { AppOutletContext } from "../App";
+import { formatMatchStamp, groupMatchesByRound } from "../lib/championshipUi";
 
 type TabId = "standings" | "matches" | "goals" | "assists" | "ga";
 
@@ -40,16 +41,6 @@ const STATUS_LABEL: Record<MatchStatus, string> = {
 function formatDiff(value: number): string {
   if (value > 0) return `+${value}`;
   return String(value);
-}
-
-function formatWhen(iso: string | null | undefined): string {
-  if (!iso) return "Vaxt təyin edilməyib";
-  return new Date(iso).toLocaleString("az-AZ", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 function playerName(row: LeaguePlayerRow): string {
@@ -87,6 +78,7 @@ export default function LeagueDetailPage() {
   const [standings, setStandings] = useState<StandingRow[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [players, setPlayers] = useState<LeaguePlayerRow[]>([]);
+  const [matchView, setMatchView] = useState<"all" | "live">("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,27 +122,8 @@ export default function LeagueDetailPage() {
         .filter((m) => m.status === "LIVE")
         .sort(
           (a, b) =>
-            new Date(a.scheduledAt ?? 0).getTime() - new Date(b.scheduledAt ?? 0).getTime(),
-        ),
-    [matches],
-  );
-  const scheduledMatches = useMemo(
-    () =>
-      matches
-        .filter((m) => m.status === "SCHEDULED")
-        .sort(
-          (a, b) =>
-            new Date(a.scheduledAt ?? 0).getTime() - new Date(b.scheduledAt ?? 0).getTime(),
-        ),
-    [matches],
-  );
-  const finishedMatches = useMemo(
-    () =>
-      matches
-        .filter((m) => m.status === "FINISHED")
-        .sort(
-          (a, b) =>
-            new Date(b.scheduledAt ?? 0).getTime() - new Date(a.scheduledAt ?? 0).getTime(),
+            (a.round ?? Number.MAX_SAFE_INTEGER) -
+              (b.round ?? Number.MAX_SAFE_INTEGER) || a.id - b.id,
         ),
     [matches],
   );
@@ -251,38 +224,26 @@ export default function LeagueDetailPage() {
     );
   }
 
-  const renderMatchGroup = (title: string, rows: Match[]) => (
-    <section className={`overflow-hidden rounded-2xl border ${card}`}>
-      <div
-        className={`flex items-center justify-between border-b px-4 py-3 ${borderSoft}`}
-      >
-        <h3 className={`text-sm font-bold ${ink}`}>{title}</h3>
-        <span className={`text-xs font-semibold ${muted}`}>{rows.length}</span>
-      </div>
-      {rows.length === 0 ? (
-        <p className={`px-4 py-8 text-center text-sm ${muted}`}>
-          Bu bölmədə oyun yoxdur.
-        </p>
-      ) : (
-        <ul className={`divide-y ${divide}`}>
-          {rows.map((match) => (
-            <li
-              key={match.id}
-              className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:gap-4"
-            >
+  const renderMatchRow = (match: Match) => (
+            <li key={match.id}>
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(`/leagues/${leagueId}/matches/${match.id}`)
+                }
+                className={`flex w-full cursor-pointer flex-col gap-3 px-4 py-4 text-left transition sm:flex-row sm:items-center sm:gap-4 ${rowHover}`}
+              >
               <div
-                className={`flex w-full shrink-0 items-center gap-2 text-xs sm:w-36 sm:flex-col sm:items-start sm:gap-1 ${muted}`}
+                className={`flex w-full shrink-0 items-center gap-2 text-xs sm:w-44 sm:flex-col sm:items-start sm:gap-1 ${muted}`}
               >
                 <span
                   className={`inline-flex items-center gap-1 font-medium ${soft}`}
                 >
                   <Calendar className="h-3.5 w-3.5" />
-                  {formatWhen(match.scheduledAt)}
+                  {formatMatchStamp(match.scheduledAt)}
                 </span>
                 <span className="truncate">
-                  {match.round
-                    ? `${match.round}-ci tur`
-                    : match.venue || "Meydan yoxdur"}
+                  {match.venue || "Meydan yoxdur"}
                 </span>
               </div>
               <div className="grid min-w-0 flex-1 grid-cols-[1fr_auto_1fr] items-center gap-3">
@@ -359,12 +320,44 @@ export default function LeagueDetailPage() {
                   {STATUS_LABEL[match.status]}
                 </span>
               </div>
+              </button>
             </li>
-          ))}
-        </ul>
-      )}
-    </section>
   );
+
+  const renderRoundMatchList = (rows: Match[], empty: string) => {
+    const groups = groupMatchesByRound(rows);
+    if (rows.length === 0) {
+      return (
+        <section className={`overflow-hidden rounded-2xl border ${card}`}>
+          <p className={`px-4 py-8 text-center text-sm ${muted}`}>{empty}</p>
+        </section>
+      );
+    }
+    return (
+      <div className="space-y-4">
+        {groups.map((group) => (
+          <section
+            key={group.key}
+            className={`overflow-hidden rounded-2xl border ${card}`}
+          >
+            <div
+              className={`flex items-center justify-between border-b px-4 py-3 ${borderSoft}`}
+            >
+              <h3 className={`text-sm font-bold ${ink}`}>
+                {group.label ?? "Oyunlar"}
+              </h3>
+              <span className={`text-xs font-semibold ${muted}`}>
+                {group.matches.length} oyun
+              </span>
+            </div>
+            <ul className={`divide-y ${divide}`}>
+              {group.matches.map((match) => renderMatchRow(match))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    );
+  };
 
   const renderPlayerTable = (
     rows: LeaguePlayerRow[],
@@ -644,9 +637,49 @@ export default function LeagueDetailPage() {
 
         {activeTab === "matches" ? (
           <div className="space-y-5">
-            {renderMatchGroup("Canlı", liveMatches)}
-            {renderMatchGroup("Planlı", scheduledMatches)}
-            {renderMatchGroup("Bitmiş", finishedMatches)}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setMatchView("all")}
+                className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+                  matchView === "all"
+                    ? light
+                      ? "bg-gray-900 text-white"
+                      : "bg-white text-[#08080e]"
+                    : light
+                      ? "bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50"
+                      : "bg-white/5 text-white/70 ring-1 ring-white/10 hover:bg-white/10"
+                }`}
+              >
+                Bütün oyunlar
+              </button>
+              <button
+                type="button"
+                onClick={() => setMatchView("live")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+                  matchView === "live"
+                    ? "bg-rose-600 text-white"
+                    : light
+                      ? "bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50"
+                      : "bg-white/5 text-white/70 ring-1 ring-white/10 hover:bg-white/10"
+                }`}
+              >
+                {liveMatches.length > 0 ? (
+                  <Radio className="h-3.5 w-3.5 animate-pulse" />
+                ) : null}
+                Canlı
+                <span className="text-xs opacity-80">{liveMatches.length}</span>
+              </button>
+            </div>
+            {matchView === "live"
+              ? renderRoundMatchList(
+                  liveMatches,
+                  "Hazırda canlı oyun yoxdur.",
+                )
+              : renderRoundMatchList(
+                  matches,
+                  "Bu liqada hələ oyun yoxdur.",
+                )}
           </div>
         ) : null}
 

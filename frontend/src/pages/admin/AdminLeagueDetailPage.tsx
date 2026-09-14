@@ -26,6 +26,7 @@ import {
   inputClass,
 } from "../../components/admin/AdminModal";
 import {
+  cancelLeagueInvite,
   deleteTeam,
   fetchLeagueInvites,
   fetchLeagueJoinRequests,
@@ -49,6 +50,7 @@ import {
 import type { League, LeaguePlayerRow, StandingRow } from "../../types/league";
 import type { Match, MatchStatus } from "../../types/match";
 import { useSocket } from "../../context/SocketContext";
+import { groupMatchesByRound } from "../../lib/championshipUi";
 
 type TabId = "standings" | "matches" | "goals" | "assists" | "ga";
 
@@ -195,7 +197,6 @@ function MatchRow({
                 match.venue ? "text-slate-500" : "text-slate-400"
               }`}
             >
-              {match.round ? `${match.round}-ci tur · ` : ""}
               {match.venue || "Məkan təyin edilməyib"}
             </span>
           </div>
@@ -259,40 +260,54 @@ function MatchRow({
   );
 }
 
-function MatchGroup({
-  title,
-  rows,
+function RoundMatchList({
+  matches,
+  empty,
   onSelect,
   onEnter,
 }: {
-  title: string;
-  rows: Match[];
+  matches: Match[];
+  empty: string;
   onSelect: (match: Match) => void;
   onEnter: (match: Match) => void;
 }) {
+  const groups = groupMatchesByRound(matches);
+  if (matches.length === 0) {
+    return (
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <p className="px-4 py-8 text-center text-sm text-slate-500">{empty}</p>
+      </section>
+    );
+  }
+
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-        <h3 className="text-sm font-bold text-ink">{title}</h3>
-        <span className="text-xs font-semibold text-slate-400">{rows.length}</span>
-      </div>
-      {rows.length === 0 ? (
-        <p className="px-4 py-8 text-center text-sm text-slate-500">
-          Bu bölmədə oyun yoxdur.
-        </p>
-      ) : (
-        <ul className="divide-y divide-slate-100">
-          {rows.map((match) => (
-            <MatchRow
-              key={match.id}
-              match={match}
-              onSelect={onSelect}
-              onEnter={onEnter}
-            />
-          ))}
-        </ul>
-      )}
-    </section>
+    <div className="space-y-4">
+      {groups.map((group) => (
+        <section
+          key={group.key}
+          className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+        >
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+            <h3 className="text-sm font-bold text-ink">
+              {group.label ?? "Oyunlar"}
+            </h3>
+            <span className="text-xs font-semibold text-slate-400">
+              {group.matches.length} oyun
+            </span>
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {group.matches.map((match) => (
+              <MatchRow
+                key={match.id}
+                match={match}
+                onSelect={onSelect}
+                onEnter={onEnter}
+              />
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
   );
 }
 
@@ -422,6 +437,9 @@ export function AdminLeagueDetailPage() {
   } | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [respondingId, setRespondingId] = useState<number | null>(null);
+  const [cancellingInviteId, setCancellingInviteId] = useState<number | null>(
+    null,
+  );
 
   const [teamSearch, setTeamSearch] = useState("");
   const [allTeams, setAllTeams] = useState<TeamSummary[]>([]);
@@ -440,6 +458,7 @@ export function AdminLeagueDetailPage() {
   const [scheduleVenue, setScheduleVenue] = useState("");
   const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [matchView, setMatchView] = useState<"all" | "live">("all");
 
   const { notifications } = useSocket();
   const leagueNoticeSignature = notifications
@@ -518,27 +537,8 @@ export function AdminLeagueDetailPage() {
         .filter((m) => m.status === "LIVE")
         .sort(
           (a, b) =>
-            new Date(a.scheduledAt ?? 0).getTime() - new Date(b.scheduledAt ?? 0).getTime(),
-        ),
-    [matches],
-  );
-  const scheduledMatches = useMemo(
-    () =>
-      matches
-        .filter((m) => m.status === "SCHEDULED")
-        .sort(
-          (a, b) =>
-            new Date(a.scheduledAt ?? 0).getTime() - new Date(b.scheduledAt ?? 0).getTime(),
-        ),
-    [matches],
-  );
-  const finishedMatches = useMemo(
-    () =>
-      matches
-        .filter((m) => m.status === "FINISHED")
-        .sort(
-          (a, b) =>
-            new Date(b.scheduledAt ?? 0).getTime() - new Date(a.scheduledAt ?? 0).getTime(),
+            (a.round ?? Number.MAX_SAFE_INTEGER) -
+              (b.round ?? Number.MAX_SAFE_INTEGER) || a.id - b.id,
         ),
     [matches],
   );
@@ -709,6 +709,18 @@ export function AdminLeagueDetailPage() {
     }
   };
 
+  const handleCancelInvite = async (inviteId: number) => {
+    setCancellingInviteId(inviteId);
+    try {
+      await cancelLeagueInvite(leagueId, inviteId);
+      await load({ silent: true });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Dəvət ləğv olunmadı");
+    } finally {
+      setCancellingInviteId(null);
+    }
+  };
+
   const closeGenerateModal = () => {
     if (generating) return;
     setGenerateOpen(false);
@@ -763,6 +775,13 @@ export function AdminLeagueDetailPage() {
   };
 
   const handleStartLeague = async () => {
+    const stillPending = invites.filter((i) => i.status === "PENDING");
+    if (stillPending.length > 0) {
+      setGenerateError(
+        "Gözləyən dəvətlər var. Əvvəlcə dəvətlər qəbul olunmalı və ya ləğv edilməlidir.",
+      );
+      return;
+    }
     if (standings.length < 2) {
       setGenerateError("Liqanı başlatmaq üçün ən azı 2 komanda lazımdır");
       return;
@@ -843,13 +862,18 @@ export function AdminLeagueDetailPage() {
               </button>
               <button
                 type="button"
-                disabled={standings.length < 2}
+                disabled={standings.length < 2 || pendingInvites.length > 0}
                 onClick={() => {
                   setGenerateError(null);
                   setGenerateHomeAway(league.matchFormat === "HOME_AWAY");
                   setGenerateOpen(true);
                 }}
                 className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-ink shadow-sm hover:bg-brand-dark disabled:opacity-50"
+                title={
+                  pendingInvites.length > 0
+                    ? "Gözləyən dəvətlər var. Əvvəlcə dəvətlər qəbul olunmalı və ya ləğv edilməlidir."
+                    : undefined
+                }
               >
                 <Play className="h-4 w-4" />
                 Liqanı başlat
@@ -929,9 +953,42 @@ export function AdminLeagueDetailPage() {
       ) : null}
 
       {pendingInvites.length > 0 && league.status === "DRAFT" ? (
-        <div className="mb-6 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
-          <span className="font-semibold text-ink">Gözləyən dəvətlər: </span>
-          {pendingInvites.map((i) => i.team.name).join(", ")}
+        <div className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-4 py-3">
+            <h2 className="text-base font-bold text-ink">
+              Gözləyən dəvətlər ({pendingInvites.length})
+            </h2>
+            <p className="text-xs text-slate-500">
+              Kapitanın təsdiqini gözləyən dəvətlər. Ləğv etsəniz, komanda artıq
+              qəbul edə bilməz. Liqa bu dəvətlər qəbul olunmadan və ya ləğv
+              edilmədən başladılmır.
+            </p>
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {pendingInvites.map((invite) => (
+              <li
+                key={invite.id}
+                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold text-ink">{invite.team.name}</p>
+                  <p className="text-xs font-medium text-amber-600">
+                    Kapitanın təsdiqi gözlənilir
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={cancellingInviteId === invite.id}
+                  onClick={() => void handleCancelInvite(invite.id)}
+                  className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+                  title="Dəvəti ləğv et"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Ləğv et
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
 
@@ -1076,29 +1133,54 @@ export function AdminLeagueDetailPage() {
       {activeTab === "matches" ? (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setMatchView("all")}
+                className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+                  matchView === "all"
+                    ? "bg-ink text-white"
+                    : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                Bütün oyunlar
+              </button>
+              <button
+                type="button"
+                onClick={() => setMatchView("live")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+                  matchView === "live"
+                    ? "bg-rose-600 text-white"
+                    : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                {liveMatches.length > 0 ? (
+                  <Radio className="h-3.5 w-3.5 animate-pulse" />
+                ) : null}
+                Canlı
+                <span className="text-xs opacity-80">{liveMatches.length}</span>
+              </button>
+            </div>
             <p className="text-sm text-slate-500">
               {standings.length} komanda · {matches.length} oyun
               {league.status === "FINISHED" ? " · Yalnız oxu" : ""}
             </p>
           </div>
-          <MatchGroup
-            title="Canlı"
-            rows={liveMatches}
-            onSelect={openSchedule}
-            onEnter={enterMatch}
-          />
-          <MatchGroup
-            title="Planlı"
-            rows={scheduledMatches}
-            onSelect={openSchedule}
-            onEnter={enterMatch}
-          />
-          <MatchGroup
-            title="Bitmiş"
-            rows={finishedMatches}
-            onSelect={openSchedule}
-            onEnter={enterMatch}
-          />
+          {matchView === "live" ? (
+            <RoundMatchList
+              matches={liveMatches}
+              empty="Hazırda canlı oyun yoxdur."
+              onSelect={openSchedule}
+              onEnter={enterMatch}
+            />
+          ) : (
+            <RoundMatchList
+              matches={matches}
+              empty="Bu liqada hələ oyun yoxdur."
+              onSelect={openSchedule}
+              onEnter={enterMatch}
+            />
+          )}
         </div>
       ) : null}
 
@@ -1345,7 +1427,11 @@ export function AdminLeagueDetailPage() {
             />
             <button
               type="button"
-              disabled={generating || standings.length < 2}
+              disabled={
+                generating ||
+                standings.length < 2 ||
+                pendingInvites.length > 0
+              }
               onClick={() => void handleStartLeague()}
               className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-ink shadow-sm hover:bg-brand-dark disabled:opacity-60"
             >

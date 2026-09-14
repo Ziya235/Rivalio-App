@@ -15,7 +15,7 @@ import {
   ChampionshipTabs,
   type ChampionshipTabId,
 } from "../components/championship/ChampionshipTabs";
-import { ChampError, ChampSkeleton } from "../components/championship/ChampShared";
+import { ChampError, ChampionshipDetailSkeleton } from "../components/championship/ChampShared";
 import { TopScorers } from "../components/championship/TopScorers";
 import { Button } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
@@ -52,10 +52,6 @@ export default function ChampionshipDetailPage() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [matchFilter, setMatchFilter] = useState<
-    "upcoming" | "live" | "finished"
-  >("upcoming");
-
   const tabParam = searchParams.get("tab");
   const activeTab: ChampionshipTabId = TAB_IDS.includes(
     tabParam as ChampionshipTabId,
@@ -166,9 +162,9 @@ export default function ChampionshipDetailPage() {
 
   if (loading) {
     return (
-      <div className={`min-h-screen pt-24 ${bg}`}>
+      <div className={`min-h-screen pt-24 pb-20 ${bg}`}>
         <div className="mx-auto max-w-[1100px] px-4 sm:px-6">
-          <ChampSkeleton count={4} />
+          <ChampionshipDetailSkeleton />
         </div>
       </div>
     );
@@ -227,13 +223,11 @@ export default function ChampionshipDetailPage() {
             <ChampionshipPlayoff matches={matches} onOpenMatch={openMatch} />
           ) : null}
           {activeTab === "scorers" ? (
-            <TopScorers rows={statistics.players} teams={statistics.teams} />
+            <TopScorers rows={statistics.players} />
           ) : null}
           {activeTab === "matches" ? (
             <ChampionshipMatches
               matches={matches}
-              filter={matchFilter}
-              onFilterChange={setMatchFilter}
               onOpenMatch={openMatch}
             />
           ) : null}
