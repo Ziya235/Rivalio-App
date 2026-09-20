@@ -1,0 +1,6 @@
+export { AboutHeader } from './AboutHeader'
+export { AboutStats } from './AboutStats'
+export { AboutMission } from './AboutMission'
+export { AboutValues } from './AboutValues'
+export { AboutSteps } from './AboutSteps'
+export { AboutCta } from './AboutCta'

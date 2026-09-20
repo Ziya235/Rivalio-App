@@ -33,7 +33,6 @@ export default function Header({
   const isLoggedIn = !!user
   const fullName = user ? `${user.firstName} ${user.lastName}`.trim() : ''
   const displayName = user?.firstName || user?.username || ''
-  const navLinks = NAV_LINKS.filter((link) => !(isAdmin && link.to === '/sports'))
 
   const accentText = isLightMode ? 'text-[#4d6b0b]' : 'text-[#c5f135]'
   const strongText = isLightMode ? 'text-slate-900' : 'text-white'
@@ -97,7 +96,7 @@ export default function Header({
             </Link>
 
             <nav className="hidden lg:flex items-center gap-1">
-              {navLinks.map((link) => (
+              {NAV_LINKS.map((link) => (
                 <NavLink
                   key={link.label}
                   to={link.to}
@@ -297,7 +296,7 @@ export default function Header({
                 </div>
               )}
 
-              {navLinks.map((link) => (
+              {NAV_LINKS.map((link) => (
                 <Link
                   key={link.label}
                   to={link.to}

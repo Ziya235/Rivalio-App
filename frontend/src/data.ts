@@ -70,29 +70,25 @@ export const SPORTS1 = [
     icon: '⚽',
     description: 'Komandanı qur, rəqiblər tap və yerli liqalarda mübarizə apar.',
     status: 'Ən populyar',
-
     teamSize: '6v6 — 11v11',
     players: 312,
     teams: 54,
     leagues: 6,
-
-    image:
-      footballImg,
+    color: '#22c55e',
+    image: footballImg,
   },
-
   {
     id: 'tennis',
     name: 'Tennis',
     icon: '🎾',
     description: 'Səviyyənə uyğun rəqib tap və fərdi matçlarda gücünü göstər.',
     status: 'Aktiv',
-
     teamSize: '1v1 — 2v2',
     players: 312,
     teams: 54,
     leagues: 6,
-
-    image: tennisImg
+    color: '#eab308',
+    image: tennisImg,
   },
   {
     id: 'table-tennis',
@@ -100,13 +96,12 @@ export const SPORTS1 = [
     icon: '🏓',
     description: 'Rəqibini tap, sürətli matçlara qoşul və reytinqdə yüksəl.',
     status: 'Aktiv',
-
     teamSize: '1v1 — 2v2',
     players: 312,
     teams: 54,
     leagues: 6,
-
-    image: tableTennisImg
+    color: '#3b82f6',
+    image: tableTennisImg,
   },
   {
     id: 'volleyball',
@@ -114,30 +109,25 @@ export const SPORTS1 = [
     icon: '🏐',
     description: 'Komanda yığ, oyun təşkil et və turnirlərdə iştirak et.',
     status: 'Yeni',
-
     teamSize: '4v4 — 6v6',
-    skillLevels: 'Bütün səviyyələr',
     players: 312,
     teams: 54,
     leagues: 6,
-
-    image: volleyballImg
+    color: '#a855f7',
+    image: volleyballImg,
   },
-
   {
     id: 'basketball',
     name: 'Basketbol',
     icon: '🏀',
     description: 'Komanda yarat, meydançaya çıx və digər komandalarla yarış.',
     status: 'Populyar',
-
     teamSize: '3v3 — 5v5',
     players: 312,
     teams: 54,
     leagues: 6,
-
-    image:
-      basketballImg
+    color: '#f97316',
+    image: basketballImg,
   },
 ]
 

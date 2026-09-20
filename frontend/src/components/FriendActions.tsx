@@ -81,7 +81,7 @@ export default function FriendActions({
   const outlineVariant = light ? "outline" : "outline";
 
   return (
-    <div className="mt-5 flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {status?.status === "NONE" && (
         <Button
           size="sm"

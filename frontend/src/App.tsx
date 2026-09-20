@@ -13,18 +13,18 @@ import Header from './components/Header'
 import Footer from './components/Footer'
 import { AdminLayout } from './components/admin/AdminLayout'
 import { useAuth } from './context/AuthContext'
-import LandingPage from './pages/LandingPage'
-import SportsPage from './pages/SportsPage'
-import FootballPage from './pages/FootballPage'
+import LandingPage from './pages/Landing'
+import SportsPage from './pages/Sports'
+import FootballPage from './pages/Football'
 import SportGenericPage from './pages/SportGenericPage'
 import TeamDetailPage from './pages/TeamDetailPage'
 import CreateTeamPage from './pages/CreateTeamPage'
 import FindOpponentPage from './pages/FindOpponentPage'
 import LeagueDetailPage from './pages/LeagueDetailPage'
 import ChatPage from './pages/ChatPage'
-import LoginPage from './pages/LoginPage'
+import LoginPage from './pages/Login'
 import RegisterPage from './pages/RegisterPage'
-import MyProfilePage from './pages/MyProfilePage'
+import MyProfilePage from './pages/Profile'
 import NotificationsPage from './pages/NotificationsPage'
 import { AdminLeaguesPage } from './pages/admin/AdminLeaguesPage'
 import { AdminLeagueDetailPage } from './pages/admin/AdminLeagueDetailPage'
@@ -34,9 +34,9 @@ import { AdminChampionshipsPage } from './pages/admin/AdminChampionshipsPage'
 import { AdminChampionshipDetailPage } from './pages/admin/AdminChampionshipDetailPage'
 import ChampionshipDetailPage from './pages/ChampionshipDetailPage'
 import ChampionshipMatchPage from './pages/ChampionshipMatchPage'
-import PlayerProfilePage from './pages/PlayerProfilePage'
-import AboutUsPage from './pages/AboutUsPage'
-import FaqPage from './pages/FaqPage'
+import PlayerProfilePage from './pages/PlayerProfile'
+import AboutUsPage from './pages/AboutUs'
+import FaqPage from './pages/Faq'
 
 const NO_HEADER = ['/login', '/register']
 const NO_FOOTER = ['/chat', '/login', '/register']
@@ -75,6 +75,7 @@ function AppLayout() {
     showToast('Uğurla çıxış etdiniz.')
   }
 
+  const isLoginPage = location.pathname === '/login'
   const isLoggedIn = !!user
   const showHeader = !NO_HEADER.includes(location.pathname)
   const showFooter = !NO_FOOTER.includes(location.pathname)
@@ -103,11 +104,10 @@ function AppLayout() {
 
   return (
     <div
-      className={`min-h-screen font-body transition-colors duration-300 ${
-        isLightMode
+      className={`${isLoginPage ? 'h-dvh' : 'min-h-screen'} font-body transition-colors duration-300 ${isLightMode
           ? 'text-slate-900'
           : 'bg-[#08080e] text-white'
-      }`}
+        }`}
     >
       {showHeader && (
         <Header
@@ -117,7 +117,7 @@ function AppLayout() {
         />
       )}
 
-      <main>
+      <main className={isLoginPage ? 'h-full' : undefined}>
         <Outlet
           context={{
             isLoggedIn,
@@ -132,11 +132,10 @@ function AppLayout() {
 
       {toast && (
         <div
-          className={`fixed bottom-6 right-6 z-[999] px-5 py-3 rounded-xl border text-sm font-medium backdrop-blur-sm animate-count ${
-            toast.type === 'success'
+          className={`fixed bottom-6 right-6 z-[999] px-5 py-3 rounded-xl border text-sm font-medium backdrop-blur-sm animate-count ${toast.type === 'success'
               ? 'bg-[#c5f135]/10 border-[#c5f135]/30 text-[#c5f135]'
               : 'bg-red-500/10 border-red-500/30 text-red-400'
-          }`}
+            }`}
         >
           {toast.message}
         </div>
@@ -149,6 +148,13 @@ function BlockAdminFromSports({ children }: { children: ReactNode }) {
   const { isAdmin, isLoading } = useAuth()
   if (isLoading) return null
   if (isAdmin) return <Navigate to="/admin" replace />
+  return children
+}
+
+function RequireUser({ children }: { children: ReactNode }) {
+  const { user, isLoading } = useAuth()
+  if (isLoading) return null
+  if (!user) return <Navigate to="/login" replace />
   return children
 }
 
@@ -198,19 +204,22 @@ export default function App() {
           <Route
             path="sports"
             element={
-              <BlockAdminFromSports>
                 <SportsPage />
-              </BlockAdminFromSports>
+              
             }
           />
+
           <Route
-            path="sports/:sport"
+            path="sports/football"
             element={
-              <BlockAdminFromSports>
-                <SportRoute />
-              </BlockAdminFromSports>
+              <RequireUser>
+                <BlockAdminFromSports>
+                  <FootballPage />
+                </BlockAdminFromSports>
+              </RequireUser>
             }
           />
+          
           <Route
             path="sports/football/championships/:championshipId"
             element={
