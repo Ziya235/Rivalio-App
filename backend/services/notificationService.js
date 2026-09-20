@@ -176,15 +176,17 @@ export const markFriendRequestNotificationsRead = async (userId, requestId) => {
   });
 };
 
+const NOT_MESSAGE_TYPE = { not: "NEW_MESSAGE" };
+
 export const getUnreadCount = async (userId) =>
   prisma.notification.count({
-    where: { userId, isRead: false },
+    where: { userId, isRead: false, type: NOT_MESSAGE_TYPE },
   });
 
 export const listNotifications = async (userId, { limit = 50 } = {}) => {
   const [notifications, unreadCount] = await Promise.all([
     prisma.notification.findMany({
-      where: { userId },
+      where: { userId, type: NOT_MESSAGE_TYPE },
       orderBy: { createdAt: "desc" },
       take: limit,
       include: {
@@ -250,6 +252,7 @@ export const listNotifications = async (userId, { limit = 50 } = {}) => {
   const friendRequestStatusMap = new Map(
     friendRequests.map((request) => [request.id, request.status]),
   );
+  const seenFriendRequestEntities = new Set();
   const championshipInviteMap = new Map(
     championshipInvites.map((invite) => [invite.id, invite]),
   );
@@ -266,9 +269,17 @@ export const listNotifications = async (userId, { limit = 50 } = {}) => {
   return {
     notifications: notifications.map((notification) => {
       if (notification.type === "FRIEND_REQUEST" && notification.entityId) {
+        const entityKey = String(notification.entityId);
+        const liveStatus =
+          friendRequestStatusMap.get(Number(notification.entityId)) ?? null;
+        const isLatestForEntity = !seenFriendRequestEntities.has(entityKey);
+        seenFriendRequestEntities.add(entityKey);
+        const friendRequestStatus =
+          !isLatestForEntity && liveStatus === "PENDING"
+            ? "REJECTED"
+            : liveStatus;
         return formatNotification(notification, {
-          friendRequestStatus:
-            friendRequestStatusMap.get(Number(notification.entityId)) ?? null,
+          friendRequestStatus,
         });
       }
       if (notification.type === "CHAMPIONSHIP_INVITE" && notification.entityId) {

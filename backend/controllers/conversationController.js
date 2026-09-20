@@ -2,6 +2,7 @@ import {
   getOrCreateDirectConversation,
   listConversations,
   getConversationMessages,
+  getUnreadPeopleCount,
 } from "../services/conversationService.js";
 
 const handleServiceError = (res, error) => {
@@ -21,6 +22,19 @@ export const createDirectConversation = async (req, res) => {
     return res.json({ success: true, data: conversation });
   } catch (error) {
     console.log("Error in createDirectConversation:", error);
+    return handleServiceError(res, error);
+  }
+};
+
+export const getUnreadPeople = async (req, res) => {
+  try {
+    const unreadPeopleCount = await getUnreadPeopleCount(
+      req.user.id,
+      req.query.since,
+    );
+    return res.json({ success: true, data: { unreadPeopleCount } });
+  } catch (error) {
+    console.log("Error in getUnreadPeople:", error);
     return handleServiceError(res, error);
   }
 };

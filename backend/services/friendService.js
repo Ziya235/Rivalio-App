@@ -124,28 +124,10 @@ export const sendFriendRequest = async (senderId, receiverId) => {
     throw error;
   }
 
-  const priorRequest = await prisma.friendRequest.findUnique({
-    where: { senderId_receiverId: { senderId, receiverId: receiver } },
+  const friendRequest = await prisma.friendRequest.create({
+    data: { senderId, receiverId: receiver },
+    include: friendRequestInclude,
   });
-
-  let friendRequest;
-
-  if (priorRequest && priorRequest.status !== "PENDING") {
-    friendRequest = await prisma.friendRequest.update({
-      where: { id: priorRequest.id },
-      data: { status: "PENDING", updatedAt: new Date() },
-      include: friendRequestInclude,
-    });
-  } else if (priorRequest) {
-    const error = new Error("A pending friend request already exists");
-    error.status = 409;
-    throw error;
-  } else {
-    friendRequest = await prisma.friendRequest.create({
-      data: { senderId, receiverId: receiver },
-      include: friendRequestInclude,
-    });
-  }
 
   await createNotification({
     userId: receiver,

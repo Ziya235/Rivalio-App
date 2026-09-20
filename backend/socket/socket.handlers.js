@@ -76,6 +76,9 @@ export const registerSocketHandlers = (io, socket) => {
       for (const notifyUserId of result.notifyUserIds) {
         emitToUser(notifyUserId, "messages_read", result);
       }
+      emitToUser(userId, "chat_unread", {
+        conversationId: result.conversationId,
+      });
     } catch (error) {
       socket.emit("error_message", {
         message: error.message || "Failed to mark messages as read",

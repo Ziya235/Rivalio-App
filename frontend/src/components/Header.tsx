@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { Menu, X, ChevronDown, LogOut, User, Moon, Sun, Shield } from 'lucide-react'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Menu, X, ChevronDown, LogOut, User, Moon, Sun, Shield, MessageCircle } from 'lucide-react'
 import { Button, Avatar } from './ui'
 import { useAuth } from '../context/AuthContext'
+import { useSocket } from '../context/SocketContext'
 import NotificationBell from './NotificationBell'
 
 const NAV_LINKS = [
@@ -24,13 +25,17 @@ export default function Header({
   onThemeToggle,
 }: HeaderProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, logout, isAdmin } = useAuth()
+  const { unreadChatPeople, clearChatBadge, refreshChatUnread } = useSocket()
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const isLoggedIn = !!user
+  const onChatPage = location.pathname === '/chat'
+  const chatBadge = onChatPage ? 0 : unreadChatPeople
   const fullName = user ? `${user.firstName} ${user.lastName}`.trim() : ''
   const displayName = user?.firstName || user?.username || ''
 
@@ -46,6 +51,15 @@ export default function Header({
     window.addEventListener('scroll', handler)
     return () => window.removeEventListener('scroll', handler)
   }, [])
+
+  useEffect(() => {
+    if (!isLoggedIn) return
+    if (onChatPage) {
+      clearChatBadge()
+      return
+    }
+    void refreshChatUnread()
+  }, [isLoggedIn, onChatPage, clearChatBadge, refreshChatUnread])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -147,10 +161,18 @@ export default function Header({
                   )}
                   <NotificationBell isLightMode={isLightMode} />
                   <button
+                    type="button"
                     onClick={() => navigate('/chat')}
-                    className={`hidden sm:flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-all ${iconButton}`}
+                    className={`relative flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-all ${iconButton}`}
+                    aria-label="Chat"
                   >
-                    Chat
+                    <MessageCircle size={18} className="sm:hidden" />
+                    <span className="hidden sm:inline">Chat</span>
+                    {chatBadge > 0 ? (
+                      <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#c5f135] text-[#08080e] text-[10px] font-bold flex items-center justify-center">
+                        {chatBadge > 99 ? '99+' : chatBadge}
+                      </span>
+                    ) : null}
                   </button>
 
                   <div className="relative" ref={menuRef}>
@@ -337,6 +359,16 @@ export default function Header({
                       fullWidth
                     >
                       Profilim
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        navigate('/chat')
+                        setMobileOpen(false)
+                      }}
+                      variant="outline"
+                      fullWidth
+                    >
+                      Chat{chatBadge > 0 ? ` (${chatBadge})` : ''}
                     </Button>
                     <Button onClick={handleLogout} variant="outline" fullWidth>
                       Çıxış

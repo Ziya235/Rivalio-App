@@ -1,7 +1,7 @@
 import { prisma } from "../config/db.js";
 import { userBriefSelect } from "../utils/helpers.js";
 import { assertFriendship } from "./friendService.js";
-import { createNotification } from "./notificationService.js";
+import { emitToUser } from "../socket/socket.emit.js";
 import { isUserInConversationRoom } from "../socket/conversationRooms.js";
 
 export const MAX_MESSAGE_LENGTH = 5000;
@@ -330,16 +330,52 @@ export const sendMessage = async (
   for (const recipient of recipients) {
     const inRoom = isUserInConversationRoom(recipient.userId, convId);
     if (!inRoom) {
-      await createNotification({
-        userId: recipient.userId,
-        actorId: senderId,
-        type: "NEW_MESSAGE",
-        entityId: convId,
+      emitToUser(recipient.userId, "chat_unread", {
+        conversationId: convId,
+        senderId,
       });
     }
   }
 
   return formatted;
+};
+
+const parseSinceDate = (since) => {
+  if (!since) return null;
+  const date = new Date(since);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+export const getUnreadPeopleCount = async (userId, since) => {
+  const sinceDate = parseSinceDate(since);
+  const participations = await prisma.conversationParticipant.findMany({
+    where: { userId },
+    select: { conversationId: true, lastReadAt: true },
+  });
+
+  const unreadFlags = await Promise.all(
+    participations.map(async (participation) => {
+      const afterDates = [participation.lastReadAt, sinceDate].filter(Boolean);
+      const after =
+        afterDates.length > 0
+          ? new Date(Math.max(...afterDates.map((value) => new Date(value).getTime())))
+          : null;
+
+      const unread = await prisma.message.findFirst({
+        where: {
+          conversationId: participation.conversationId,
+          deletedAt: null,
+          senderId: { not: userId },
+          ...(after ? { createdAt: { gt: after } } : {}),
+        },
+        select: { id: true },
+      });
+
+      return Boolean(unread);
+    }),
+  );
+
+  return unreadFlags.filter(Boolean).length;
 };
 
 export const markMessagesRead = async (userId, conversationId, upToMessageId) => {

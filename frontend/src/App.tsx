@@ -16,10 +16,10 @@ import { useAuth } from './context/AuthContext'
 import LandingPage from './pages/Landing'
 import SportsPage from './pages/Sports'
 import FootballPage from './pages/Football'
-import SportGenericPage from './pages/SportGenericPage'
+// import SportGenericPage from './pages/SportGenericPage'
 import TeamDetailPage from './pages/TeamDetailPage'
-import CreateTeamPage from './pages/CreateTeamPage'
-import FindOpponentPage from './pages/FindOpponentPage'
+// import CreateTeamPage from './pages/CreateTeamPage'
+// import FindOpponentPage from './pages/FindOpponentPage'
 import LeagueDetailPage from './pages/LeagueDetailPage'
 import ChatPage from './pages/Chat'
 import LoginPage from './pages/Login'
@@ -158,11 +158,7 @@ function RequireUser({ children }: { children: ReactNode }) {
   return children
 }
 
-function SportRoute() {
-  const { sport } = useParams<{ sport: string }>()
-  if (sport === 'football') return <FootballPage />
-  return <SportGenericPage />
-}
+
 
 function AdminLegacyMatchRedirect() {
   const { matchId } = useParams()
@@ -236,9 +232,9 @@ export default function App() {
               </BlockAdminFromSports>
             }
           />
-          <Route path="teams/create" element={<CreateTeamPage />} />
+          {/* <Route path="teams/create" element={<CreateTeamPage />} /> */}
           <Route path="teams/:teamId" element={<TeamDetailPage />} />
-          <Route path="find-opponent" element={<FindOpponentPage />} />
+          {/* <Route path="find-opponent" element={<FindOpponentPage />} /> */}
           <Route path="leagues/:leagueId" element={<LeagueDetailPage />} />
           <Route
             path="leagues/:leagueId/matches/:matchId"

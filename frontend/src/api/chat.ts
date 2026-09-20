@@ -71,6 +71,17 @@ export function createDirectConversation(
   });
 }
 
+export function fetchUnreadPeopleCount(
+  since?: string | null,
+): Promise<{ unreadPeopleCount: number }> {
+  const search = new URLSearchParams();
+  if (since) search.set("since", since);
+  const query = search.toString();
+  return apiFetch<{ unreadPeopleCount: number }>(
+    `/api/conversations/unread-people${query ? `?${query}` : ""}`,
+  );
+}
+
 export function fetchMessages(
   conversationId: number,
   params?: { cursor?: number; limit?: number },

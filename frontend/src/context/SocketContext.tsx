@@ -14,10 +14,15 @@ import {
   subscribeSocketEvent,
 } from "../services/socket";
 import { useAuth } from "./AuthContext";
+import { fetchUnreadPeopleCount } from "../api/chat";
 import {
   fetchNotifications,
   type AppNotification,
 } from "../api/notifications";
+
+function chatSeenKey(userId: number) {
+  return `rivalio.chatBadgeSeenAt.${userId}`;
+}
 
 type SocketContextValue = {
   isConnected: boolean;
@@ -33,6 +38,9 @@ type SocketContextValue = {
   prependNotification: (notification: AppNotification) => void;
   onlineUsers: Record<number, boolean>;
   lastSeenMap: Record<number, string | null>;
+  unreadChatPeople: number;
+  refreshChatUnread: () => Promise<void>;
+  clearChatBadge: () => void;
 };
 
 const SocketContext = createContext<SocketContextValue | null>(null);
@@ -46,13 +54,14 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const [lastSeenMap, setLastSeenMap] = useState<Record<number, string | null>>(
     {},
   );
+  const [unreadChatPeople, setUnreadChatPeople] = useState(0);
   const mountedRef = useRef(true);
 
   const refreshNotifications = useCallback(async () => {
     if (!user) return;
     const data = await fetchNotifications(100);
     if (!mountedRef.current) return;
-    setNotifications(data.notifications);
+    setNotifications(data.notifications.filter((item) => item.type !== "NEW_MESSAGE"));
     setUnreadCount(data.unreadCount);
   }, [user]);
 
@@ -84,6 +93,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   );
 
   const prependNotification = useCallback((notification: AppNotification) => {
+    if (notification.type === "NEW_MESSAGE") return;
     setNotifications((current) => {
       if (current.some((item) => item.id === notification.id)) return current;
       return [notification, ...current];
@@ -92,6 +102,22 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       setUnreadCount((count) => count + 1);
     }
   }, []);
+
+  const refreshChatUnread = useCallback(async () => {
+    if (!user) return;
+    const since = localStorage.getItem(chatSeenKey(user.id));
+    const data = await fetchUnreadPeopleCount(since);
+    if (!mountedRef.current) return;
+    const latestSince = localStorage.getItem(chatSeenKey(user.id));
+    if (since !== latestSince) return;
+    setUnreadChatPeople(data.unreadPeopleCount);
+  }, [user]);
+
+  const clearChatBadge = useCallback(() => {
+    if (!user) return;
+    localStorage.setItem(chatSeenKey(user.id), new Date().toISOString());
+    setUnreadChatPeople(0);
+  }, [user]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -107,91 +133,99 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       setNotifications([]);
       setUnreadCount(0);
       setOnlineUsers({});
+      setLastSeenMap({});
+      setUnreadChatPeople(0);
       return;
     }
 
+    let cancelled = false;
     let unsubscribers: Array<() => void> = [];
 
     connectSocket()
       .then(() => {
-        if (!mountedRef.current) return;
+        if (cancelled || !mountedRef.current) return;
         setIsConnected(true);
-        return refreshNotifications();
+        unsubscribers = [
+          subscribeSocketEvent("notification_received", (payload: {
+            notification: AppNotification;
+            unreadCount: number;
+          }) => {
+            prependNotification(payload.notification);
+            setUnreadCount(payload.unreadCount);
+            if (payload.notification.type === "CHAMPIONSHIP_INVITE" ||
+              payload.notification.type === "LEAGUE_INVITE" ||
+              payload.notification.type === "JOIN_REQUEST" ||
+              payload.notification.type === "CHAMPIONSHIP_JOIN_REQUEST") {
+              void refreshNotifications();
+            }
+          }),
+          subscribeSocketEvent("notifications_removed", (payload: {
+            notificationIds: number[];
+            unreadCount: number;
+          }) => {
+            const removed = new Set(payload.notificationIds ?? []);
+            setNotifications((current) =>
+              current.filter((item) => !removed.has(item.id)),
+            );
+            setUnreadCount(payload.unreadCount);
+          }),
+          subscribeSocketEvent("friend_request_received", () => {
+            refreshNotifications();
+          }),
+          subscribeSocketEvent("friend_request_accepted", () => {
+            refreshNotifications();
+          }),
+          subscribeSocketEvent("friend_request_resolved", (payload: {
+            friendRequestId: number;
+            status: "ACCEPTED" | "REJECTED";
+          }) => {
+            setNotifications((current) =>
+              current.map((item) =>
+                item.type === "FRIEND_REQUEST" &&
+                item.entityId === String(payload.friendRequestId) &&
+                (item.friendRequestStatus === "PENDING" ||
+                  item.friendRequestStatus == null)
+                  ? {
+                      ...item,
+                      friendRequestStatus: payload.status,
+                      isRead: true,
+                    }
+                  : item,
+              ),
+            );
+            refreshNotifications();
+          }),
+          subscribeSocketEvent("user_presence_changed", (payload: {
+            userId: number;
+            online: boolean;
+            lastSeenAt: string;
+          }) => {
+            setOnlineUsers((current) => ({
+              ...current,
+              [payload.userId]: payload.online,
+            }));
+            setLastSeenMap((current) => ({
+              ...current,
+              [payload.userId]: payload.lastSeenAt,
+            }));
+          }),
+          subscribeSocketEvent("chat_unread", () => {
+            void refreshChatUnread();
+          }),
+        ];
+        return Promise.all([refreshNotifications(), refreshChatUnread()]);
       })
       .catch(() => {
-        if (mountedRef.current) setIsConnected(false);
+        if (mountedRef.current && !cancelled) setIsConnected(false);
       });
 
-    unsubscribers = [
-      subscribeSocketEvent("notification_received", (payload: {
-        notification: AppNotification;
-        unreadCount: number;
-      }) => {
-        prependNotification(payload.notification);
-        setUnreadCount(payload.unreadCount);
-        if (payload.notification.type === "CHAMPIONSHIP_INVITE" ||
-          payload.notification.type === "LEAGUE_INVITE" ||
-          payload.notification.type === "JOIN_REQUEST" ||
-          payload.notification.type === "CHAMPIONSHIP_JOIN_REQUEST") {
-          void refreshNotifications();
-        }
-      }),
-      subscribeSocketEvent("notifications_removed", (payload: {
-        notificationIds: number[];
-        unreadCount: number;
-      }) => {
-        const removed = new Set(payload.notificationIds ?? []);
-        setNotifications((current) =>
-          current.filter((item) => !removed.has(item.id)),
-        );
-        setUnreadCount(payload.unreadCount);
-      }),
-      subscribeSocketEvent("friend_request_received", () => {
-        refreshNotifications();
-      }),
-      subscribeSocketEvent("friend_request_accepted", () => {
-        refreshNotifications();
-      }),
-      subscribeSocketEvent("friend_request_resolved", (payload: {
-        friendRequestId: number;
-        status: "ACCEPTED" | "REJECTED";
-      }) => {
-        setNotifications((current) =>
-          current.map((item) =>
-            item.type === "FRIEND_REQUEST" &&
-            item.entityId === String(payload.friendRequestId)
-              ? {
-                  ...item,
-                  friendRequestStatus: payload.status,
-                  isRead: true,
-                }
-              : item,
-          ),
-        );
-        refreshNotifications();
-      }),
-      subscribeSocketEvent("user_presence_changed", (payload: {
-        userId: number;
-        online: boolean;
-        lastSeenAt: string;
-      }) => {
-        setOnlineUsers((current) => ({
-          ...current,
-          [payload.userId]: payload.online,
-        }));
-        setLastSeenMap((current) => ({
-          ...current,
-          [payload.userId]: payload.lastSeenAt,
-        }));
-      }),
-    ];
-
     return () => {
+      cancelled = true;
       unsubscribers.forEach((unsub) => unsub());
       disconnectSocket();
       setIsConnected(false);
     };
-  }, [user, refreshNotifications, prependNotification]);
+  }, [user, refreshNotifications, refreshChatUnread, prependNotification]);
 
   const value = useMemo(
     () => ({
@@ -205,6 +239,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       prependNotification,
       onlineUsers,
       lastSeenMap,
+      unreadChatPeople,
+      refreshChatUnread,
+      clearChatBadge,
     }),
     [
       isConnected,
@@ -217,6 +254,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       prependNotification,
       onlineUsers,
       lastSeenMap,
+      unreadChatPeople,
+      refreshChatUnread,
+      clearChatBadge,
     ],
   );
 

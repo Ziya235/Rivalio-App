@@ -58,6 +58,9 @@ export function useChat() {
   const typingTimeoutRef = useRef<number | null>(null);
   const isNearBottomRef = useRef(true);
   const openingFriendRef = useRef<number | null>(null);
+  const activeConversationIdRef = useRef<number | null>(null);
+  const conversationsRef = useRef<ConversationSummary[]>([]);
+  const loadRequestRef = useRef(0);
 
   const activeConversation = useMemo(
     () => conversations.find((item) => item.id === activeConversationId) ?? null,
@@ -71,6 +74,8 @@ export function useChat() {
     () => buildFriendChatItems(friends, conversations, search),
     [friends, conversations, search],
   );
+
+  conversationsRef.current = conversations;
 
   const loadSidebar = useCallback(async () => {
     setLoadingSidebar(true);
@@ -134,33 +139,47 @@ export function useChat() {
     setShowNewMessageButton(!isNearBottomRef.current);
   }, []);
 
-  const selectConversation = useCallback(
+  const applyConversation = useCallback(
     async (conversationId: number) => {
-      if (activeConversationId && activeConversationId !== conversationId) {
-        leaveConversation(activeConversationId);
+      if (activeConversationIdRef.current === conversationId) {
+        joinConversation(conversationId);
+        setMobileView("chat");
+        return;
       }
 
+      const previousId = activeConversationIdRef.current;
+      if (previousId) {
+        leaveConversation(previousId);
+      }
+
+      const requestId = ++loadRequestRef.current;
+      activeConversationIdRef.current = conversationId;
       setActiveConversationId(conversationId);
       setMessages([]);
       setNextCursor(null);
       setHasMore(false);
       setMobileView("chat");
-      setSearchParams({ conversation: String(conversationId) });
+      setMessageInput("");
+      setTypingUserId(null);
+      setShowNewMessageButton(false);
 
       joinConversation(conversationId);
       await loadMessages(conversationId);
+      if (requestId !== loadRequestRef.current) return;
       requestAnimationFrame(() => scrollToBottom("auto"));
     },
-    [activeConversationId, loadMessages, scrollToBottom, setSearchParams],
+    [loadMessages, scrollToBottom],
   );
 
   const openChatWithFriend = useCallback(
     async (friendId: number) => {
-      const existing = conversations.find(
+      const existing = conversationsRef.current.find(
         (conversation) => conversation.otherParticipant?.id === friendId,
       );
+
       if (existing) {
-        await selectConversation(existing.id);
+        await applyConversation(existing.id);
+        setSearchParams({ conversation: String(existing.id) });
         return;
       }
 
@@ -177,7 +196,8 @@ export function useChat() {
           }
           return [conversation, ...current];
         });
-        await selectConversation(conversation.id);
+        await applyConversation(conversation.id);
+        setSearchParams({ conversation: String(conversation.id) });
       } catch {
         setMobileView("list");
       } finally {
@@ -185,7 +205,7 @@ export function useChat() {
         setOpeningFriendId(null);
       }
     },
-    [conversations, selectConversation],
+    [applyConversation, setSearchParams],
   );
 
   useEffect(() => {
@@ -198,10 +218,8 @@ export function useChat() {
     const userParam = searchParams.get("user");
 
     const conversationId = conversationParam ? Number(conversationParam) : null;
-    if (conversationId && Number.isInteger(conversationId)) {
-      if (conversationId !== activeConversationId) {
-        selectConversation(conversationId);
-      }
+    if (conversationId && Number.isInteger(conversationId) && conversationId > 0) {
+      void applyConversation(conversationId);
       return;
     }
 
@@ -210,18 +228,27 @@ export function useChat() {
     const targetUserId = Number(userParam);
     if (!Number.isInteger(targetUserId) || targetUserId <= 0) return;
 
+    let cancelled = false;
     createDirectConversation(targetUserId)
       .then((conversation) => {
+        if (cancelled) return;
         setConversations((current) => {
           if (current.some((item) => item.id === conversation.id)) {
             return current;
           }
           return [conversation, ...current];
         });
-        return selectConversation(conversation.id);
+        setSearchParams(
+          { conversation: String(conversation.id) },
+          { replace: true },
+        );
       })
       .catch(() => undefined);
-  }, [searchParams, activeConversationId, selectConversation]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, applyConversation, setSearchParams]);
 
   useEffect(() => {
     if (!activeConversationId || !user) return;
