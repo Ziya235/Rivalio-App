@@ -1,3 +1,5 @@
+import { COMPETITION_PHASE_LABEL as PHASE } from "./competitionPhase.js";
+
 export const MATCH_CLOCK_MAX_MINUTES = 120;
 export const MATCH_CLOCK_MAX_MS = MATCH_CLOCK_MAX_MINUTES * 60 * 1000;
 
@@ -21,17 +23,14 @@ export const MATCH_ERRORS = {
   LEAGUE_MIN_TEAMS: "At least 2 teams are required to start the league.",
   LEAGUE_PENDING_INVITES:
     "Gözləyən dəvətlər var. Əvvəlcə dəvətlər qəbul olunmalı və ya ləğv edilməlidir.",
-  LEAGUE_NOT_DRAFT: "Only a draft league can be started.",
-  LEAGUE_NOT_ACTIVE: "Only an active league can be finished.",
-  LEAGUE_FINISHED_IMMUTABLE:
-    "This league is finished and can no longer be changed.",
-  LEAGUE_ALREADY_ACTIVE: "This league has already started.",
-  MATCH_NOT_EDITABLE_LEAGUE:
-    "This match can no longer be edited because the league is finished.",
+  LEAGUE_NOT_DRAFT: `Liqa yalnız «${PHASE.PLANNED}» statusunda başladıla bilər.`,
+  LEAGUE_NOT_ACTIVE: `Liqa yalnız «${PHASE.ONGOING}» statusunda başa çatdırıla bilər.`,
+  LEAGUE_FINISHED_IMMUTABLE: `Bu liqa «${PHASE.FINISHED}» statusundadır və dəyişdirilə bilməz.`,
+  LEAGUE_ALREADY_ACTIVE: `Bu liqa artıq «${PHASE.ONGOING}» statusundadır.`,
+  MATCH_NOT_EDITABLE_LEAGUE: `Bu oyun dəyişdirilə bilməz, çünki liqa «${PHASE.FINISHED}» statusundadır.`,
   MATCH_STAGE_LOCKED:
     "This match can no longer be edited because the next championship stage has already started.",
-  MATCH_CHAMPIONSHIP_FINISHED:
-    "This championship is finished and matches can no longer be edited.",
+  MATCH_CHAMPIONSHIP_FINISHED: `Bu çempionat «${PHASE.FINISHED}» statusundadır və oyunlar dəyişdirilə bilməz.`,
   MATCH_EVENTS_NOT_WRITABLE:
     "Events can only be added while the match is live or being edited.",
   MATCH_NOT_SCHEDULED: "Only a scheduled match can be started.",
@@ -46,8 +45,8 @@ export const MATCH_ERRORS = {
     "This championship is no longer accepting team requests.",
   CHAMPIONSHIP_NOT_ACCEPTING_INVITES:
     "This championship is no longer accepting team invitations.",
-  CHAMPIONSHIP_ALREADY_FINISHED: "This championship is already finished.",
-  CHAMPIONSHIP_CANNOT_REOPEN: "A finished championship cannot be reopened.",
+  CHAMPIONSHIP_ALREADY_FINISHED: `Bu çempionat artıq «${PHASE.FINISHED}» statusundadır.`,
+  CHAMPIONSHIP_CANNOT_REOPEN: `«${PHASE.FINISHED}» statusundakı çempionat yenidən açıla bilməz.`,
   CHAMPIONSHIP_NOT_PLAYOFF:
     "Championship can only be finished after the playoff stage.",
 };

@@ -40,6 +40,10 @@ import {
 } from "../utils/matchEditPolicy.js";
 import { canViewChampionship } from "../utils/championshipAccess.js";
 import {
+  championshipPhase,
+  competitionPhaseLabel,
+} from "../utils/competitionPhase.js";
+import {
   enrichMatches,
   enrichOneMatch,
   loadChampionshipMatchSummaries,
@@ -397,7 +401,7 @@ export async function updateChampionship(championshipId, userId, body) {
       throw httpError("Invalid format");
     }
     if (c.status !== "DRAFT" && c.status !== "REGISTRATION") {
-      throw httpError("Format can only change in DRAFT/REGISTRATION");
+      throw httpError("Format hazırkı statusda dəyişdirilə bilməz");
     }
     data.format = body.format;
   }
@@ -406,7 +410,7 @@ export async function updateChampionship(championshipId, userId, body) {
       throw httpError("Invalid matchFormat — use SINGLE or HOME_AWAY");
     }
     if (c.status !== "DRAFT" && c.status !== "REGISTRATION") {
-      throw httpError("Match format can only change in DRAFT/REGISTRATION");
+      throw httpError("Oyun formatı hazırkı statusda dəyişdirilə bilməz");
     }
     data.matchFormat = body.matchFormat;
   }
@@ -415,7 +419,7 @@ export async function updateChampionship(championshipId, userId, body) {
       throw httpError("Invalid visibility");
     }
     if (c.status !== "DRAFT" && c.status !== "REGISTRATION") {
-      throw httpError("Visibility can only change in DRAFT/REGISTRATION");
+      throw httpError("Görünürlük hazırkı statusda dəyişdirilə bilməz");
     }
     data.visibility = body.visibility;
   }
@@ -457,8 +461,12 @@ const ALLOWED_TRANSITIONS = {
 export async function transitionChampionshipStatus(championshipId, userId, nextStatus) {
   const c = await getOwnedChampionship(championshipId, userId);
   if (!ALLOWED_TRANSITIONS[c.status]?.includes(nextStatus)) {
+    const fromLabel = competitionPhaseLabel(championshipPhase(c.status));
+    const toLabel = competitionPhaseLabel(championshipPhase(nextStatus));
     throw httpError(
-      `Cannot transition from ${c.status} to ${nextStatus}`,
+      fromLabel === toLabel
+        ? "Bu status keçidi mümkün deyil"
+        : `«${fromLabel}» statusundan «${toLabel}» statusuna keçid mümkün deyil`,
       400,
     );
   }
@@ -788,7 +796,7 @@ export async function respondChampionshipTeamInvite(inviteIdRaw, userId, actionR
 export async function removeTeamFromChampionship(championshipId, userId, teamIdRaw) {
   const c = await getOwnedChampionship(championshipId, userId);
   if (!["DRAFT", "REGISTRATION"].includes(c.status)) {
-    throw httpError("Teams can only be removed in DRAFT or REGISTRATION");
+    throw httpError("Komandalar hazırkı statusda silinə bilməz");
   }
   const teamId = parseId(teamIdRaw, "teamId");
 

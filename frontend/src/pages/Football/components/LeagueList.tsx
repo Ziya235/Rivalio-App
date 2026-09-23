@@ -1,8 +1,30 @@
+import { useMemo, useState } from "react";
 import { Check, Hourglass, Lock, Send, Trophy, X } from "lucide-react";
-import { Badge, Button, SelectField } from "../../../components/ui";
+import { Button, SelectField } from "../../../components/ui";
 import type { TeamSummary } from "../../../api/teams";
 import type { League } from "../../../types/league";
-import { LEAGUE_STATUS_LABEL } from "../constants";
+import {
+  competitionPhaseBadgeClass,
+  leaguePhase,
+  leagueStatusLabel,
+  visibilityBadgeClass,
+  visibilityLabel,
+  type CompetitionPhase,
+} from "../../../lib/competitionStatus";
+import { JoinTeamModal } from "./JoinTeamModal";
+
+const VISIBILITY_OPTIONS = [
+  { label: "Hamısı", value: "" },
+  { label: "İctimai", value: "PUBLIC" },
+  { label: "Özəl", value: "PRIVATE" },
+];
+
+const STATUS_OPTIONS = [
+  { label: "Hamısı", value: "" },
+  { label: "Planlaşdırılır", value: "PLANNED" },
+  { label: "Davam edir", value: "ONGOING" },
+  { label: "Başa çatıb", value: "FINISHED" },
+];
 
 export function LeagueList({
   light,
@@ -10,14 +32,10 @@ export function LeagueList({
   emptyText,
   hint,
   isCaptain,
-  joinTeamId,
-  primaryCaptainTeamId,
-  captainOptions,
-  selectedJoinTeamId,
+  captainTeams,
   myTeams,
   busy,
   joiningLeagueId,
-  onJoinTeamChange,
   onOpen,
   onJoin,
   onCancel,
@@ -27,18 +45,19 @@ export function LeagueList({
   emptyText: string;
   hint: string;
   isCaptain: boolean;
-  joinTeamId: string;
-  primaryCaptainTeamId?: number;
-  captainOptions: { label: string; value: string }[];
-  selectedJoinTeamId: number;
+  captainTeams: TeamSummary[];
   myTeams: TeamSummary[];
   busy: boolean;
   joiningLeagueId: number | null;
-  onJoinTeamChange: (value: string) => void;
   onOpen: (league: League) => void;
-  onJoin: (leagueId: number) => void;
+  onJoin: (leagueId: number, teamId: number) => void;
   onCancel: (requestId: number) => void;
 }) {
+  const [visibilityFilter, setVisibilityFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [pick, setPick] = useState<{ league: League; teams: TeamSummary[] } | null>(null);
+  const [pickedTeamId, setPickedTeamId] = useState("");
+
   const teamInLeague = (leagueId: number, teamId: number) =>
     myTeams.some(
       (team) =>
@@ -51,56 +70,92 @@ export function LeagueList({
       (request) => request.teamId === teamId && request.status === "PENDING",
     );
 
+  const filtered = useMemo(() => {
+    return items.filter((league) => {
+      if (visibilityFilter === "PUBLIC" && league.visibility !== "PUBLIC") return false;
+      if (visibilityFilter === "PRIVATE" && league.visibility === "PUBLIC") return false;
+      if (statusFilter && leaguePhase(league.status) !== (statusFilter as CompetitionPhase)) {
+        return false;
+      }
+      return true;
+    });
+  }, [items, visibilityFilter, statusFilter]);
+
+  const requestJoin = (league: League, teams: TeamSummary[]) => {
+    if (captainTeams.length <= 1) {
+      const team = teams[0] ?? captainTeams[0];
+      if (team) onJoin(league.id, team.id);
+      return;
+    }
+    setPickedTeamId(String(teams[0]?.id ?? ""));
+    setPick({ league, teams });
+  };
+
   return (
     <div className="mt-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-        <p className={`text-sm ${light ? "text-gray-500" : "text-white/45"}`}>
-          {hint}
-        </p>
-        {isCaptain ? (
-          <SelectField
-            className="sm:w-56"
-            value={joinTeamId || String(primaryCaptainTeamId || "")}
-            onChange={onJoinTeamChange}
-            options={captainOptions.filter((o) => o.value)}
-            light={light}
-          />
-        ) : null}
+      <p className={`mb-3 text-sm ${light ? "text-gray-500" : "text-white/45"}`}>{hint}</p>
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <SelectField
+          label="Liqa növü"
+          value={visibilityFilter}
+          onChange={setVisibilityFilter}
+          options={VISIBILITY_OPTIONS}
+          light={light}
+        />
+        <SelectField
+          label="Status"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={STATUS_OPTIONS}
+          light={light}
+        />
       </div>
 
       {!isCaptain ? (
-        <p className="text-xs text-amber-400/80 mb-4">
+        <p className="mb-4 text-xs text-amber-400/80">
           Liqaya request göndərmək üçün komanda kapitanı olmalısınız
         </p>
       ) : null}
 
       {items.length === 0 ? (
-        <p className={`text-center py-10 ${light ? "text-gray-400" : "text-white/40"}`}>
+        <p className={`py-10 text-center ${light ? "text-gray-400" : "text-white/40"}`}>
           {emptyText}
+        </p>
+      ) : filtered.length === 0 ? (
+        <p className={`py-10 text-center ${light ? "text-gray-400" : "text-white/40"}`}>
+          Filtrə uyğun liqa yoxdur
         </p>
       ) : (
         <div className="space-y-3">
-          {items.map((l) => {
-            const canView = l.canView !== false;
-            const alreadyIn = selectedJoinTeamId
-              ? teamInLeague(l.id, selectedJoinTeamId)
-              : false;
-            const pending = selectedJoinTeamId
-              ? pendingJoinFor(l, selectedJoinTeamId)
-              : undefined;
-            const canRequest = isCaptain && l.status === "DRAFT" && !alreadyIn;
+          {filtered.map((league) => {
+            const canView = league.canView !== false;
+            const rows = captainTeams.map((team) => ({
+              team,
+              joined: teamInLeague(league.id, team.id),
+              pending: pendingJoinFor(league, team.id),
+            }));
+            const available = rows.filter((row) => !row.joined && !row.pending).map((row) => row.team);
+            const pendingRows = rows.filter((row) => row.pending);
+            const anyJoined = rows.some((row) => row.joined);
+            const canRequest =
+              isCaptain &&
+              league.status === "DRAFT" &&
+              !anyJoined &&
+              pendingRows.length === 0 &&
+              available.length > 0;
+
             return (
               <div
-                key={l.id}
-                className={`rounded-2xl border p-5 flex flex-wrap items-center justify-between gap-3 ${light ? "bg-white/70 backdrop-blur-sm border-gray-200" : "border-white/10 bg-[#101017]"}`}
+                key={league.id}
+                className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-5 ${light ? "border-gray-200 bg-white/70 backdrop-blur-sm" : "border-white/10 bg-[#101017]"}`}
               >
                 <button
                   type="button"
-                  className="text-left min-w-0"
-                  onClick={() => onOpen(l)}
+                  className="min-w-0 text-left"
+                  onClick={() => onOpen(league)}
                 >
                   <h3
-                    className={`font-semibold flex items-center gap-2 transition-colors ${
+                    className={`flex cursor-pointer items-center gap-2 font-semibold transition-colors ${
                       canView
                         ? light
                           ? "text-gray-900 hover:text-emerald-600"
@@ -114,35 +169,45 @@ export function LeagueList({
                       size={16}
                       className={`shrink-0 ${light ? "text-emerald-500" : "text-[#c5f135]"}`}
                     />
-                    {l.name}
+                    {league.name}
                     {!canView ? (
                       <Lock
                         size={13}
                         className={light ? "text-gray-400" : "text-white/35"}
                       />
                     ) : null}
-                    <Badge variant={l.visibility === "PUBLIC" ? "public" : "private"}>
-                      {l.visibility === "PUBLIC" ? "Public" : "Private"}
-                    </Badge>
                   </h3>
-                  <div
-                    className={`flex flex-wrap gap-3 text-xs mt-2 ${light ? "text-gray-400" : "text-white/45"}`}
-                  >
-                    {l.season ? <span>{l.season}</span> : null}
-                    <span>{LEAGUE_STATUS_LABEL[l.status]}</span>
-                    {l._count?.teams != null ? (
-                      <span>{l._count.teams} komanda</span>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${visibilityBadgeClass(league.visibility, light)}`}
+                    >
+                      {visibilityLabel(league.visibility)}
+                    </span>
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${competitionPhaseBadgeClass(leaguePhase(league.status), light)}`}
+                    >
+                      {leagueStatusLabel(league.status)}
+                    </span>
+                    {league.season ? (
+                      <span className={`text-xs ${light ? "text-gray-400" : "text-white/45"}`}>
+                        {league.season}
+                      </span>
+                    ) : null}
+                    {league._count?.teams != null ? (
+                      <span className={`text-xs ${light ? "text-gray-400" : "text-white/45"}`}>
+                        {league._count.teams} komanda
+                      </span>
                     ) : null}
                   </div>
-                  {l.description ? (
+                  {league.description ? (
                     <p
-                      className={`text-sm mt-2 line-clamp-2 ${light ? "text-gray-500" : "text-white/50"}`}
+                      className={`mt-2 line-clamp-2 text-sm ${light ? "text-gray-500" : "text-white/50"}`}
                     >
-                      {l.description}
+                      {league.description}
                     </p>
                   ) : null}
                 </button>
-                {alreadyIn ? (
+                {anyJoined ? (
                   <span
                     className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${
                       light
@@ -153,9 +218,9 @@ export function LeagueList({
                     <Check size={13} />
                     Qoşulub
                   </span>
-                ) : canRequest ? (
+                ) : canRequest || pendingRows.length > 0 ? (
                   <div className="flex flex-wrap items-center gap-2">
-                    {pending ? (
+                    {pendingRows.length > 0 ? (
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${
                           light
@@ -167,27 +232,30 @@ export function LeagueList({
                         Gözləyir
                       </span>
                     ) : null}
-                    <Button
-                      size="sm"
-                      disabled={
-                        Boolean(pending) || (busy && joiningLeagueId === l.id)
-                      }
-                      onClick={() => void onJoin(l.id)}
-                    >
-                      <Send size={14} />
-                      Request göndər
-                    </Button>
-                    {pending ? (
+                    {canRequest ? (
                       <Button
                         size="sm"
-                        variant="danger"
-                        disabled={busy}
-                        onClick={() => void onCancel(pending.id)}
+                        disabled={busy && joiningLeagueId === league.id}
+                        onClick={() => requestJoin(league, available)}
                       >
-                        <X size={14} />
-                        Ləğv et
+                        <Send size={14} />
+                        Request göndər
                       </Button>
                     ) : null}
+                    {pendingRows.map((row) =>
+                      row.pending ? (
+                        <Button
+                          key={row.pending.id}
+                          size="sm"
+                          variant="danger"
+                          disabled={busy}
+                          onClick={() => onCancel(row.pending!.id)}
+                        >
+                          <X size={14} />
+                          {pendingRows.length > 1 ? `Ləğv et · ${row.team.name}` : "Ləğv et"}
+                        </Button>
+                      ) : null,
+                    )}
                   </div>
                 ) : null}
               </div>
@@ -195,6 +263,22 @@ export function LeagueList({
           })}
         </div>
       )}
+
+      <JoinTeamModal
+        open={Boolean(pick)}
+        light={light}
+        busy={busy && joiningLeagueId === pick?.league.id}
+        targetName={pick?.league.name ?? ""}
+        teams={pick?.teams ?? []}
+        teamId={pickedTeamId}
+        onTeamIdChange={setPickedTeamId}
+        onClose={() => setPick(null)}
+        onSubmit={() => {
+          if (!pick || !pickedTeamId) return;
+          onJoin(pick.league.id, Number(pickedTeamId));
+          setPick(null);
+        }}
+      />
     </div>
   );
 }

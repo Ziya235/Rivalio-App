@@ -19,6 +19,11 @@ import type { League, LeaguePlayerRow, StandingRow } from "../types/league";
 import type { Match, MatchStatus } from "../types/match";
 import type { AppOutletContext } from "../App";
 import { formatMatchStamp, groupMatchesByRound } from "../lib/championshipUi";
+import {
+  competitionPhaseClass,
+  leaguePhase,
+  leagueStatusLabel,
+} from "../lib/competitionStatus";
 
 type TabId = "standings" | "matches" | "goals" | "assists" | "ga";
 
@@ -214,7 +219,7 @@ export default function LeagueDetailPage() {
         <p className="mb-4 text-rose-400">
           {error?.includes("do not have access") ||
           error?.includes("giriş")
-            ? "Bu private liqaya yalnız iştirakçılar baxa bilər"
+            ? "Bu özəl liqaya yalnız iştirakçılar baxa bilər"
             : error || "Tapılmadı"}
         </p>
         <Button onClick={() => navigate("/sports/football")} variant="outline">
@@ -473,6 +478,11 @@ export default function LeagueDetailPage() {
             <h1 className={`font-display text-4xl font-bold ${ink}`}>
               {league.name}
             </h1>
+            <span
+              className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${competitionPhaseClass(leaguePhase(league.status))}`}
+            >
+              {leagueStatusLabel(league.status)}
+            </span>
             <Badge
               variant={league.visibility === "PUBLIC" ? "public" : "private"}
             >

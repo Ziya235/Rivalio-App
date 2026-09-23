@@ -25,13 +25,8 @@ export function formatMessageTime(value: string) {
 export function formatListTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  const now = new Date();
-  const sameDay =
-    date.getDate() === now.getDate() &&
-    date.getMonth() === now.getMonth() &&
-    date.getFullYear() === now.getFullYear();
-  if (sameDay) return formatMessageTime(value);
-  return date.toLocaleDateString("az", { day: "numeric", month: "short" });
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`;
 }
 
 export function formatLastSeen(value: string | null) {

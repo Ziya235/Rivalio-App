@@ -76,16 +76,11 @@ import type {
 } from "../../types/championship";
 import type { Match, MatchStatus } from "../../types/match";
 import { useSocket } from "../../context/SocketContext";
-
-const STATUS_LABEL: Record<ChampionshipStatus, string> = {
-  DRAFT: "Draft",
-  REGISTRATION: "Qeydiyyat",
-  GROUP_STAGE: "Qrup mərhələsi",
-  PLAYOFF: "Playoff",
-  COMPLETED: "Bitib",
-  FINISHED: "Bitib",
-  CANCELLED: "Ləğv",
-};
+import {
+  championshipPhase,
+  championshipStatusLabel,
+  competitionPhaseClass,
+} from "../../lib/competitionStatus";
 
 const MATCH_STATUS_LABEL: Record<MatchStatus, string> = {
   SCHEDULED: "Planlı",
@@ -190,22 +185,6 @@ function playoffPlaceholders(matches: Match[]): Map<MatchStage, PlayoffPlacehold
     map.set(rec.stage, list);
   }
   return map;
-}
-
-function statusClass(status: ChampionshipStatus): string {
-  switch (status) {
-    case "GROUP_STAGE":
-      return "bg-sky-50 text-sky-700 ring-1 ring-sky-200";
-    case "PLAYOFF":
-      return "bg-amber-50 text-amber-800 ring-1 ring-amber-200";
-    case "COMPLETED":
-    case "FINISHED":
-      return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
-    case "CANCELLED":
-      return "bg-slate-100 text-slate-500 ring-1 ring-slate-200";
-    default:
-      return "bg-slate-50 text-slate-600 ring-1 ring-slate-200";
-  }
 }
 
 function matchStatusClass(status: MatchStatus): string {
@@ -1826,11 +1805,11 @@ export function AdminChampionshipDetailPage() {
     >
       <div className="mb-6 flex flex-wrap items-center gap-2">
         <span
-          className={`inline-flex rounded-md px-2.5 py-1 text-xs font-semibold ${statusClass(
-            championship.status,
+          className={`inline-flex rounded-md px-2.5 py-1 text-xs font-semibold ${competitionPhaseClass(
+            championshipPhase(championship.status),
           )}`}
         >
-          {STATUS_LABEL[championship.status]}
+          {championshipStatusLabel(championship.status)}
         </span>
         <span
           className={`inline-flex rounded-md px-2.5 py-1 text-xs font-semibold ${
@@ -1869,7 +1848,7 @@ export function AdminChampionshipDetailPage() {
               Qoşulma sorğuları ({pendingJoins.length})
             </h2>
             <p className="text-xs text-slate-500">
-              DRAFT çempionata komanda kapitanlarından gələn sorğular
+              Planlaşdırılan çempionata komanda kapitanlarından gələn sorğular
             </p>
           </div>
           <ul className="divide-y divide-amber-100">

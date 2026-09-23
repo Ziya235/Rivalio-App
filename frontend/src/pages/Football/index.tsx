@@ -96,7 +96,6 @@ export default function FootballPage() {
 
   const [joiningLeagueId, setJoiningLeagueId] = useState<number | null>(null);
   const [joiningChampionshipId, setJoiningChampionshipId] = useState<number | null>(null);
-  const [joinTeamId, setJoinTeamId] = useState("");
 
   const captainTeams = useMemo(
     () => myTeams.filter((t) => t.captainId === user?.id),
@@ -149,7 +148,6 @@ export default function FootballPage() {
     if (primaryCaptainTeam) {
       setPsTeamId((v) => v || String(primaryCaptainTeam.id));
       setChTeamId((v) => v || String(primaryCaptainTeam.id));
-      setJoinTeamId((v) => v || String(primaryCaptainTeam.id));
     }
   }, [primaryCaptainTeam]);
 
@@ -299,8 +297,7 @@ export default function FootballPage() {
     }
   };
 
-  const onJoinLeague = async (leagueId: number) => {
-    const teamId = Number(joinTeamId || primaryCaptainTeam?.id);
+  const onJoinLeague = async (leagueId: number, teamId: number) => {
     if (!teamId) {
       toast.error("Əvvəlcə kapitan olduğunuz komanda seçin");
       return;
@@ -332,8 +329,7 @@ export default function FootballPage() {
     }
   };
 
-  const onJoinChampionship = async (championshipId: number) => {
-    const teamId = Number(joinTeamId || primaryCaptainTeam?.id);
+  const onJoinChampionship = async (championshipId: number, teamId: number) => {
     if (!teamId) {
       toast.error("Əvvəlcə kapitan olduğunuz komanda seçin");
       return;
@@ -444,11 +440,9 @@ export default function FootballPage() {
     ...captainTeams.map((t) => ({ label: t.name, value: String(t.id) })),
   ];
 
-  const selectedJoinTeamId = Number(joinTeamId || primaryCaptainTeam?.id || 0);
-
   const openLeague = (league: League) => {
     if (league.canView === false) {
-      toast.error("Bu private liqaya yalnız iştirakçılar baxa bilər");
+      toast.error("Bu özəl liqaya yalnız iştirakçılar baxa bilər");
       return;
     }
     navigate(`/leagues/${league.id}`);
@@ -456,7 +450,7 @@ export default function FootballPage() {
 
   const openChampionship = (item: ChampionshipListItem) => {
     if (item.canView === false) {
-      toast.error("Bu private çempionata yalnız iştirakçılar baxa bilər");
+      toast.error("Bu özəl çempionata yalnız iştirakçılar baxa bilər");
       return;
     }
     navigate(`/sports/football/championships/${item.id}`);
@@ -510,7 +504,6 @@ export default function FootballPage() {
             userId={user.id}
             onCreate={() => setModal("team")}
             onOpenTeam={(id) => navigate(`/teams/${id}`)}
-            onOpenLeague={(id) => navigate(`/leagues/${id}`)}
           />
         ) : null}
 
@@ -532,7 +525,7 @@ export default function FootballPage() {
           />
         ) : null}
 
-        {!loading && !error && tab === "Challenge" ? (
+        {!loading && !error && tab === "Oyun təklifləri" ? (
           <ChallengeTab
             light={light}
             isCaptain={isCaptain}
@@ -559,18 +552,14 @@ export default function FootballPage() {
             light={light}
             items={leagues}
             emptyText="Liqa yoxdur"
-            hint="Public və private liqalar. Private liqanın içinə yalnız iştirakçılar girə bilər"
+            hint="İctimai və özəl liqalar.  Özəl liqaya yalnız iştirakçılar baxa bilər"
             isCaptain={isCaptain}
-            joinTeamId={joinTeamId}
-            primaryCaptainTeamId={primaryCaptainTeam?.id}
-            captainOptions={captainOptions}
-            selectedJoinTeamId={selectedJoinTeamId}
+            captainTeams={captainTeams}
             myTeams={myTeams}
             busy={busy}
             joiningLeagueId={joiningLeagueId}
-            onJoinTeamChange={setJoinTeamId}
             onOpen={openLeague}
-            onJoin={(id) => void onJoinLeague(id)}
+            onJoin={(id, teamId) => void onJoinLeague(id, teamId)}
             onCancel={(id) => void onCancelJoinLeague(id)}
           />
         ) : null}
@@ -580,17 +569,13 @@ export default function FootballPage() {
             light={light}
             items={championships}
             emptyText="Çempionat yoxdur"
-            hint="Public və private çempionatlar. Private çempionatın içinə yalnız iştirakçılar girə bilər"
+            hint="İctimai və özəl çempionatlar. Özəl çempionata yalnız iştirakçılar baxa bilər"
             isCaptain={isCaptain}
-            joinTeamId={joinTeamId}
-            primaryCaptainTeamId={primaryCaptainTeam?.id}
-            captainOptions={captainOptions}
-            selectedJoinTeamId={selectedJoinTeamId}
+            captainTeams={captainTeams}
             busy={busy}
             joiningChampionshipId={joiningChampionshipId}
-            onJoinTeamChange={setJoinTeamId}
             onOpen={openChampionship}
-            onJoin={(id) => void onJoinChampionship(id)}
+            onJoin={(id, teamId) => void onJoinChampionship(id, teamId)}
             onCancel={(id) => void onCancelJoinChampionship(id)}
           />
         ) : null}

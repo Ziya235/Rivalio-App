@@ -69,14 +69,14 @@ export function ChallengeTab({
 
       {([
         {
-          title: "Sənin challenge-ların",
+          title: "Sənin oyun təkliflərin",
           items: myChallenges,
-          empty: "Hələ challenge-ınız yoxdur",
+          empty: "Hələ oyun təklifiniz yoxdur",
         },
         {
-          title: "Digər challenge-lar",
+          title: "Digər oyun təklifləri",
           items: otherChallenges,
-          empty: "Açıq challenge yoxdur",
+          empty: "Açıq oyun təklifi yoxdur",
         },
       ] as const).map((section) => (
         <section key={section.title} className="mb-8 last:mb-0">

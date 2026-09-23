@@ -1,4 +1,4 @@
-import { MapPin, Plus, Trophy, Users } from "lucide-react";
+import { MapPin, Plus, Users } from "lucide-react";
 import { Button, Card } from "../../../components/ui";
 import { mediaUrl } from "../../../api/base";
 import type { TeamSummary } from "../../../api/teams";
@@ -9,14 +9,12 @@ export function TeamTab({
   userId,
   onCreate,
   onOpenTeam,
-  onOpenLeague,
 }: {
   light: boolean;
   myTeams: TeamSummary[];
   userId: number;
   onCreate: () => void;
   onOpenTeam: (id: number) => void;
-  onOpenLeague: (id: number) => void;
 }) {
   return (
     <div className="mt-6">
@@ -38,9 +36,6 @@ export function TeamTab({
         <div className="grid sm:grid-cols-2 gap-4">
           {myTeams.map((team) => {
             const captain = team.captainId === userId;
-            const teamLeagues = (team.leagueMemberships ?? [])
-              .map((m) => m.league)
-              .filter((l) => !l.sport || l.sport.code === "FOOTBALL");
             return (
               <Card
                 key={team.id}
@@ -88,37 +83,6 @@ export function TeamTab({
                         {team._count?.players ?? "—"} oyunçu
                       </span>
                     </div>
-                    {teamLeagues.length > 0 ? (
-                      <div
-                        className="flex flex-wrap gap-1.5 mt-3"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {teamLeagues.map((league) => (
-                          <button
-                            key={league.id}
-                            type="button"
-                            onClick={() => onOpenLeague(league.id)}
-                            className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] ${
-                              light
-                                ? "border-gray-200 text-gray-600 hover:border-emerald-500/40 hover:text-emerald-700"
-                                : "border-white/10 text-white/70 hover:border-[#c5f135]/40 hover:text-[#c5f135]"
-                            }`}
-                          >
-                            <Trophy size={11} className={light ? "text-emerald-500" : "text-[#c5f135]"} />
-                            {league.name}
-                            {league.season ? (
-                              <span className={light ? "text-gray-400" : "text-white/35"}>
-                                {league.season}
-                              </span>
-                            ) : null}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className={`text-[11px] mt-3 ${light ? "text-gray-400" : "text-white/35"}`}>
-                        Hələ liqada iştirak etmir
-                      </p>
-                    )}
                   </div>
                 </div>
               </Card>

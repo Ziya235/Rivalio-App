@@ -4,6 +4,7 @@ import type {
   MatchStage,
   UserFacingChampStatus,
 } from "../types/championship";
+import { championshipPhase, championshipStatusLabel } from "./competitionStatus";
 import type { Match, MatchStatus } from "../types/match";
 import { parsePlayoffNotes } from "./playoffBracket";
 
@@ -40,20 +41,11 @@ export const MATCH_STATUS_LABEL: Record<MatchStatus, string> = {
 export function toUserFacingStatus(
   status: ChampionshipStatus,
 ): UserFacingChampStatus {
-  if (status === "COMPLETED" || status === "FINISHED" || status === "CANCELLED") {
-    return "FINISHED";
-  }
-  if (status === "GROUP_STAGE" || status === "PLAYOFF" || status === "REGISTRATION") {
-    return "ACTIVE";
-  }
-  return "DRAFT";
+  return championshipPhase(status);
 }
 
 export function userFacingChampLabel(status: ChampionshipStatus): string {
-  const face = toUserFacingStatus(status);
-  if (face === "ACTIVE") return "Aktiv";
-  if (face === "FINISHED") return "Bitib";
-  return "DRAFT";
+  return championshipStatusLabel(status);
 }
 
 export function currentStageLabel(

@@ -1,5 +1,6 @@
 import { getToken } from "./auth";
 import { apiUrl } from "./base";
+import type { ChampionshipStatus } from "../types/championship";
 
 type ApiSuccess<T> = { success: boolean; data: T; message?: string };
 
@@ -86,6 +87,16 @@ export type TeamDetail = TeamSummary & {
       visibility: string;
       status: string;
       season: string | null;
+    };
+  }>;
+  championshipTeams: Array<{
+    joinedAt: string;
+    championship: {
+      id: number;
+      name: string;
+      logo: string | null;
+      visibility: string;
+      status: ChampionshipStatus;
     };
   }>;
 };

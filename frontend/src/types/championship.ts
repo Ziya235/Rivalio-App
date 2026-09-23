@@ -222,4 +222,4 @@ export type ChampionshipStatistics = {
   teams: ChampionshipTeamStatistics[];
 };
 
-export type UserFacingChampStatus = "DRAFT" | "ACTIVE" | "FINISHED";
+export type UserFacingChampStatus = "PLANNED" | "ONGOING" | "FINISHED";

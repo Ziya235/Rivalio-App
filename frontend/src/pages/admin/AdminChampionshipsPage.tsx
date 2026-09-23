@@ -20,23 +20,17 @@ import {
   createChampionship,
   fetchChampionships,
 } from "../../api/championships";
+import {
+  championshipPhase,
+  championshipStatusLabel,
+  competitionPhaseClass,
+} from "../../lib/competitionStatus";
 import type {
   Championship,
   ChampionshipFormat,
   ChampionshipMatchFormat,
-  ChampionshipStatus,
   ChampionshipVisibility,
 } from "../../types/championship";
-
-const STATUS_LABEL: Record<ChampionshipStatus, string> = {
-  DRAFT: "Draft",
-  REGISTRATION: "Qeydiyyat",
-  GROUP_STAGE: "Qrup mərhələsi",
-  PLAYOFF: "Playoff",
-  COMPLETED: "Bitib",
-  FINISHED: "Bitib",
-  CANCELLED: "Ləğv",
-};
 
 const FORMAT_LABEL: Record<ChampionshipFormat, string> = {
   GROUP_AND_PLAYOFF: "Qrup + Playoff",
@@ -47,22 +41,6 @@ const MATCH_FORMAT_LABEL: Record<ChampionshipMatchFormat, string> = {
   SINGLE: "1 oyun",
   HOME_AWAY: "Ev-səfər",
 };
-
-function statusClass(status: ChampionshipStatus): string {
-  switch (status) {
-    case "GROUP_STAGE":
-      return "bg-sky-50 text-sky-700 ring-1 ring-sky-200";
-    case "PLAYOFF":
-      return "bg-amber-50 text-amber-800 ring-1 ring-amber-200";
-    case "COMPLETED":
-    case "FINISHED":
-      return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
-    case "CANCELLED":
-      return "bg-slate-100 text-slate-500 ring-1 ring-slate-200";
-    default:
-      return "bg-slate-50 text-slate-600 ring-1 ring-slate-200";
-  }
-}
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -164,9 +142,7 @@ export function AdminChampionshipsPage() {
   const stats = useMemo(() => {
     return {
       total: rows.length,
-      active: rows.filter((r) =>
-        ["GROUP_STAGE", "PLAYOFF", "REGISTRATION"].includes(r.status),
-      ).length,
+      active: rows.filter((r) => championshipPhase(r.status) === "ONGOING").length,
     };
   }, [rows]);
 
@@ -198,7 +174,7 @@ export function AdminChampionshipsPage() {
             <Trophy className="h-4 w-4" />
           </div>
           <p className="text-2xl font-extrabold text-ink">{stats.active}</p>
-          <p className="mt-0.5 text-sm font-medium text-slate-700">Aktiv</p>
+          <p className="mt-0.5 text-sm font-medium text-slate-700">Davam edir</p>
         </div>
       </div>
 
@@ -239,11 +215,11 @@ export function AdminChampionshipsPage() {
                         {c.name}
                       </p>
                       <span
-                        className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ${statusClass(
-                          c.status,
+                        className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ${competitionPhaseClass(
+                          championshipPhase(c.status),
                         )}`}
                       >
-                        {STATUS_LABEL[c.status]}
+                        {championshipStatusLabel(c.status)}
                       </span>
                       <span
                         className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ${

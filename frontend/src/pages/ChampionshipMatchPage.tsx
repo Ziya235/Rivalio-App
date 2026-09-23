@@ -168,8 +168,8 @@ export default function ChampionshipMatchPage() {
             message={
               error?.includes("do not have access") || error?.includes("giriş")
                 ? isLeague
-                  ? "Bu private liqaya yalnız iştirakçılar baxa bilər"
-                  : "Bu private çempionata yalnız iştirakçılar baxa bilər"
+                  ? "Bu özəl liqaya yalnız iştirakçılar baxa bilər"
+                  : "Bu özəl çempionata yalnız iştirakçılar baxa bilər"
                 : error || undefined
             }
             onRetry={() => void load()}

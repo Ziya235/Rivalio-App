@@ -1,20 +1,20 @@
 import { Link } from "react-router-dom";
 import { ArrowLeft, Calendar, Layers, Trophy, Users } from "lucide-react";
 import {
+  championshipPhase,
+  competitionPhaseClass,
+} from "../../lib/competitionStatus";
+import {
   currentStageLabel,
   FORMAT_LABEL,
   formatChampDate,
-  toUserFacingStatus,
   userFacingChampLabel,
 } from "../../lib/championshipUi";
 import type { ChampionshipListItem } from "../../types/championship";
 import { mediaUrl } from "../../api/base";
 
 function statusClass(status: ChampionshipListItem["status"]) {
-  const label = toUserFacingStatus(status);
-  if (label === "ACTIVE") return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
-  if (label === "FINISHED") return "bg-sky-50 text-sky-700 ring-1 ring-sky-200";
-  return "bg-amber-50 text-amber-800 ring-1 ring-amber-200";
+  return competitionPhaseClass(championshipPhase(status));
 }
 
 export function ChampionshipHeader({

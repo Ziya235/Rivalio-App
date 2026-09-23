@@ -94,7 +94,16 @@ export default function FriendActions({
       )}
 
       {status?.status === "OUTGOING_PENDING" && (
-        <Button size="sm" variant={outlineVariant} disabled>
+        <Button
+          size="sm"
+          variant={outlineVariant}
+          disabled
+          className={
+            light
+              ? "disabled:!opacity-100 !bg-emerald-50 !text-emerald-800 !border-emerald-300 hover:!bg-emerald-50 hover:!text-emerald-800 hover:!border-emerald-300"
+              : undefined
+          }
+        >
           Sorğu göndərilib
         </Button>
       )}

@@ -537,31 +537,34 @@ export const requestJoinPublicLeague = async (req, res) => {
       });
     }
 
-    const alreadyIn = await prisma.leagueTeam.findUnique({
+    const alreadyIn = await prisma.leagueTeam.findFirst({
       where: {
-        leagueId_teamId: { leagueId, teamId: tid },
+        leagueId,
+        team: { captainId: req.user.id },
       },
+      select: { teamId: true },
     });
 
     if (alreadyIn) {
       return res.status(409).json({
         success: false,
-        message: "Team is already in this league",
+        message: "Bu liqada artıq komandanız var",
       });
     }
 
     const pending = await prisma.leagueJoinRequest.findFirst({
       where: {
         leagueId,
-        teamId: tid,
         status: "PENDING",
+        team: { captainId: req.user.id },
       },
+      select: { id: true },
     });
 
     if (pending) {
       return res.status(409).json({
         success: false,
-        message: "A pending join request already exists",
+        message: "Bu liqaya artıq gözləyən sorğunuz var",
       });
     }
 

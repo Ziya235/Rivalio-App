@@ -50,6 +50,11 @@ import {
 import type { League, LeaguePlayerRow, StandingRow } from "../../types/league";
 import type { Match, MatchStatus } from "../../types/match";
 import { useSocket } from "../../context/SocketContext";
+import {
+  competitionPhaseClass,
+  leaguePhase,
+  leagueStatusLabel,
+} from "../../lib/competitionStatus";
 import { groupMatchesByRound } from "../../lib/championshipUi";
 
 type TabId = "standings" | "matches" | "goals" | "assists" | "ga";
@@ -901,6 +906,11 @@ export function AdminLeagueDetailPage() {
         </Link>
         <ChevronRight className="h-3.5 w-3.5" />
         <span className="font-medium text-ink">{league.name}</span>
+        <span
+          className={`ml-1 inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ${competitionPhaseClass(leaguePhase(league.status))}`}
+        >
+          {leagueStatusLabel(league.status)}
+        </span>
       </nav>
 
       {pendingJoins.length > 0 && league.status === "DRAFT" ? (
@@ -910,7 +920,7 @@ export function AdminLeagueDetailPage() {
               Qoşulma sorğuları ({pendingJoins.length})
             </h2>
             <p className="text-xs text-slate-500">
-              DRAFT liqaya komanda kapitanlarından gələn sorğular
+              Planlaşdırılan liqaya komanda kapitanlarından gələn sorğular
             </p>
           </div>
           <ul className="divide-y divide-amber-100">

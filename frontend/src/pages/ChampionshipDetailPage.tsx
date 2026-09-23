@@ -177,7 +177,7 @@ export default function ChampionshipDetailPage() {
           <ChampError
             message={
               error?.includes("do not have access") || error?.includes("giriş")
-                ? "Bu private çempionata yalnız iştirakçılar baxa bilər"
+                ? "Bu özəl çempionata yalnız iştirakçılar baxa bilər"
                 : error || "Çempionat məlumatlarını yükləmək mümkün olmadı."
             }
             onRetry={() => void load()}

@@ -1,14 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  ChevronRight,
-  ImagePlus,
-  Plus,
-  Search,
-  Trophy,
-  Users,
-  X,
-} from "lucide-react";
+import { ImagePlus, Plus, Search, Trophy, Users, X } from "lucide-react";
 import { AdminPageShell } from "../../components/admin/AdminLayout";
 import {
   AdminModal,
@@ -24,26 +16,20 @@ import { fetchLeagues } from "../../api/leagues";
 import { uploadImage } from "../../api/teams";
 import { mediaUrl } from "../../api/base";
 import { useAuth } from "../../context/AuthContext";
+import {
+  competitionPhaseBadgeClass,
+  leaguePhase,
+  leagueStatusLabel,
+  visibilityBadgeClass,
+  visibilityLabel,
+} from "../../lib/competitionStatus";
 import type { League } from "../../types/league";
 
-const MONTHS_AZ = [
-  "yanvar",
-  "fevral",
-  "mart",
-  "aprel",
-  "may",
-  "iyun",
-  "iyul",
-  "avqust",
-  "sentyabr",
-  "oktyabr",
-  "noyabr",
-  "dekabr",
-];
-
 function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getDate()} ${MONTHS_AZ[d.getMonth()]} ${d.getFullYear()}`;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`;
 }
 
 function LeagueAvatar({ league }: { league: League }) {
@@ -190,27 +176,25 @@ export function AdminLeaguesPage() {
         </button>
       }
     >
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <StatCard
           label="İctimai liqalar"
           value={stats.publicCount}
           sub={`${stats.total} cəmi`}
           icon={<Trophy className="h-4 w-4" />}
         />
-       
         <StatCard
           label="Özəl liqalar"
           value={stats.total - stats.publicCount}
           sub="Yalnız sizin"
           icon={<ShieldIcon />}
         />
-         <StatCard
+        <StatCard
           label="Komandalar"
           value={stats.teams}
           sub="Bütün liqalarda"
           icon={<Users className="h-4 w-4" />}
         />
-        
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -238,67 +222,7 @@ export function AdminLeaguesPage() {
             Hələ liqa yoxdur. &quot;Liqa yarat&quot; ilə başlayın.
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <th className="px-4 py-3">Liqanın adı</th>
-                  <th className="px-4 py-3">Komandalar</th>
-                  <th className="px-4 py-3">Yaradılıb</th>
-                  <th className="px-4 py-3 text-right">Əməliyyat</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((league) => (
-                  <tr
-                    key={league.id}
-                    className="border-b border-slate-50 transition hover:bg-slate-50/80"
-                  >
-                    <td className="px-4 py-3">
-                      <Link
-                        to={`/admin/football/leagues/${league.id}`}
-                        className="flex items-center gap-3"
-                      >
-                        <LeagueAvatar league={league} />
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className="truncate font-semibold text-ink">
-                            {league.name}
-                          </span>
-                          <span
-                            className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                              league.visibility === "PUBLIC"
-                                ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                                : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
-                            }`}
-                          >
-                            {league.visibility === "PUBLIC"
-                              ? "İctimai"
-                              : "Özəl"}
-                          </span>
-                        </span>
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 font-medium text-slate-700">
-                      {league._count.teams}
-                    </td>
-                   
-                    <td className="px-4 py-3 text-slate-500">
-                      {formatDate(league.createdAt)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Link
-                        to={`/admin/football/leagues/${league.id}`}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-brand hover:bg-brand-soft"
-                      >
-                        İdarə et
-                        <ChevronRight className="h-4 w-4" />
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <LeagueTable leagues={filtered} />
         )}
       </div>
 
@@ -351,8 +275,8 @@ export function AdminLeaguesPage() {
                 setVisibility(e.target.value as "PUBLIC" | "PRIVATE")
               }
             >
-              <option value="PUBLIC">İctimai (Public)</option>
-              <option value="PRIVATE">Özəl (Private)</option>
+              <option value="PUBLIC">İctimai</option>
+              <option value="PRIVATE">Özəl</option>
             </select>
           </Field>
           <Field
@@ -435,6 +359,58 @@ export function AdminLeaguesPage() {
         </ModalForm>
       </AdminModal>
     </AdminPageShell>
+  );
+}
+
+function LeagueTable({ leagues }: { leagues: League[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[760px] text-left text-sm">
+        <thead>
+          <tr className="border-b border-slate-100 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <th className="px-4 py-3">Liqanın adı</th>
+            <th className="px-4 py-3">Komandalar</th>
+            <th className="px-4 py-3">Yaradılıb</th>
+            <th className="px-4 py-3">Liqa növü</th>
+            <th className="px-4 py-3">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {leagues.map((league) => (
+            <tr
+              key={league.id}
+              className="border-b border-slate-50 transition hover:bg-slate-50/80"
+            >
+              <td className="px-4 py-3">
+                <Link
+                  to={`/admin/football/leagues/${league.id}`}
+                  className="flex items-center gap-3"
+                >
+                  <LeagueAvatar league={league} />
+                  <span className="truncate font-semibold text-ink">{league.name}</span>
+                </Link>
+              </td>
+              <td className="px-4 py-3 font-medium text-slate-700">{league._count.teams}</td>
+              <td className="px-4 py-3 text-slate-500">{formatDate(league.createdAt)}</td>
+              <td className="px-4 py-3">
+                <span
+                  className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${visibilityBadgeClass(league.visibility, true)}`}
+                >
+                  {visibilityLabel(league.visibility)}
+                </span>
+              </td>
+              <td className="px-4 py-3">
+                <span
+                  className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${competitionPhaseBadgeClass(leaguePhase(league.status), true)}`}
+                >
+                  {leagueStatusLabel(league.status)}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

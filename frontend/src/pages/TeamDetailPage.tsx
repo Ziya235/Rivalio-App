@@ -11,6 +11,7 @@ import {
 import { mediaUrl } from "../api/base";
 import { useAuth } from "../context/AuthContext";
 import type { AppOutletContext } from "../App";
+import { userFacingChampLabel } from "../lib/championshipUi";
 
 export default function TeamDetailPage() {
   const navigate = useNavigate();
@@ -198,11 +199,37 @@ export default function TeamDetailPage() {
                   key={m.league.id}
                   type="button"
                   onClick={() => navigate(`/leagues/${m.league.id}`)}
-                  className={`rounded-xl border px-3 py-1.5 text-sm ${light ? "border-gray-200 text-gray-700 hover:border-emerald-500/40" : "border-white/10 text-white/80 hover:border-[#c5f135]/40"}`}
+                  className={`rounded-xl border px-3 py-1.5 text-sm ${light ? "border-gray-200 text-gray-700 hover:border-emerald-500/40" : "border-white/10 text-white/80 hover:border-[#c5f135]/40"} cursor-pointer`}
                 >
                   {m.league.name}
                   <span className={`ml-2 text-xs ${light ? "text-gray-400" : "text-white/35"}`}>
                     {m.league.visibility}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {(team.championshipTeams ?? []).length > 0 ? (
+          <div className={`mb-8 rounded-2xl border p-4 ${light ? "bg-white/70 backdrop-blur-sm border-gray-200" : "border-white/10 bg-[#101017]"}`}>
+            <h2 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${light ? "text-gray-600" : "text-white/70"}`}>
+              <Trophy size={14} className={light ? "text-emerald-500" : "text-[#c5f135]"} />
+              Çempionatlar
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              {team.championshipTeams.map((entry) => (
+                <button
+                  key={entry.championship.id}
+                  type="button"
+                  onClick={() =>
+                    navigate(`/sports/football/championships/${entry.championship.id}`)
+                  }
+                  className={`rounded-xl border px-3 py-1.5 text-sm ${light ? "border-gray-200 text-gray-700 hover:border-emerald-500/40" : "border-white/10 text-white/80 hover:border-[#c5f135]/40"} cursor-pointer`}
+                >
+                  {entry.championship.name}
+                  <span className={`ml-2 text-xs ${light ? "text-gray-400" : "text-white/35"}`}>
+                    {userFacingChampLabel(entry.championship.status)}
                   </span>
                 </button>
               ))}

@@ -32,6 +32,24 @@ const teamDetailInclude = {
       },
     },
   },
+  championshipTeams: {
+    where: {
+      championship: { status: { not: "CANCELLED" } },
+    },
+    select: {
+      joinedAt: true,
+      championship: {
+        select: {
+          id: true,
+          name: true,
+          logo: true,
+          visibility: true,
+          status: true,
+        },
+      },
+    },
+    orderBy: { joinedAt: "desc" },
+  },
   _count: { select: { players: true } },
 };
 

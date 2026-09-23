@@ -4,6 +4,10 @@ import { Calendar, ChevronRight, Lock, Trophy, Users } from "lucide-react";
 import { fetchVisibleChampionships } from "../../api/championships";
 import { mediaUrl } from "../../api/base";
 import {
+  championshipPhase,
+  competitionPhaseClass,
+} from "../../lib/competitionStatus";
+import {
   currentStageLabel,
   FORMAT_LABEL,
   formatChampDate,
@@ -15,14 +19,7 @@ import { Button, Card } from "../ui";
 import { ChampEmpty, ChampError, ChampSkeleton, TeamCrest } from "./ChampShared";
 
 function statusBadge(status: ChampionshipListItem["status"]) {
-  const label = toUserFacingStatus(status);
-  if (label === "ACTIVE") {
-    return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
-  }
-  if (label === "FINISHED") {
-    return "bg-sky-50 text-sky-700 ring-1 ring-sky-200";
-  }
-  return "bg-amber-50 text-amber-800 ring-1 ring-amber-200";
+  return competitionPhaseClass(championshipPhase(status));
 }
 
 function ChampionshipCard({
@@ -118,7 +115,7 @@ function ChampionshipCard({
         <p className="mt-4 text-[11px] text-gray-400">Oyun hələ başlamayıb</p>
       )}
 
-      {toUserFacingStatus(item.status) === "ACTIVE" && stage ? (
+      {toUserFacingStatus(item.status) === "ONGOING" && stage ? (
         <p className="mt-3 text-xs font-semibold text-sky-700">
           Hazırkı mərhələ: {stage}
         </p>
