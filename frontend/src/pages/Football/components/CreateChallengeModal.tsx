@@ -41,7 +41,7 @@ export function CreateChallengeModal({
   return (
     <Modal
       open={open}
-      title="Challenge yarat"
+      title="Oyun təklifi yarat"
       onClose={onClose}
       light={light}
       footer={

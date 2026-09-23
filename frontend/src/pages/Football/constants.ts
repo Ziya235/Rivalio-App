@@ -27,4 +27,4 @@ export const SLUG_TAB = {
 export type ModalKind = "team" | "playerSearch" | "challenge" | null;
 
 export const MIN_MATCH_LEAD_MS = 60 * 60 * 1000;
-export const TOO_SOON_MSG = "Matç ən azı 1 saat sonra yaradıla bilər";
+export const TOO_SOON_MSG = "Matç ən azı 1 saat sonra üçün yaradıla bilər";

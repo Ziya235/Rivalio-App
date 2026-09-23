@@ -288,7 +288,7 @@ export default function FootballPage() {
       setChVenue("");
       setChNotes("");
       closeModal();
-      toast.success("Challenge yaradıldı");
+      toast.success("Oyun təklifi yaradıldı");
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Xəta");
@@ -417,7 +417,7 @@ export default function FootballPage() {
     setBusy(true);
     void requestChallenge(challengeId, { teamId: Number(teamId) })
       .then(() => {
-        toast.success("Challenge sorğusu göndərildi");
+        toast.success("Sorğu göndərildi");
         return load();
       })
       .catch((err) => toast.error(err instanceof Error ? err.message : "Xəta"))
@@ -435,10 +435,10 @@ export default function FootballPage() {
       .finally(() => setRespondingId(null));
   };
 
-  const captainOptions = [
-    { label: "Komanda seçin", value: "" },
-    ...captainTeams.map((t) => ({ label: t.name, value: String(t.id) })),
-  ];
+  const captainOptions = captainTeams.map((t) => ({
+    label: t.name,
+    value: String(t.id),
+  }));
 
   const openLeague = (league: League) => {
     if (league.canView === false) {

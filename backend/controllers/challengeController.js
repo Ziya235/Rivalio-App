@@ -76,7 +76,7 @@ export const createChallenge = async (req, res) => {
     if (when < minWhen) {
       return res.status(400).json({
         success: false,
-        message: "Matç ən azı 1 saat sonra yaradıla bilər",
+        message: "Matç ən azı 1 saat sonra üçün yaradıla bilər",
       });
     }
 

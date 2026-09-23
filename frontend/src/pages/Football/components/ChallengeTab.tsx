@@ -58,11 +58,11 @@ export function ChallengeTab({
         {isCaptain ? (
           <Button size="sm" onClick={onCreate}>
             <Plus size={14} />
-            Challenge yarat
+            Oyun təklifi yarat
           </Button>
         ) : (
           <p className={`text-xs ${light ? "text-gray-400" : "text-white/35"}`}>
-            Challenge yaratmaq üçün komanda kapitanı olmalısınız
+            Oyun təklifi yaratmaq üçün komanda kapitanı olmalısınız
           </p>
         )}
       </div>
@@ -204,7 +204,7 @@ export function ChallengeTab({
                               onClick={() => onRequest(c.id, pickedTeamId)}
                             >
                               <Send size={14} />
-                              Challenge sorğusu göndər
+                              Sorğu göndər
                             </Button>
                           </div>
                         ) : null
