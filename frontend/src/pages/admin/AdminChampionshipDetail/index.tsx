@@ -1,11 +1,8 @@
-﻿import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Calendar,
   Check,
-  ChevronRight,
-  CircleDot,
-  Handshake,
   Loader2,
   Medal,
   Pencil,
@@ -18,7 +15,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { AdminPageShell } from "../../components/admin/AdminLayout";
+import { AdminPageShell } from "../../../components/admin/AdminLayout";
 import {
   AdminModal,
   Field,
@@ -26,7 +23,7 @@ import {
   ModalForm,
   ModalSubmitButton,
   inputClass,
-} from "../../components/admin/AdminModal";
+} from "../../../components/admin/AdminModal";
 import {
   addChampionshipTeam,
   addTeamToGroup,
@@ -48,10 +45,10 @@ import {
   updateChampionship,
   updateChampionshipGroup,
   updateChampionshipMatch,
-} from "../../api/championships";
-import { fetchTeams, type TeamSummary } from "../../api/teams";
-import { mediaUrl } from "../../api/base";
-import { teamInitialTone } from "../../lib/teamAvatar";
+} from "../../../api/championships";
+import { fetchTeams, type TeamSummary } from "../../../api/teams";
+import { mediaUrl } from "../../../api/base";
+import { teamInitialTone } from "../../../lib/teamAvatar";
 import {
   GROUP_CAPACITY_MAX,
   GROUP_CAPACITY_MIN,
@@ -61,881 +58,47 @@ import {
   GROUP_COUNT_MIN,
   validateGroupSlots,
   type SlotMode,
-} from "../../lib/championshipGroups";
-import { parsePlayoffNotes } from "../../lib/playoffBracket";
-import { groupMatchesByRound, sortMatchesByRound } from "../../lib/championshipUi";
+} from "../../../lib/championshipGroups";
+import { sortMatchesByRound } from "../../../lib/championshipUi";
 import type {
   Championship,
   ChampionshipGroup,
   ChampionshipJoinRequest,
   ChampionshipStatistics,
-  ChampionshipStatus,
   MatchStage,
   PlayoffTieGroup,
   StandingRow,
-} from "../../types/championship";
-import type { Match, MatchStatus } from "../../types/match";
-import { useSocket } from "../../context/SocketContext";
+} from "../../../types/championship";
+import type { Match } from "../../../types/match";
+import { useSocket } from "../../../context/SocketContext";
 import {
   championshipPhase,
   championshipStatusLabel,
   competitionPhaseClass,
-} from "../../lib/competitionStatus";
-
-const MATCH_STATUS_LABEL: Record<MatchStatus, string> = {
-  SCHEDULED: "Planlı",
-  LIVE: "Canlı",
-  FINISHED: "Bitib",
-  CANCELLED: "Ləğv",
-  POSTPONED: "Təxirə",
-};
-
-const STAGE_LABEL: Record<MatchStage, string> = {
-  GROUP_STAGE: "Qrup mərhələsi",
-  PRELIMINARY: "Ön mərhələ",
-  ROUND_OF_16: "1/8 final",
-  QUARTER_FINAL: "1/4 final",
-  SEMI_FINAL: "Yarımfinal",
-  FINAL: "Final",
-};
-
-const PLAYOFF_STAGES: MatchStage[] = [
-  "PRELIMINARY",
-  "ROUND_OF_16",
-  "QUARTER_FINAL",
-  "SEMI_FINAL",
-  "FINAL",
-];
-
-const STAGE_COLUMN_CLASS: Record<MatchStage, string> = {
-  GROUP_STAGE: "bg-slate-100 text-slate-700",
-  PRELIMINARY: "bg-violet-100 text-violet-800",
-  ROUND_OF_16: "bg-indigo-100 text-indigo-800",
-  QUARTER_FINAL: "bg-sky-100 text-sky-800",
-  SEMI_FINAL: "bg-emerald-100 text-emerald-800",
-  FINAL: "bg-amber-100 text-amber-800",
-};
-
-type ChampScorerRow = {
-  id: number;
-  firstName: string;
-  lastName: string;
-  shirtNumber: number | null;
-  photo: string | null;
-  teamId: number;
-  teamName: string;
-  teamLogo: string | null;
-  goals: number;
-  assists: number;
-};
-
-type PlayoffPlaceholder = {
-  key: string;
-  slot: number;
-  homeLabel: string;
-  awayLabel: string;
-};
-
-function playerDisplayName(row: {
-  firstName: string;
-  lastName: string;
-}): string {
-  return `${row.firstName} ${row.lastName}`.trim();
-}
-
-function playoffPlaceholders(matches: Match[]): Map<MatchStage, PlayoffPlaceholder[]> {
-  const map = new Map<MatchStage, PlayoffPlaceholder[]>();
-  const existing = new Set(
-    matches.map((m) => `${m.stage}:${m.round ?? 1}`),
-  );
-  const pending = new Map<
-    string,
-    { stage: MatchStage; slot: number; home?: string; away?: string }
-  >();
-
-  for (const match of matches) {
-    const meta = parsePlayoffNotes(match.notes);
-    const feeds = meta?.feeds;
-    if (!feeds?.stage || feeds.slot == null || !feeds.side) continue;
-    const round = feeds.slot + 1;
-    if (existing.has(`${feeds.stage}:${round}`)) continue;
-    const winnerLabel =
-      meta?.homeLabel && meta?.awayLabel
-        ? `${meta.homeLabel}/${meta.awayLabel} qalibi`
-        : `${STAGE_LABEL[match.stage as MatchStage] ?? "Oyun"} qalibi`;
-    const key = `${feeds.stage}:${feeds.slot}`;
-    const rec = pending.get(key) ?? {
-      stage: feeds.stage as MatchStage,
-      slot: feeds.slot,
-    };
-    if (feeds.side === "home") rec.home = winnerLabel;
-    else rec.away = winnerLabel;
-    pending.set(key, rec);
-  }
-
-  for (const rec of pending.values()) {
-    const list = map.get(rec.stage) ?? [];
-    list.push({
-      key: `${rec.stage}-${rec.slot}`,
-      slot: rec.slot,
-      homeLabel: rec.home ?? "Təyin olunmayıb",
-      awayLabel: rec.away ?? "Təyin olunmayıb",
-    });
-    list.sort((a, b) => a.slot - b.slot);
-    map.set(rec.stage, list);
-  }
-  return map;
-}
-
-function matchStatusClass(status: MatchStatus): string {
-  switch (status) {
-    case "LIVE":
-      return "bg-rose-50 text-rose-700 ring-1 ring-rose-200";
-    case "FINISHED":
-      return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
-    default:
-      return "bg-sky-50 text-sky-700 ring-1 ring-sky-200";
-  }
-}
-
-const MIN_KICKOFF_MS = 60 * 60 * 1000;
-
-function formatWhen(iso: string | null | undefined): string {
-  if (!iso) return "Vaxt təyin edilməyib";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "Vaxt təyin edilməyib";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function formatCompactDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
-}
-
-function formatCompactWhen(iso: string | null | undefined): string {
-  if (!iso) return "Vaxt yoxdur";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "Vaxt yoxdur";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${formatCompactDate(iso)} • ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function toDatetimeLocal(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function minKickoffLocal(): string {
-  return toDatetimeLocal(new Date(Date.now() + MIN_KICKOFF_MS).toISOString());
-}
-
-function isKickoffTooSoon(iso: string): boolean {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return true;
-  return d.getTime() < Date.now() + MIN_KICKOFF_MS;
-}
-
-function isFixtureReady(match: Match): boolean {
-  return Boolean(match.scheduledAt && match.venue?.trim());
-}
-
-function canEditSchedule(match: Match): boolean {
-  return match.status !== "LIVE" && match.status !== "FINISHED";
-}
-
-function formatDiff(value: number): string {
-  if (value > 0) return `+${value}`;
-  return String(value);
-}
-
-function isSetupStatus(status: ChampionshipStatus): boolean {
-  return status === "DRAFT" || status === "REGISTRATION";
-}
-
-function TeamMark({
-  name,
-  logo,
-  align = "left",
-  size = "md",
-  badge,
-}: {
-  name: string;
-  logo: string | null;
-  align?: "left" | "right";
-  size?: "sm" | "md";
-  badge?: string | null;
-}) {
-  const dim = size === "sm" ? "h-7 w-7 text-[10px]" : "h-8 w-8 text-xs";
-  const mark = logo ? (
-    <img src={mediaUrl(logo)} alt="" className={`${dim} shrink-0 rounded-full object-cover`} />
-  ) : (
-    <span
-      className={`flex ${dim} shrink-0 items-center justify-center rounded-full font-bold ${teamInitialTone(name)}`}
-    >
-      {name.slice(0, 1).toUpperCase()}
-    </span>
-  );
-
-  return (
-    <div
-      className={`flex min-w-0 items-center gap-2 ${
-        align === "right" ? "flex-row-reverse text-right" : ""
-      }`}
-    >
-      {mark}
-      {badge ? (
-        <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded bg-slate-800 px-1 text-[10px] font-bold text-white">
-          {badge}
-        </span>
-      ) : null}
-      <span className="truncate font-semibold text-ink">{name}</span>
-    </div>
-  );
-}
-
-function StandingsTable({ rows }: { rows: StandingRow[] }) {
-  if (rows.length === 0) {
-    return (
-      <p className="px-4 py-8 text-center text-sm text-slate-500">
-        Cədvəl hələ boşdur.
-      </p>
-    );
-  }
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[520px] text-left text-sm">
-        <thead>
-          <tr className="border-b border-slate-100 text-xs font-semibold uppercase tracking-wide text-slate-400">
-            <th className="w-12 px-3 py-2.5 pr-1 text-center">#</th>
-            <th className="px-2 py-2.5 pl-1">Komanda</th>
-            <th className="px-2 py-2.5 text-center">O</th>
-            <th className="px-2 py-2.5 text-center">Q</th>
-            <th className="px-2 py-2.5 text-center">He</th>
-            <th className="px-2 py-2.5 text-center">M</th>
-            <th className="px-2 py-2.5 text-center">Qol</th>
-            <th className="px-2 py-2.5 text-center">+</th>
-            <th className="px-4 py-2.5 text-center">Xal</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-50">
-          {rows.map((row) => (
-            <tr key={row.teamId} className="hover:bg-slate-50/60">
-              <td className="w-12 px-3 py-2.5 pr-1 text-center font-bold tabular-nums text-slate-500">
-                {row.rank}
-              </td>
-              <td className="px-2 py-2.5 pl-1">
-                <TeamMark
-                  name={row.team.name}
-                  logo={row.team.logo}
-                  size="sm"
-                />
-              </td>
-              <td className="px-2 py-2.5 text-center tabular-nums">{row.played}</td>
-              <td className="px-2 py-2.5 text-center tabular-nums">{row.won}</td>
-              <td className="px-2 py-2.5 text-center tabular-nums">{row.drawn}</td>
-              <td className="px-2 py-2.5 text-center tabular-nums">{row.lost}</td>
-              <td className="px-2 py-2.5 text-center tabular-nums">
-                {row.goalsFor}:{row.goalsAgainst}
-              </td>
-              <td className="px-2 py-2.5 text-center tabular-nums">
-                {formatDiff(row.goalDiff)}
-              </td>
-              <td className="px-4 py-2.5 text-center font-bold tabular-nums text-ink">
-                {row.points}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function MatchListSection({
-  title,
-  matches,
-  onSelect,
-  onEnter,
-  hideHeader = false,
-  compact = false,
-}: {
-  title: string;
-  matches: Match[];
-  onSelect: (match: Match) => void;
-  onEnter: (match: Match) => void;
-  hideHeader?: boolean;
-  compact?: boolean;
-}) {
-  return (
-    <section
-      className={
-        hideHeader
-          ? "min-h-0"
-          : "overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
-      }
-    >
-      {!hideHeader ? (
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-          <h3 className="text-sm font-bold text-ink">{title}</h3>
-          <span className="text-xs font-semibold text-slate-400">
-            {matches.length}
-          </span>
-        </div>
-      ) : null}
-      {matches.length === 0 ? (
-        <p
-          className={`text-center text-sm text-slate-500 ${
-            compact ? "px-3 py-10" : "px-4 py-8"
-          }`}
-        >
-          Oyun yoxdur.
-        </p>
-      ) : (
-        <ul className="divide-y divide-slate-100">
-          {groupMatchesByRound(matches).flatMap((group) => {
-            const items: ReactNode[] = [];
-            if (group.label) {
-              items.push(
-                <li
-                  key={group.key}
-                  className="bg-slate-50 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-500"
-                >
-                  {group.label}
-                </li>,
-              );
-            }
-            for (const match of group.matches) {
-              const meta = parsePlayoffNotes(match.notes);
-              const ready = isFixtureReady(match);
-              const editable = canEditSchedule(match);
-              items.push(
-            <li key={match.id}>
-              <div
-                className={`flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 ${
-                  compact ? "px-3 py-3" : "gap-3 px-4 py-4 sm:gap-4"
-                }`}
-              >
-                <button
-                  type="button"
-                  onClick={() =>
-                    ready || !editable ? onEnter(match) : onSelect(match)
-                  }
-                  className="flex min-w-0 flex-1 flex-col gap-2 text-left transition hover:opacity-90 sm:flex-row sm:items-center sm:gap-3"
-                >
-                  <div
-                    className={`flex shrink-0 items-center gap-2 text-xs text-slate-500 ${
-                      compact
-                        ? "w-full sm:w-auto"
-                        : "w-full sm:w-52 sm:flex-col sm:items-start sm:gap-1"
-                    }`}
-                  >
-                    <span className="inline-flex items-center gap-1 font-medium text-slate-600">
-                      <Calendar className="h-3.5 w-3.5" />
-                      {formatWhen(match.scheduledAt)}
-                    </span>
-                    <span
-                      className={`truncate ${
-                        match.venue ? "text-slate-500" : "text-slate-400"
-                      }`}
-                    >
-                      {match.venue || "Məkan təyin edilməyib"}
-                    </span>
-                  </div>
-                  <div className="grid min-w-0 flex-1 grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-3">
-                    <TeamMark
-                      name={match.homeTeam.name}
-                      logo={match.homeTeam.logo}
-                      align="right"
-                      badge={meta?.homeLabel}
-                    />
-                    <div className="min-w-[3.5rem] text-center sm:min-w-[4.5rem]">
-                      {match.status === "SCHEDULED" ||
-                      match.status === "POSTPONED" ? (
-                        <span className="text-lg font-bold tracking-wide text-slate-300">
-                          vs
-                        </span>
-                      ) : (
-                        <span className="text-lg font-black tabular-nums text-ink sm:text-xl">
-                          {match.homeScore}:{match.awayScore}
-                        </span>
-                      )}
-                      {match.status === "LIVE" && match.minute != null ? (
-                        <span className="mt-0.5 flex items-center justify-center gap-1 text-[11px] font-semibold text-rose-600">
-                          <Radio className="h-3 w-3 animate-pulse" />
-                          {match.minute}&apos;
-                        </span>
-                      ) : null}
-                    </div>
-                    <TeamMark
-                      name={match.awayTeam.name}
-                      logo={match.awayTeam.logo}
-                      badge={meta?.awayLabel}
-                    />
-                  </div>
-                </button>
-                <div className="flex items-center justify-end gap-1">
-                  <span
-                    className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ${matchStatusClass(
-                      match.status,
-                    )}`}
-                  >
-                    {MATCH_STATUS_LABEL[match.status]}
-                  </span>
-                  {editable ? (
-                    <button
-                      type="button"
-                      onClick={() => onSelect(match)}
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-ink"
-                      title="Vaxt və məkan"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    disabled={!isFixtureReady(match)}
-                    onClick={() => onEnter(match)}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-                    title={
-                      isFixtureReady(match)
-                        ? "Oyuna gir"
-                        : "Əvvəlcə vaxt və məkan seçin"
-                    }
-                  >
-                    Oyuna gir
-                    <ChevronRight className="h-4 w-4 text-slate-300" />
-                  </button>
-                </div>
-              </div>
-            </li>,
-              );
-            }
-            return items;
-          })}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-type GroupMatchTab = "live" | "upcoming" | "finished";
-
-function GroupMatchesTabs({
-  liveMatches,
-  upcomingMatches,
-  finishedMatches,
-  onSelect,
-  onEnter,
-}: {
-  liveMatches: Match[];
-  upcomingMatches: Match[];
-  finishedMatches: Match[];
-  onSelect: (match: Match) => void;
-  onEnter: (match: Match) => void;
-}) {
-  const [tab, setTab] = useState<GroupMatchTab>("live");
-
-  const tabs: {
-    id: GroupMatchTab;
-    label: string;
-    count: number;
-    matches: Match[];
-  }[] = [
-    {
-      id: "live",
-      label: "Canlı",
-      count: liveMatches.length,
-      matches: liveMatches,
-    },
-    {
-      id: "upcoming",
-      label: "Növbəti oyunlar",
-      count: upcomingMatches.length,
-      matches: upcomingMatches,
-    },
-    {
-      id: "finished",
-      label: "Bitmiş",
-      count: finishedMatches.length,
-      matches: finishedMatches,
-    },
-  ];
-
-  const active = tabs.find((t) => t.id === tab) ?? tabs[0];
-
-  return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-100 px-2 pt-2 sm:px-3">
-        <div className="flex gap-1 overflow-x-auto">
-          {tabs.map((t) => {
-            const isActive = tab === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                  isActive
-                    ? "bg-brand text-ink shadow-sm"
-                    : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                {t.id === "live" ? (
-                  <Radio
-                    className={`h-3.5 w-3.5 ${
-                      liveMatches.length > 0
-                        ? isActive
-                          ? "animate-pulse text-rose-600"
-                          : "text-rose-500"
-                        : "text-slate-400"
-                    }`}
-                  />
-                ) : null}
-                <span>{t.label}</span>
-                <span
-                  className={`rounded-md px-1.5 py-0.5 text-[11px] font-bold tabular-nums ${
-                    isActive ? "bg-white/60 text-ink" : "bg-slate-100 text-slate-500"
-                  }`}
-                >
-                  {t.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      <div className="max-h-[min(420px,55vh)] overflow-y-auto">
-        <MatchListSection
-          title={active.label}
-          matches={active.matches}
-          onSelect={onSelect}
-          onEnter={onEnter}
-          hideHeader
-          compact
-        />
-      </div>
-    </section>
-  );
-}
-
-function PlayoffTeamRow({
-  name,
-  logo,
-  badge,
-  align = "left",
-}: {
-  name: string;
-  logo?: string | null;
-  badge?: string | null;
-  align?: "left" | "right";
-}) {
-  return (
-    <div
-      className={`flex min-w-0 items-center gap-2 ${
-        align === "right" ? "flex-row-reverse text-right" : ""
-      }`}
-    >
-      {logo ? (
-        <img src={mediaUrl(logo)} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
-      ) : (
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${teamInitialTone(name)}`}>
-          {name.slice(0, 1).toUpperCase()}
-        </span>
-      )}
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-ink">{name}</p>
-        {badge ? (
-          <p className="text-[11px] font-semibold text-slate-400">{badge}</p>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function PlayoffMatchCard({
-  match,
-  onSelect,
-  onEnter,
-}: {
-  match: Match;
-  onSelect: (match: Match) => void;
-  onEnter: (match: Match) => void;
-}) {
-  const meta = parsePlayoffNotes(match.notes);
-  const ready = isFixtureReady(match);
-  const editable = canEditSchedule(match);
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="truncate text-[11px] font-medium text-slate-500">
-          {formatCompactWhen(match.scheduledAt)}
-        </span>
-        <span
-          className={`inline-flex shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${matchStatusClass(
-            match.status,
-          )}`}
-        >
-          {match.status === "SCHEDULED" ? "Planlanıb" : MATCH_STATUS_LABEL[match.status]}
-        </span>
-      </div>
-      <button
-        type="button"
-        onClick={() => (ready || !editable ? onEnter(match) : onSelect(match))}
-        className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2 text-left"
-      >
-        <PlayoffTeamRow
-          name={match.homeTeam.name}
-          logo={match.homeTeam.logo}
-          badge={meta?.homeLabel}
-          align="right"
-        />
-        <div className="min-w-[2.75rem] text-center">
-          {match.status === "SCHEDULED" || match.status === "POSTPONED" ? (
-            <span className="text-sm font-bold text-slate-300">vs</span>
-          ) : (
-            <span className="text-base font-black tabular-nums text-ink">
-              {match.homeScore}:{match.awayScore}
-            </span>
-          )}
-        </div>
-        <PlayoffTeamRow
-          name={match.awayTeam.name}
-          logo={match.awayTeam.logo}
-          badge={meta?.awayLabel}
-        />
-      </button>
-      <div className="mt-2 flex items-center justify-end gap-1">
-        {editable ? (
-          <button
-            type="button"
-            onClick={() => onSelect(match)}
-            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-ink"
-            title="Vaxt və məkan"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-        ) : null}
-        <button
-          type="button"
-          disabled={!ready}
-          onClick={() => onEnter(match)}
-          className="inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-semibold text-slate-500 hover:bg-slate-100 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
-          title={ready ? "Oyuna gir" : "Əvvəlcə vaxt və məkan seçin"}
-        >
-          Oyuna gir
-          <ChevronRight className="h-3.5 w-3.5" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function PlayoffPlaceholderCard({ item }: { item: PlayoffPlaceholder }) {
-  return (
-    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 p-3">
-      <p className="mb-2 text-[11px] font-medium text-slate-400">Gözlənilir</p>
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-        <p className="truncate text-right text-xs font-semibold text-slate-500">
-          {item.homeLabel}
-        </p>
-        <span className="text-sm font-bold text-slate-300">vs</span>
-        <p className="truncate text-xs font-semibold text-slate-500">
-          {item.awayLabel}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function ChampionshipStatsBlock({
-  players,
-}: {
-  players: ChampScorerRow[];
-}) {
-  const goalRows = [...players]
-    .filter((row) => row.goals > 0)
-    .sort(
-      (a, b) =>
-        b.goals - a.goals ||
-        b.assists - a.assists ||
-        playerDisplayName(a).localeCompare(playerDisplayName(b), "az"),
-    );
-  const assistRows = [...players]
-    .filter((row) => row.assists > 0)
-    .sort(
-      (a, b) =>
-        b.assists - a.assists ||
-        b.goals - a.goals ||
-        playerDisplayName(a).localeCompare(playerDisplayName(b), "az"),
-    );
-
-  return (
-    <div className="space-y-4">
-      <ChampionshipPlayerStatTable
-        title="Top Goal"
-        icon={<CircleDot className="h-4 w-4 text-emerald-600" />}
-        rows={goalRows}
-        value="goals"
-        empty="Hələ qol yoxdur."
-      />
-      <ChampionshipPlayerStatTable
-        title="Top Asist"
-        icon={<Handshake className="h-4 w-4 text-sky-600" />}
-        rows={assistRows}
-        value="assists"
-        empty="Hələ asist yoxdur."
-      />
-    </div>
-  );
-}
-
-function ChampionshipPlayerStatTable({
-  title,
-  icon,
-  rows,
-  value,
-  empty,
-}: {
-  title: string;
-  icon: ReactNode;
-  rows: ChampScorerRow[];
-  value: "goals" | "assists";
-  empty: string;
-}) {
-  return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
-        {icon}
-        <h3 className="text-sm font-bold text-ink">{title}</h3>
-      </div>
-      {rows.length === 0 ? (
-        <p className="px-4 py-10 text-center text-sm text-slate-500">{empty}</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                <th className="px-3 py-2.5 text-center">#</th>
-                <th className="px-3 py-2.5">Oyunçu</th>
-                <th className="px-3 py-2.5">Komanda</th>
-                <th className="px-3 py-2.5 text-center">
-                  {value === "goals" ? "Qol" : "Asist"}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {rows.map((row, index) => (
-                <tr key={row.id} className="hover:bg-slate-50/70">
-                  <td className="px-3 py-2.5 text-center font-bold tabular-nums text-slate-400">
-                    {index + 1}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-2.5">
-                      {row.photo ? (
-                        <img
-                          src={mediaUrl(row.photo)}
-                          alt=""
-                          className="h-8 w-8 rounded-full object-cover"
-                        />
-                      ) : (
-                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">
-                          {playerDisplayName(row).slice(0, 1).toUpperCase()}
-                        </span>
-                      )}
-                      <span>
-                        <span className="block font-semibold text-ink">
-                          {playerDisplayName(row)}
-                        </span>
-                        {row.shirtNumber != null ? (
-                          <span className="text-xs text-slate-400">
-                            #{row.shirtNumber}
-                          </span>
-                        ) : null}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-2">
-                      {row.teamLogo ? (
-                        <img
-                          src={mediaUrl(row.teamLogo)}
-                          alt=""
-                          className="h-5 w-5 rounded-full object-cover"
-                        />
-                      ) : null}
-                      <span className="truncate text-slate-600">
-                        {row.teamName}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5 text-center text-base font-black tabular-nums text-ink">
-                    {value === "goals" ? row.goals : row.assists}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
-type PlayoffBoardTab = "overview" | MatchStage;
-
-function PlayoffStageColumn({
-  stage,
-  matches,
-  placeholders,
-  onSelect,
-  onEnter,
-  showConnector,
-}: {
-  stage: MatchStage;
-  matches: Match[];
-  placeholders: PlayoffPlaceholder[];
-  onSelect: (match: Match) => void;
-  onEnter: (match: Match) => void;
-  showConnector: boolean;
-}) {
-  return (
-    <div className="flex w-[17rem] shrink-0">
-      <div className="flex w-full flex-col">
-        <div
-          className={`mb-3 rounded-lg px-3 py-2 text-center text-sm font-bold shadow-sm ${STAGE_COLUMN_CLASS[stage]}`}
-        >
-          {STAGE_LABEL[stage]}
-        </div>
-        <div className="flex flex-1 flex-col justify-around gap-3">
-          {matches.map((match) => (
-            <PlayoffMatchCard
-              key={match.id}
-              match={match}
-              onSelect={onSelect}
-              onEnter={onEnter}
-            />
-          ))}
-          {placeholders.map((item) => (
-            <PlayoffPlaceholderCard key={item.key} item={item} />
-          ))}
-        </div>
-      </div>
-      {showConnector ? (
-        <div className="mx-1 hidden w-5 shrink-0 self-stretch sm:block" aria-hidden>
-          <div className="mt-[2.6rem] h-[calc(100%-2.6rem)] w-full border-t border-r border-slate-200/90" />
-        </div>
-      ) : null}
-    </div>
-  );
-}
+} from "../../../lib/competitionStatus";
+import { PLAYOFF_STAGES, STAGE_LABEL } from "./constants";
+import type { PlayoffBoardTab } from "./constants";
+import {
+  canEditSchedule,
+  formatCompactDate,
+  isFixtureReady,
+  isKickoffTooSoon,
+  isSetupStatus,
+  minKickoffLocal,
+  playerDisplayName,
+  playoffPlaceholders,
+  toDatetimeLocal,
+} from "./helpers";
+import {
+  ChampionshipStatsBlock,
+  GroupMatchesTabs,
+  MatchListSection,
+  PlayoffMatchCard,
+  PlayoffPlaceholderCard,
+  PlayoffStageColumn,
+  StandingsTable,
+  TeamMark,
+} from "./components";
 
 export function AdminChampionshipDetailPage() {
   const { championshipId: idParam } = useParams();
@@ -1026,7 +189,7 @@ export function AdminChampionshipDetailPage() {
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!Number.isInteger(championshipId) || championshipId <= 0) {
-      setError("Yanlis cempionat");
+      setError("Yanlış çempionat");
       setLoading(false);
       return;
     }
@@ -1052,7 +215,7 @@ export function AdminChampionshipDetailPage() {
         });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Yuklenmedi");
+      setError(err instanceof Error ? err.message : "Yüklənmədi");
       if (!opts?.silent) {
         setChampionship(null);
         setMatches([]);
@@ -1345,10 +508,10 @@ export function AdminChampionshipDetailPage() {
   const groupsSlotError = useMemo(() => {
     const teamCount = championship?.teams.length ?? 0;
     if (teamCount < GROUP_CHAMP_TEAM_MIN) {
-      return `Qrup yaratmaq ucun en azi ${GROUP_CHAMP_TEAM_MIN} komanda lazimdir`;
+      return `Qrup yaratmaq üçün ən azı ${GROUP_CHAMP_TEAM_MIN} komanda lazımdır`;
     }
     if (teamCount > GROUP_CHAMP_TEAM_MAX) {
-      return `Maksimum ${GROUP_CHAMP_TEAM_MAX} komanda ola biler`;
+      return `Maksimum ${GROUP_CHAMP_TEAM_MAX} komanda ola bilər`;
     }
     const count = Number(groupCount);
     const slots = resolvedSlots.map((s) => (Number.isInteger(s) ? s : null));
@@ -1367,7 +530,7 @@ export function AdminChampionshipDetailPage() {
       await fn();
     } catch (err) {
       setActionError(
-        err instanceof Error ? err.message : "Emeliyyat ugursuz oldu",
+        err instanceof Error ? err.message : "Əməliyyat uğursuz oldu",
       );
     } finally {
       setBusy(false);
@@ -1414,7 +577,7 @@ export function AdminChampionshipDetailPage() {
       setMatches((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
       setScheduleMatch(null);
     } catch (err) {
-      setModalError(err instanceof Error ? err.message : "Yenilenmedi");
+      setModalError(err instanceof Error ? err.message : "Yenilənmədi");
     } finally {
       setModalSubmitting(false);
     }
@@ -1431,7 +594,7 @@ export function AdminChampionshipDetailPage() {
       championship.format !== "PLAYOFF_ONLY" &&
       rosterCount >= GROUP_CHAMP_TEAM_MAX
     ) {
-      setModalError(`Maksimum ${GROUP_CHAMP_TEAM_MAX} komanda ola biler`);
+      setModalError(`Maksimum ${GROUP_CHAMP_TEAM_MAX} komanda ola bilər`);
       return;
     }
     if (
@@ -1439,7 +602,7 @@ export function AdminChampionshipDetailPage() {
       championship.maxTeams != null &&
       rosterCount >= championship.maxTeams
     ) {
-      setModalError(`Maksimum ${championship.maxTeams} komanda ola biler`);
+      setModalError(`Maksimum ${championship.maxTeams} komanda ola bilər`);
       return;
     }
     setModalSubmitting(true);
@@ -1449,7 +612,7 @@ export function AdminChampionshipDetailPage() {
       setChampionship(updated);
       closeAddTeamModal();
     } catch (err) {
-      setModalError(err instanceof Error ? err.message : "Elave edilmedi");
+      setModalError(err instanceof Error ? err.message : "Əlavə edilmədi");
     } finally {
       setModalSubmitting(false);
     }
@@ -1562,8 +725,8 @@ export function AdminChampionshipDetailPage() {
       return;
     }
     const msg = playoffOnly
-      ? "Playoff merhelesini baslatmaq isteyirsiniz? Komanda sayina uygun bracket yaradilacaq."
-      : "Qrup merhelesini bitirib playoff baslatmaq isteyirsiniz?";
+      ? "Playoff mərhələsini başlatmaq istəyirsiniz? Komanda sayına uyğun cədvəl yaradılacaq."
+      : "Qrup mərhələsini bitirib playoff başlatmaq istəyirsiniz?";
     if (!tieBreakTeamIds && !window.confirm(msg)) return;
     void runAction(async () => {
       try {
@@ -1607,7 +770,7 @@ export function AdminChampionshipDetailPage() {
   const handleAddToGroup = async (e: FormEvent) => {
     e.preventDefault();
     if (!addToGroupModal || !addToGroupTeamId) {
-      setModalError("Komanda secin");
+      setModalError("Komanda seçin");
       return;
     }
     setModalSubmitting(true);
@@ -1618,7 +781,7 @@ export function AdminChampionshipDetailPage() {
       setAddToGroupTeamId("");
       await load();
     } catch (err) {
-      setModalError(err instanceof Error ? err.message : "Elave edilmedi");
+      setModalError(err instanceof Error ? err.message : "Əlavə edilmədi");
     } finally {
       setModalSubmitting(false);
     }
@@ -1648,7 +811,7 @@ export function AdminChampionshipDetailPage() {
       setEditGroupModal(null);
       await load();
     } catch (err) {
-      setModalError(err instanceof Error ? err.message : "Yenilenmedi");
+      setModalError(err instanceof Error ? err.message : "Yenilənmədi");
     } finally {
       setModalSubmitting(false);
     }
@@ -1679,13 +842,13 @@ export function AdminChampionshipDetailPage() {
 
   if (!Number.isInteger(championshipId) || championshipId <= 0) {
     return (
-      <AdminPageShell title="Cempionat">
-        <p className="text-sm text-rose-600">Yanlis cempionat ID.</p>
+      <AdminPageShell title="Çempionat">
+        <p className="text-sm text-rose-600">Yanlış çempionat ID.</p>
         <Link
           to="/admin/football/championships"
           className="mt-4 inline-block text-sm font-semibold text-brand hover:underline"
         >
-          Siyahiya qayit
+          Siyahıya qayıt
         </Link>
       </AdminPageShell>
     );
@@ -1693,23 +856,23 @@ export function AdminChampionshipDetailPage() {
 
   if (loading) {
     return (
-      <AdminPageShell title="Cempionat">
-        <p className="py-16 text-center text-sm text-slate-500">Yuklenir...</p>
+      <AdminPageShell title="Çempionat">
+        <p className="py-16 text-center text-sm text-slate-500">Yüklənir...</p>
       </AdminPageShell>
     );
   }
 
   if (error || !championship) {
     return (
-      <AdminPageShell title="Cempionat">
+      <AdminPageShell title="Çempionat">
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-          {error ?? "Cempionat tapilmadi"}
+          {error ?? "Çempionat tapılmadı"}
         </div>
         <Link
           to="/admin/football/championships"
           className="mt-4 inline-block text-sm font-semibold text-brand hover:underline"
         >
-          Siyahiya qayit
+          Siyahıya qayıt
         </Link>
       </AdminPageShell>
     );
@@ -1780,7 +943,7 @@ export function AdminChampionshipDetailPage() {
       title={championship.name}
       subtitle={
         championship.description ||
-        `${championship.format === "PLAYOFF_ONLY" ? "Yalniz Playoff" : "Qrup + Playoff"} · ${championship.matchFormat === "HOME_AWAY" ? "Ev-sefer" : "1 oyun"} · ${championship.teamCount} komanda · ${championship.matchCount} oyun`
+        `${championship.format === "PLAYOFF_ONLY" ? "Yalnız Playoff" : "Qrup + Playoff"} · ${championship.matchFormat === "HOME_AWAY" ? "Ev-səfər" : "1 oyun"} · ${championship.teamCount} komanda · ${championship.matchCount} oyun`
       }
       action={
         <div className="flex flex-wrap items-center gap-2">
@@ -1818,7 +981,7 @@ export function AdminChampionshipDetailPage() {
               : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
           }`}
         >
-          {championship.visibility === "PUBLIC" ? "Public" : "Private"}
+          {championship.visibility === "PUBLIC" ? "İctimai" : "Özəl"}
         </span>
         {championship.status === "DRAFT" || championship.status === "REGISTRATION" ? (
           <button
@@ -1827,7 +990,7 @@ export function AdminChampionshipDetailPage() {
             onClick={() => void toggleVisibility()}
             className="rounded-md px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-50"
           >
-            {championship.visibility === "PUBLIC" ? "Private et" : "Public et"}
+            {championship.visibility === "PUBLIC" ? "Özəl et" : "İctimai et"}
           </button>
         ) : null}
         <span className="text-xs text-slate-400">
@@ -1939,8 +1102,8 @@ export function AdminChampionshipDetailPage() {
             </div>
             {isPlayoffOnlyFormat ? (
               <p className="border-b border-slate-100 px-4 py-2 text-xs text-slate-500">
-                Yalniz playoff · {championship.maxTeams ?? "—"} komanda lazimdir
-                (4 / 8 / 16). Sonra Pleyoff basla.
+                Yalnız playoff · {championship.maxTeams ?? "—"} komanda lazımdır
+                (4 / 8 / 16). Sonra playoff başla.
               </p>
             ) : (
               <p className="border-b border-slate-100 px-4 py-2 text-xs text-slate-500">
@@ -2003,7 +1166,7 @@ export function AdminChampionshipDetailPage() {
                         });
                       }}
                       className="rounded-lg p-1.5 text-slate-300 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
-                      title="Cixart"
+                      title="Çıxart"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -2042,7 +1205,7 @@ export function AdminChampionshipDetailPage() {
 
               {championship.groups.length === 0 ? (
                 <p className="px-4 py-10 text-center text-sm text-slate-500">
-                  Qruplar hele yaradilmayib. &quot;Qrup yarat&quot; duymesine basin.
+                  Qruplar hələ yaradılmayıb. &quot;Qrup yarat&quot; düyməsinə basın.
                 </p>
               ) : (
                 <ul className="divide-y divide-slate-100">
@@ -2072,7 +1235,7 @@ export function AdminChampionshipDetailPage() {
                               setAddToGroupModal(group);
                             }}
                             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-ink disabled:opacity-40"
-                            title="Komanda elave et"
+                            title="Komanda əlavə et"
                           >
                             <Plus className="h-4 w-4" />
                           </button>
@@ -2080,7 +1243,7 @@ export function AdminChampionshipDetailPage() {
                             type="button"
                             onClick={() => openEditGroup(group)}
                             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-ink"
-                            title="Redakte"
+                            title="Redaktə"
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
@@ -2149,7 +1312,7 @@ export function AdminChampionshipDetailPage() {
                 className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 disabled:opacity-50"
               >
                 <Play className="h-4 w-4" />
-                Pleyoff basla
+                Playoff başla
                 {!playoffReady && championship.maxTeams
                   ? ` (${championship.teams.length}/${championship.maxTeams})`
                   : ""}
@@ -2167,7 +1330,7 @@ export function AdminChampionshipDetailPage() {
                 className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-ink shadow-sm hover:bg-brand-dark disabled:opacity-50"
               >
                 <Play className="h-4 w-4" />
-                Cempionati baslat
+                Çempionatı başlat
               </button>
             )}
             {pendingInvites.length > 0 ? (
@@ -2179,7 +1342,7 @@ export function AdminChampionshipDetailPage() {
             {!isPlayoffOnlyFormat &&
             championship.teams.length < GROUP_CHAMP_TEAM_MIN ? (
               <p className="w-full text-xs text-slate-500">
-                Baslatmaq ucun en azi {GROUP_CHAMP_TEAM_MIN} komanda elave edin
+                Başlatmaq üçün ən azı {GROUP_CHAMP_TEAM_MIN} komanda əlavə edin
                 ({championship.teams.length}/{GROUP_CHAMP_TEAM_MIN}).
               </p>
             ) : null}
@@ -2255,12 +1418,12 @@ export function AdminChampionshipDetailPage() {
             <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-4 py-3">
                 <h3 className="text-sm font-bold text-ink">
-                  {activeGroup?.name ?? "Qrup"} — Cedvel
+                  {activeGroup?.name ?? "Qrup"} — Cədvəl
                 </h3>
               </div>
               {standingsLoading ? (
                 <p className="px-4 py-8 text-center text-sm text-slate-500">
-                  Cedvel yuklenir...
+                  Cədvəl yüklənir...
                 </p>
               ) : (
                 <StandingsTable rows={standings} />
@@ -2343,19 +1506,19 @@ export function AdminChampionshipDetailPage() {
               <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="border-b border-slate-100 px-4 py-3">
                   <h3 className="text-sm font-bold text-ink">
-                    {activeGroup?.name ?? "Qrup"} — Cedvel
+                    {activeGroup?.name ?? "Qrup"} — Cədvəl
                   </h3>
                 </div>
                 {standingsLoading ? (
                   <p className="px-4 py-8 text-center text-sm text-slate-500">
-                    Cedvel yuklenir...
+                    Cədvəl yüklənir...
                   </p>
                 ) : (
                   <StandingsTable rows={standings} />
                 )}
               </section>
               <MatchListSection
-                title="Bitmis oyunlar"
+                title="Bitmiş oyunlar"
                 matches={finishedMatches}
                 onSelect={openSchedule}
                 onEnter={enterMatch}
@@ -2694,9 +1857,9 @@ export function AdminChampionshipDetailPage() {
       >
         <ModalForm id="create-groups" onSubmit={handleCreateGroups}>
           <p className="mb-3 text-xs text-slate-500">
-            Komanda sayi: {championship.teams.length}. Qrup sayi 2–4, tutum 3–7.
+            Komanda sayı: {championship.teams.length}. Qrup sayi 2–4, tutum 3–7.
           </p>
-          <Field label="Qrup sayi" required>
+          <Field label="Qrup sayı" required>
             <select
               className={inputClass}
               value={groupCount}
@@ -2719,8 +1882,8 @@ export function AdminChampionshipDetailPage() {
               value={slotMode}
               onChange={(e) => setSlotMode(e.target.value as SlotMode)}
             >
-              <option value="same">Eyni her qrupda (same)</option>
-              <option value="perGroup">Qrup uzre (perGroup)</option>
+              <option value="same">Hər qrupda eyni</option>
+              <option value="perGroup">Qrup üzrə</option>
             </select>
           </Field>
           {slotMode === "same" ? (
@@ -2791,7 +1954,7 @@ export function AdminChampionshipDetailPage() {
 
       <AdminModal
         open={addToGroupModal != null}
-        title={`${addToGroupModal?.name ?? "Qrup"} — komanda elave et`}
+        title={`${addToGroupModal?.name ?? "Qrup"} — komanda əlavə et`}
         onClose={() => setAddToGroupModal(null)}
         footer={
           <>
@@ -2800,7 +1963,7 @@ export function AdminChampionshipDetailPage() {
               disabled={modalSubmitting}
             />
             <ModalSubmitButton
-              label="Elave et"
+              label="Əlavə et"
               loading={modalSubmitting}
               formId="add-to-group"
             />
@@ -2822,7 +1985,7 @@ export function AdminChampionshipDetailPage() {
               }
               required
             >
-              <option value="">Secin...</option>
+              <option value="">Seçin...</option>
               {unassignedChampTeams.map((row) => (
                 <option key={row.teamId} value={row.teamId}>
                   {row.team.name}
@@ -2832,7 +1995,7 @@ export function AdminChampionshipDetailPage() {
           </Field>
           {unassignedChampTeams.length === 0 ? (
             <p className="text-sm text-slate-500">
-              Butun cempionat komandalari artiq qruplardadir ve ya siyahı bosdur.
+              Bütün çempionat komandaları artıq qruplardadır və ya siyahı boşdur.
             </p>
           ) : null}
           {modalError ? (
@@ -2843,7 +2006,7 @@ export function AdminChampionshipDetailPage() {
 
       <AdminModal
         open={editGroupModal != null}
-        title="Qrupu redakte et"
+        title="Qrupu redaktə et"
         onClose={() => setEditGroupModal(null)}
         footer={
           <>
@@ -3039,3 +2202,4 @@ export function AdminChampionshipDetailPage() {
     </AdminPageShell>
   );
 }
+
