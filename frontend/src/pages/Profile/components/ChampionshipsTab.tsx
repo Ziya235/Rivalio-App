@@ -29,8 +29,8 @@ export function ChampionshipsTab({
   return (
     <div className="space-y-6">
       {[
-        { title: 'Public çempionatlar', list: publicItems },
-        { title: 'Private çempionatlar', list: privateItems },
+        { title: 'İctimai çempionatlar', list: publicItems },
+        { title: 'Özəl çempionatlar', list: privateItems },
       ].map(({ title, list }) => (
         <div key={title}>
           <h3 className={`font-display text-xl font-700 mb-3 ${light ? 'text-gray-900' : 'text-white'}`}>
@@ -60,7 +60,7 @@ export function ChampionshipsTab({
                     </div>
                   </div>
                   <Badge variant={item.visibility === 'PUBLIC' ? 'public' : 'private'}>
-                    {item.visibility === 'PUBLIC' ? 'Public' : 'Private'}
+                    {item.visibility === 'PUBLIC' ? 'İctimai' : 'Özəl'}
                   </Badge>
                 </button>
               ))

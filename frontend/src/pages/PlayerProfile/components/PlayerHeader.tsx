@@ -28,7 +28,6 @@ export function PlayerHeader({
 
   const meta = [
     player.username ? `@${player.username}` : null,
-    player.position,
     age !== null ? `${age} yaş` : null,
   ]
     .filter(Boolean)

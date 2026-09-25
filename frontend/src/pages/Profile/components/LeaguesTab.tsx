@@ -27,8 +27,8 @@ export function LeaguesTab({
   return (
     <div className="space-y-6">
       {[
-        { title: 'Public liqalar', leagues: publicLeagues },
-        { title: 'Private liqalar', leagues: privateLeagues },
+        { title: 'İctimai liqalar', leagues: publicLeagues },
+        { title: 'Özəl liqalar', leagues: privateLeagues },
       ].map(({ title, leagues }) => (
         <div key={title}>
           <h3 className={`font-display text-xl font-700 mb-3 ${light ? 'text-gray-900' : 'text-white'}`}>
@@ -60,7 +60,7 @@ export function LeaguesTab({
                       </div>
                     </div>
                     <Badge variant={isPublic ? 'public' : 'private'}>
-                      {isPublic ? 'Public' : 'Private'}
+                      {isPublic ? 'İctimai' : 'Özəl'}
                     </Badge>
                   </button>
                 )

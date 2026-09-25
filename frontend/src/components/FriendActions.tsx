@@ -126,6 +126,11 @@ export default function FriendActions({
             onClick={() =>
               runAction(() => rejectFriendRequest(status.request.id))
             }
+            className={
+              light
+                ? "!bg-white !text-gray-700 !border-gray-300 hover:!bg-gray-50 hover:!text-gray-900 hover:!border-gray-400"
+                : undefined
+            }
           >
             Rədd et
           </Button>
@@ -143,6 +148,11 @@ export default function FriendActions({
             variant={outlineVariant}
             disabled={actionLoading}
             onClick={() => runAction(() => removeFriend(targetUserId))}
+            className={
+              light
+                ? "!bg-rose-50 !text-rose-700 !border-rose-300 hover:!bg-rose-100 hover:!text-rose-800 hover:!border-rose-400"
+                : undefined
+            }
           >
             <UserMinus size={15} />
             Dostluqdan çıxar

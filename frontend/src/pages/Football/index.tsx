@@ -478,7 +478,7 @@ export default function FootballPage() {
           <div>
             <h1 className={`font-display text-5xl font-bold ${light ? "text-gray-900" : "text-white"}`}>Futbol</h1>
             <p className={`mt-1 ${light ? "text-gray-500" : "text-white/45"}`}>
-              Komandanız, oyunçu axtarışı, challenge, liqalar və çempionatlar
+              Komandanız, oyunçu axtarışı, oyun təklifləri, liqalar və çempionatlar
             </p>
           </div>
           <UserSearch light={light} />
