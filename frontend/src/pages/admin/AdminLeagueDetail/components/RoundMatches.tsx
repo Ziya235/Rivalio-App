@@ -1,4 +1,5 @@
 import { Calendar, ChevronRight, Pencil, Radio } from "lucide-react";
+import { livePlayingMinute } from "../../../../lib/matchClock";
 import { ROUND_STATUS_LABEL, STATUS_LABEL } from "../constants";
 import {
   canEditSchedule,
@@ -12,15 +13,18 @@ import { TeamMark } from "./TeamMark";
 
 function MatchRow({
   match,
+  nowMs,
   onSelect,
   onEnter,
 }: {
   match: Match;
+  nowMs: number;
   onSelect: (match: Match) => void;
   onEnter: (match: Match) => void;
 }) {
   const ready = isFixtureReady(match);
   const editable = canEditSchedule(match);
+  const shownMinute = livePlayingMinute(match, nowMs);
 
   return (
     <li>
@@ -51,10 +55,10 @@ function MatchRow({
                   {match.homeScore} : {match.awayScore}
                 </span>
               )}
-              {match.status === "LIVE" && match.minute != null ? (
+              {shownMinute != null ? (
                 <span className="mt-0.5 flex items-center justify-center gap-1 text-[11px] font-semibold text-rose-600">
                   <Radio className="h-3 w-3 animate-pulse" />
-                  {match.minute}&apos;
+                  {shownMinute}&apos;
                 </span>
               ) : null}
             </div>
@@ -101,10 +105,12 @@ function statusTone(status: LeagueRoundGroup["status"]): string {
 
 export function RoundMatches({
   round,
+  nowMs,
   onSelect,
   onEnter,
 }: {
   round: LeagueRoundGroup;
+  nowMs: number;
   onSelect: (match: Match) => void;
   onEnter: (match: Match) => void;
 }) {
@@ -130,7 +136,13 @@ export function RoundMatches({
       </div>
       <ul className="divide-y divide-slate-100">
         {round.matches.map((match) => (
-          <MatchRow key={match.id} match={match} onSelect={onSelect} onEnter={onEnter} />
+          <MatchRow
+            key={match.id}
+            match={match}
+            nowMs={nowMs}
+            onSelect={onSelect}
+            onEnter={onEnter}
+          />
         ))}
       </ul>
     </section>
@@ -140,11 +152,13 @@ export function RoundMatches({
 export function MatchList({
   matches,
   empty,
+  nowMs,
   onSelect,
   onEnter,
 }: {
   matches: Match[];
   empty: string;
+  nowMs: number;
   onSelect: (match: Match) => void;
   onEnter: (match: Match) => void;
 }) {
@@ -160,7 +174,13 @@ export function MatchList({
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <ul className="divide-y divide-slate-100">
         {matches.map((match) => (
-          <MatchRow key={match.id} match={match} onSelect={onSelect} onEnter={onEnter} />
+          <MatchRow
+            key={match.id}
+            match={match}
+            nowMs={nowMs}
+            onSelect={onSelect}
+            onEnter={onEnter}
+          />
         ))}
       </ul>
     </section>

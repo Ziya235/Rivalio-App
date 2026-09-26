@@ -2,7 +2,7 @@ import { Flag, Radio } from "lucide-react";
 import type { MatchClockView } from "../../../../lib/matchClock";
 import type { Match } from "../../../../types/match";
 import { STATUS_LABEL } from "../constants";
-import { formatKickoff, roundedEventMinute } from "../helpers";
+import { formatKickoff } from "../helpers";
 import { TeamMark } from "./TeamMark";
 
 export function MatchScoreboard({
@@ -12,10 +12,7 @@ export function MatchScoreboard({
   match: Match;
   clock: MatchClockView | null;
 }) {
-  const liveMinute =
-    match.status === "LIVE" && clock
-      ? roundedEventMinute(clock.minute, clock.second)
-      : null;
+  const liveClock = match.status === "LIVE" && clock ? clock.label : null;
 
   return (
     <div className="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white shadow-sm">
@@ -33,7 +30,7 @@ export function MatchScoreboard({
             <Flag className="h-3.5 w-3.5" />
           )}
           {STATUS_LABEL[match.status]}
-          {liveMinute != null ? ` · ${liveMinute}'` : ""}
+          {liveClock != null ? ` · ${liveClock}` : ""}
         </span>
         <span className="text-xs text-slate-400">
           {match.matchType === "FRIENDLY"
@@ -52,8 +49,8 @@ export function MatchScoreboard({
             <span className="mx-1 text-slate-300">:</span>
             {match.awayScore}
           </p>
-          {liveMinute != null ? (
-            <p className="mt-2 text-lg font-bold tabular-nums text-rose-600">{liveMinute}&apos;</p>
+          {liveClock != null ? (
+            <p className="mt-2 text-lg font-bold tabular-nums text-rose-600">{liveClock}</p>
           ) : null}
           <p className="mt-2 text-xs text-slate-400">{formatKickoff(match.scheduledAt)}</p>
         </div>

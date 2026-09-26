@@ -74,6 +74,24 @@ export function computeMatchClock(
   };
 }
 
+/** 4:25 is the 5th minute of the match; 0:00 is the 1st. */
+export function playingMinute(
+  minute: number,
+  maxMinutes = MATCH_CLOCK_MAX_MINUTES,
+): number {
+  if (minute >= maxMinutes) return maxMinutes;
+  return minute + 1;
+}
+
+export function livePlayingMinute(
+  match: MatchClockFields,
+  nowMs = Date.now(),
+): number | null {
+  if (match.status !== "LIVE") return null;
+  if (!match.startedAt && match.minute == null) return null;
+  return playingMinute(computeMatchClock(match, nowMs).minute);
+}
+
 export function serverAlignedNow(serverNow?: string | null, fetchedAt = Date.now()) {
   const serverMs = toMs(serverNow);
   if (serverMs == null) return Date.now();

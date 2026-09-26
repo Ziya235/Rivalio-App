@@ -596,10 +596,10 @@ export function AdminMatchDetailPage() {
       >
         <p className="text-sm leading-relaxed text-slate-700">
           {confirmKind === "start"
-            ? "Are you sure you want to start this match? The live timer will begin from the server timestamp."
+            ? "Oyunu başlatmaq istədiyinizə əminsiniz? Canlı vaxt server vaxtından etibarən sayılacaq."
             : confirmKind === "finish"
-              ? "Are you sure you want to finish this match? The result will be treated as final until you enter edit mode."
-              : "Are you sure you want to edit this finished match? Statistics will be recalculated from events."}
+              ? "Oyunu bitirmək istədiyinizə əminsiniz? Nəticə yekun hesab olunacaq. Sonradan redaktə rejimindən dəyişiklik edə bilərsiniz."
+              : "Bu bitmiş oyunu redaktə etmək istədiyinizə əminsiniz? Statistika hadisələrə görə yenidən hesablanacaq."}
         </p>
       </AdminModal>
     </AdminPageShell>

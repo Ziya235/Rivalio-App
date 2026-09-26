@@ -35,13 +35,13 @@ export function JoinTeamModal({
             Bağla
           </Button>
           <Button disabled={busy || !teamId} onClick={onSubmit}>
-            {busy ? "Göndərilir..." : "Request göndər"}
+            {busy ? "Göndərilir..." : "Dəvət göndər"}
           </Button>
         </>
       }
     >
       <p className={`mb-3 text-sm ${light ? "text-gray-500" : "text-white/55"}`}>
-        {targetName} üçün hansı komanda ilə sorğu göndərmək istəyirsiniz?
+        {targetName} üçün hansı komanda ilə dəvət göndərmək istəyirsiniz?
       </p>
       <SelectField
         label="Komanda"

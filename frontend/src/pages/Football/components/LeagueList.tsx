@@ -111,9 +111,12 @@ export function LeagueList({
         />
       </div>
 
+      <p className={`mb-4 text-sm ${light ? "text-gray-500" : "text-white/50"}`}>
+        Liqada iştirak etmək üçün dəvət göndərin.
+      </p>
       {!isCaptain ? (
         <p className="mb-4 text-xs text-amber-400/80">
-          Liqaya request göndərmək üçün komanda kapitanı olmalısınız
+          Liqaya dəvət göndərmək üçün komanda kapitanı olmalısınız
         </p>
       ) : null}
 
@@ -239,7 +242,7 @@ export function LeagueList({
                         onClick={() => requestJoin(league, available)}
                       >
                         <Send size={14} />
-                        Request göndər
+                        Dəvət göndər
                       </Button>
                     ) : null}
                     {pendingRows.map((row) =>

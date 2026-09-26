@@ -22,11 +22,29 @@ export function LeagueMatches({
 }) {
   const [matchView, setMatchView] = useState<MatchView>("current");
   const [pickedKey, setPickedKey] = useState<string | null>(null);
+  const [fetchedAt, setFetchedAt] = useState(() => Date.now());
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     setMatchView("current");
     setPickedKey(null);
   }, [leagueId]);
+
+  useEffect(() => {
+    setFetchedAt(Date.now());
+    setNowMs(Date.now());
+  }, [matches]);
+
+  const hasLive = matches.some((match) => match.status === "LIVE");
+  useEffect(() => {
+    if (!hasLive) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [hasLive]);
+
+  const serverNow = matches.find((match) => match.serverNow)?.serverNow;
+  const clockOffset = serverNow ? new Date(serverNow).getTime() - fetchedAt : 0;
+  const alignedNow = nowMs + (Number.isNaN(clockOffset) ? 0 : clockOffset);
 
   const liveMatches = useMemo(
     () =>
@@ -121,6 +139,7 @@ export function LeagueMatches({
         <MatchList
           matches={liveMatches}
           empty="Hazırda canlı oyun yoxdur."
+          nowMs={alignedNow}
           onSelect={onSelect}
           onEnter={onEnter}
         />
@@ -128,6 +147,7 @@ export function LeagueMatches({
         <MatchList
           matches={[]}
           empty="Bu liqada hələ oyun yoxdur."
+          nowMs={alignedNow}
           onSelect={onSelect}
           onEnter={onEnter}
         />
@@ -137,13 +157,14 @@ export function LeagueMatches({
             <RoundMatches
               key={round.key}
               round={round}
+              nowMs={alignedNow}
               onSelect={onSelect}
               onEnter={onEnter}
             />
           ))}
         </div>
       ) : (
-        <RoundMatches round={active} onSelect={onSelect} onEnter={onEnter} />
+        <RoundMatches round={active} nowMs={alignedNow} onSelect={onSelect} onEnter={onEnter} />
       )}
     </div>
   );

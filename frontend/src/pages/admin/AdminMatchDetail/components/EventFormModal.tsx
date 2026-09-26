@@ -9,7 +9,7 @@ import {
 } from "../../../../components/admin/AdminModal";
 import type { TeamPlayer } from "../../../../types/league";
 import type { Match } from "../../../../types/match";
-import { EVENT_MINUTE_OPTIONS } from "../constants";
+import { EVENT_MINUTE_MAX, EVENT_MINUTE_MIN } from "../constants";
 import { playerName } from "../helpers";
 
 export function EventFormModal({
@@ -92,19 +92,25 @@ export function EventFormModal({
     >
       <ModalForm id="match-event-form" onSubmit={onSubmit}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Dəqiqə" required>
-            <select
+          <Field label="Dəqiqə" required hint={`${EVENT_MINUTE_MIN}–${EVENT_MINUTE_MAX} arası rəqəm yazın`}>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
               className={inputClass}
               value={minute}
-              onChange={(event) => onMinute(event.target.value)}
+              placeholder={`${EVENT_MINUTE_MIN}–${EVENT_MINUTE_MAX}`}
+              onChange={(event) => {
+                const digits = event.target.value.replace(/\D/g, "").slice(0, 3);
+                if (digits === "") {
+                  onMinute("");
+                  return;
+                }
+                if (Number(digits) > EVENT_MINUTE_MAX) return;
+                onMinute(digits.replace(/^0+(?=\d)/, ""));
+              }}
               required
-            >
-              {EVENT_MINUTE_OPTIONS.map((value) => (
-                <option key={value} value={value}>
-                  {value}&apos;
-                </option>
-              ))}
-            </select>
+            />
           </Field>
           <Field label="Komanda" required={eventKind !== "NOTE"}>
             <select

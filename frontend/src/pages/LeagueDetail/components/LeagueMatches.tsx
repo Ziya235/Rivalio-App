@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Calendar, ChevronLeft, ChevronRight, Crosshair, Radio } from "lucide-react";
 import { mediaUrl } from "../../../api/base";
 import { formatMatchStamp } from "../../../lib/championshipUi";
+import { livePlayingMinute } from "../../../lib/matchClock";
 import {
   buildLeagueRounds,
   getCurrentRound,
@@ -170,14 +171,17 @@ function MatchRow({
   match,
   light,
   onOpen,
+  nowMs,
 }: {
   match: Match;
   light: boolean;
   onOpen: (match: Match) => void;
+  nowMs: number;
 }) {
   const muted = light ? "text-gray-500" : "text-white/45";
   const soft = light ? "text-gray-600" : "text-white/70";
   const pending = match.status === "SCHEDULED" || match.status === "POSTPONED";
+  const playingMinute = livePlayingMinute(match, nowMs);
 
   return (
     <li>
@@ -215,10 +219,10 @@ function MatchRow({
                 {match.homeScore} : {match.awayScore}
               </span>
             )}
-            {match.status === "LIVE" && match.minute != null ? (
+            {playingMinute != null ? (
               <span className="mt-0.5 flex items-center justify-center gap-1 text-[11px] font-semibold text-rose-500">
                 <Radio className="h-3 w-3 animate-pulse" />
-                {match.minute}&apos;
+                {playingMinute}&apos;
               </span>
             ) : null}
           </div>
@@ -279,10 +283,12 @@ function RoundCard({
   round,
   light,
   onOpen,
+  nowMs,
 }: {
   round: LeagueRoundGroup;
   light: boolean;
   onOpen: (match: Match) => void;
+  nowMs: number;
 }) {
   const card = light ? "border-gray-200 bg-white/70" : "border-white/10 bg-[#101017]";
   const border = light ? "border-gray-200" : "border-white/10";
@@ -311,7 +317,7 @@ function RoundCard({
       </div>
       <ul className={`divide-y ${light ? "divide-gray-100" : "divide-white/5"}`}>
         {round.matches.map((match) => (
-          <MatchRow key={match.id} match={match} light={light} onOpen={onOpen} />
+          <MatchRow key={match.id} match={match} light={light} onOpen={onOpen} nowMs={nowMs} />
         ))}
       </ul>
     </section>
@@ -339,11 +345,29 @@ export function LeagueMatches({
 }) {
   const [matchView, setMatchView] = useState<MatchView>("current");
   const [pickedKey, setPickedKey] = useState<string | null>(null);
+  const [fetchedAt, setFetchedAt] = useState(() => Date.now());
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     setMatchView("current");
     setPickedKey(null);
   }, [leagueId]);
+
+  useEffect(() => {
+    setFetchedAt(Date.now());
+    setNowMs(Date.now());
+  }, [matches]);
+
+  const hasLive = matches.some((match) => match.status === "LIVE");
+  useEffect(() => {
+    if (!hasLive) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [hasLive]);
+
+  const serverNow = matches.find((match) => match.serverNow)?.serverNow;
+  const clockOffset = serverNow ? new Date(serverNow).getTime() - fetchedAt : 0;
+  const alignedNow = nowMs + (Number.isNaN(clockOffset) ? 0 : clockOffset);
 
   const liveMatches = useMemo(
     () =>
@@ -434,7 +458,7 @@ export function LeagueMatches({
           <section className={`overflow-hidden rounded-2xl border ${light ? "border-gray-200 bg-white/70" : "border-white/10 bg-[#101017]"}`}>
             <ul className={`divide-y ${light ? "divide-gray-100" : "divide-white/5"}`}>
               {liveMatches.map((match) => (
-                <MatchRow key={match.id} match={match} light={light} onOpen={onOpenMatch} />
+                <MatchRow key={match.id} match={match} light={light} onOpen={onOpenMatch} nowMs={alignedNow} />
               ))}
             </ul>
           </section>
@@ -444,11 +468,11 @@ export function LeagueMatches({
       ) : matchView === "all" ? (
         <div className="space-y-4">
           {rounds.map((round) => (
-            <RoundCard key={round.key} round={round} light={light} onOpen={onOpenMatch} />
+            <RoundCard key={round.key} round={round} light={light} onOpen={onOpenMatch} nowMs={alignedNow} />
           ))}
         </div>
       ) : (
-        <RoundCard round={active} light={light} onOpen={onOpenMatch} />
+        <RoundCard round={active} light={light} onOpen={onOpenMatch} nowMs={alignedNow} />
       )}
     </div>
   );

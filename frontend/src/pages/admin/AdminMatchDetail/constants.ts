@@ -19,8 +19,3 @@ export function eventKindFromType(type: MatchEventType): EventModalKind {
   if (type === "SUBSTITUTION") return "SUB";
   return "NOTE";
 }
-
-export const EVENT_MINUTE_OPTIONS = Array.from(
-  { length: EVENT_MINUTE_MAX - EVENT_MINUTE_MIN + 1 },
-  (_, index) => EVENT_MINUTE_MIN + index,
-);

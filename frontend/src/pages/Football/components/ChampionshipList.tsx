@@ -111,9 +111,12 @@ export function ChampionshipList({
         />
       </div>
 
+      <p className={`mb-4 text-sm ${light ? "text-gray-500" : "text-white/50"}`}>
+        Çempionatda iştirak etmək üçün dəvət göndərin.
+      </p>
       {!isCaptain ? (
         <p className="mb-4 text-xs text-amber-400/80">
-          Çempionata request göndərmək üçün komanda kapitanı olmalısınız
+          Çempionata dəvət göndərmək üçün komanda kapitanı olmalısınız
         </p>
       ) : null}
 
@@ -232,7 +235,7 @@ export function ChampionshipList({
                         onClick={() => requestJoin(item, available)}
                       >
                         <Send size={14} />
-                        Request göndər
+                        Dəvət göndər
                       </Button>
                     ) : null}
                     {pendingRows.map((row) =>
