@@ -112,20 +112,16 @@ export function EventFormModal({
               required
             />
           </Field>
-          <Field label="Komanda" required={eventKind !== "NOTE"}>
+          <Field label="Komanda" required>
             <select
               className={inputClass}
               value={teamId}
               onChange={(event) => {
                 onTeam(event.target.value ? Number(event.target.value) : "");
               }}
-              required={eventKind !== "NOTE"}
+              required
             >
-              {eventKind === "NOTE" ? (
-                <option value="">Yoxdur</option>
-              ) : (
-                <option value="">Seçin...</option>
-              )}
+              <option value="">Seçin...</option>
               <option value={match.homeTeamId}>{match.homeTeam.name}</option>
               <option value={match.awayTeamId}>{match.awayTeam.name}</option>
             </select>

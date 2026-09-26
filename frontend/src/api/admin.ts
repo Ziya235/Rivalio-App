@@ -9,17 +9,6 @@ import type {
   MatchType,
 } from "../types/match";
 
-type CreatedPlayer = {
-  id: number;
-  firstName: string;
-  lastName: string;
-  position: string | null;
-  shirtNumber: number | null;
-  photo: string | null;
-  description: string | null;
-  teamId: number;
-};
-
 async function adminFetch<T>(
   path: string,
   options: RequestInit = {},
@@ -62,15 +51,6 @@ export type CreateTeamPayload = {
   primaryColor?: string;
   secondaryColor?: string;
   foundedYear?: number;
-};
-
-export type CreatePlayerPayload = {
-  firstName: string;
-  lastName: string;
-  position?: string;
-  shirtNumber?: number;
-  photo?: string;
-  description?: string;
 };
 
 export type CreateMatchPayload = {
@@ -184,16 +164,6 @@ export function respondJoinRequest(
 export function deleteTeam(leagueId: number, teamId: number): Promise<void> {
   return adminFetch<void>(`/api/leagues/${leagueId}/teams/${teamId}`, {
     method: "DELETE",
-  });
-}
-
-export function createPlayer(
-  teamId: number,
-  payload: CreatePlayerPayload,
-): Promise<CreatedPlayer> {
-  return adminFetch<CreatedPlayer>(`/api/teams/${teamId}/players`, {
-    method: "POST",
-    body: JSON.stringify(payload),
   });
 }
 

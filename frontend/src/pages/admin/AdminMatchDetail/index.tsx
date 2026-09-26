@@ -200,6 +200,7 @@ export function AdminMatchDetailPage() {
       setNote(event.note ?? "");
     } else {
       setEditingEvent(null);
+      if (kind === "NOTE") setTeamId("");
     }
     setEventKind(kind);
   };
@@ -280,10 +281,15 @@ export function AdminMatchDetailPage() {
           playerOutId: Number(playerOutId),
         };
       } else {
+        if (!teamId) {
+          setFormError("Komanda seçin");
+          setSubmitting(false);
+          return;
+        }
         payload = {
           type: "NOTE" as const,
           minute: minuteValue,
-          teamId: teamId ? Number(teamId) : undefined,
+          teamId: Number(teamId),
           note: note.trim() || undefined,
         };
       }
@@ -365,7 +371,7 @@ export function AdminMatchDetailPage() {
       ? Boolean(teamId && playerId)
       : eventKind === "SUB"
         ? Boolean(teamId && playerInId && playerOutId)
-        : true;
+        : Boolean(teamId);
 
   return (
     <AdminPageShell
@@ -482,6 +488,7 @@ export function AdminMatchDetailPage() {
       ) : null}
 
       <MatchEventList
+        match={match}
         events={events}
         canManage={canManageEvents}
         busy={busy}

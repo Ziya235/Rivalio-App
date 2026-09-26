@@ -1,32 +1,10 @@
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ChevronRight, Plus,  Users } from "lucide-react";
+import { ChevronRight, Users } from "lucide-react";
 import { AdminPageShell } from "../../components/admin/AdminLayout";
-import {
-  AdminModal,
-  Field,
-  ModalCancelButton,
-  ModalForm,
-  ModalSubmitButton,
-  inputClass,
-} from "../../components/admin/AdminModal";
-import { createPlayer } from "../../api/admin";
 import { fetchTeam } from "../../api/leagues";
 import { mediaUrl } from "../../api/base";
 import type { TeamDetail, TeamPlayer } from "../../types/league";
-
-const POSITIONS = [
-  "GK",
-  "CB",
-  "LB",
-  "RB",
-  "CDM",
-  "CM",
-  "CAM",
-  "LW",
-  "RW",
-  "ST",
-];
 
 function PlayerAvatar({ player }: { player: TeamPlayer }) {
   const name = `${player.firstName} ${player.lastName}`.trim();
@@ -54,16 +32,6 @@ export function AdminTeamPage() {
   const [team, setTeam] = useState<TeamDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [position, setPosition] = useState("");
-  const [shirtNumber, setShirtNumber] = useState("");
-  const [photo, setPhoto] = useState("");
 
   const load = useCallback(async () => {
     if (!Number.isInteger(leagueId) || leagueId <= 0) {
@@ -93,43 +61,6 @@ export function AdminTeamPage() {
     void load();
   }, [load]);
 
-  const resetForm = () => {
-    setFirstName("");
-    setLastName("");
-    setPosition("");
-    setShirtNumber("");
-    setPhoto("");
-    setFormError(null);
-  };
-
-  const handleCreate = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!firstName.trim() || !lastName.trim()) {
-      setFormError("Ad və soyad mütləqdir");
-      return;
-    }
-    setSubmitting(true);
-    setFormError(null);
-    try {
-      const num = shirtNumber.trim() ? Number(shirtNumber) : undefined;
-      await createPlayer(teamId, {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        position: position || undefined,
-        shirtNumber: Number.isInteger(num) ? num : undefined,
-        photo: photo.trim() || undefined,
-      });
-      setModalOpen(false);
-      resetForm();
-      await load();
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Oyunçu əlavə edilmədi");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-
   if (loading) {
     return (
       <p className="py-16 text-center text-sm text-slate-500">Yüklənir...</p>
@@ -158,19 +89,6 @@ export function AdminTeamPage() {
       subtitle={`${team.league.name}${
         team.city ? ` · ${team.city}` : ""
       } · Oyunçu heyəti`}
-      action={
-        <button
-          type="button"
-          onClick={() => {
-            resetForm();
-            setModalOpen(true);
-          }}
-          className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-ink shadow-sm hover:bg-brand-dark"
-        >
-          <Plus className="h-4 w-4" />
-          Oyunçu əlavə et
-        </button>
-      }
     >
       <nav className="mb-5 flex flex-wrap items-center gap-1.5 text-sm text-slate-500">
         <Link to="/admin/football/leagues" className="hover:text-brand">
@@ -215,7 +133,7 @@ export function AdminTeamPage() {
         </div>
         {team.players.length === 0 ? (
           <p className="px-4 py-10 text-center text-sm text-slate-500">
-            Hələ oyunçu yoxdur. &quot;Oyunçu əlavə et&quot; ilə başlayın.
+            Hələ oyunçu yoxdur.
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -229,29 +147,21 @@ export function AdminTeamPage() {
               </thead>
               <tbody>
                 {team.players.map((player) => (
-                  <tr
-                    key={player.id}
-                    className="border-b border-slate-50 hover:bg-slate-50/80"
-                  >
+                  <tr key={player.id} className="border-b border-slate-50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <PlayerAvatar player={player} />
-                        <Link
-                          to={`/players/${player.id}`}
-                          className="font-semibold text-ink hover:text-brand"
-                        >
+                        <span className="font-semibold text-ink">
                           {player.firstName} {player.lastName}
-                        </Link>
+                        </span>
                       </div>
                     </td>
-                 
                     <td className="px-4 py-3 text-center font-semibold text-ink">
                       {player.goals ?? 0}
                     </td>
                     <td className="px-4 py-3 text-center font-semibold text-ink">
                       {player.assists ?? 0}
                     </td>
-                 
                   </tr>
                 ))}
               </tbody>
@@ -259,86 +169,6 @@ export function AdminTeamPage() {
           </div>
         )}
       </div>
-
-      <AdminModal
-        open={modalOpen}
-        title="Yeni oyunçu əlavə et"
-        onClose={() => !submitting && setModalOpen(false)}
-        footer={
-          <>
-            <ModalCancelButton
-              onClick={() => setModalOpen(false)}
-              disabled={submitting}
-            />
-            <ModalSubmitButton
-              formId="create-player-form"
-              label="Yarat"
-              loading={submitting}
-            />
-          </>
-        }
-      >
-        <ModalForm id="create-player-form" onSubmit={handleCreate}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Ad" required>
-              <input
-                className={inputClass}
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="Ad"
-                required
-              />
-            </Field>
-            <Field label="Soyad" required>
-              <input
-                className={inputClass}
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="Soyad"
-                required
-              />
-            </Field>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Pozisiya">
-              <select
-                className={inputClass}
-                value={position}
-                onChange={(e) => setPosition(e.target.value)}
-              >
-                <option value="">Seçin</option>
-                {POSITIONS.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Forma nömrəsi">
-              <input
-                className={inputClass}
-                type="number"
-                min={1}
-                max={99}
-                value={shirtNumber}
-                onChange={(e) => setShirtNumber(e.target.value)}
-                placeholder="10"
-              />
-            </Field>
-          </div>
-          <Field label="Foto URL">
-            <input
-              className={inputClass}
-              value={photo}
-              onChange={(e) => setPhoto(e.target.value)}
-              placeholder="https://..."
-            />
-          </Field>
-          {formError ? (
-            <p className="mb-2 text-sm text-rose-600">{formError}</p>
-          ) : null}
-        </ModalForm>
-      </AdminModal>
     </AdminPageShell>
   );
 }

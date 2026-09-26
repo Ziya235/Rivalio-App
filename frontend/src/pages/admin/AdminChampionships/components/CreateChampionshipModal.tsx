@@ -16,6 +16,13 @@ import type {
 
 const PLAYOFF_TEAM_COUNTS = ["4", "8", "16"] as const;
 
+function todayDate() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
 export function CreateChampionshipModal({
   open,
   onClose,
@@ -32,8 +39,9 @@ export function CreateChampionshipModal({
   const [format, setFormat] = useState<ChampionshipFormat>("GROUP_AND_PLAYOFF");
   const [matchFormat, setMatchFormat] = useState<ChampionshipMatchFormat>("SINGLE");
   const [maxTeams, setMaxTeams] = useState("8");
-  const [startDate, setStartDate] = useState("");
   const [visibility, setVisibility] = useState<ChampionshipVisibility>("PUBLIC");
+
+  const nameReady = name.trim().length >= 4;
 
   useEffect(() => {
     if (!open) return;
@@ -42,7 +50,6 @@ export function CreateChampionshipModal({
     setFormat("GROUP_AND_PLAYOFF");
     setMatchFormat("SINGLE");
     setMaxTeams("8");
-    setStartDate("");
     setVisibility("PUBLIC");
     setFormError(null);
   }, [open]);
@@ -60,8 +67,8 @@ export function CreateChampionshipModal({
 
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault();
-    if (!name.trim()) {
-      setFormError("Ad mütləqdir");
+    if (!nameReady) {
+      setFormError("Çempionat adı ən azı 4 hərf olmalıdır");
       return;
     }
     setSubmitting(true);
@@ -73,7 +80,7 @@ export function CreateChampionshipModal({
         format,
         matchFormat,
         maxTeams: format === "PLAYOFF_ONLY" ? Number(maxTeams) : 20,
-        startDate: startDate || undefined,
+        startDate: todayDate(),
         visibility,
         sportCode: "FOOTBALL",
       });
@@ -96,90 +103,98 @@ export function CreateChampionshipModal({
           <ModalSubmitButton
             label="Yarat"
             loading={submitting}
+            disabled={!nameReady}
             formId="create-championship"
           />
         </>
       }
     >
       <ModalForm id="create-championship" onSubmit={handleCreate}>
-        <Field label="Ad" required>
-          <input
-            className={inputClass}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            required
-          />
-        </Field>
-        <Field label="Təsvir">
-          <textarea
-            className={inputClass}
-            rows={2}
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-          />
-        </Field>
-        <Field label="Görünürlük" required>
-          <select
-            className={inputClass}
-            value={visibility}
-            onChange={(event) =>
-              setVisibility(event.target.value as ChampionshipVisibility)
-            }
-          >
-            <option value="PUBLIC">İctimai</option>
-            <option value="PRIVATE">Özəl</option>
-          </select>
-        </Field>
-        <Field label="Format" required>
-          <select
-            className={inputClass}
-            value={format}
-            onChange={(event) =>
-              handleFormatChange(event.target.value as ChampionshipFormat)
-            }
-          >
-            <option value="GROUP_AND_PLAYOFF">Qrup + Playoff</option>
-            <option value="PLAYOFF_ONLY">Yalnız Playoff</option>
-          </select>
-        </Field>
-        <p className="mb-4 text-xs text-slate-500">
-          {format === "PLAYOFF_ONLY"
-            ? "Yalnız 4, 8 və ya 16 komanda. Başladıqda 1/8 → 1/4 → 1/2 → final mərhələləri komanda sayına görə yaranır."
-            : "Əvvəl qrup mərhələsi, sonra playoff. Komandalar 6–20 aralığında əlavə olunur."}
-        </p>
-        {format === "PLAYOFF_ONLY" ? (
-          <Field label="Komanda sayı" required>
+        <div className="grid grid-cols-2 gap-x-3 [&_label]:mb-3">
+          <div className="col-span-2">
+            <Field label="Ad" required>
+              <input
+                className={inputClass}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                minLength={4}
+                maxLength={80}
+                required
+              />
+              {name.trim().length > 0 && name.trim().length < 4 ? (
+                <span className="mt-1 block text-xs font-medium text-rose-600">
+                  Ən azı 4 hərf
+                </span>
+              ) : null}
+            </Field>
+          </div>
+          <div className="col-span-2">
+            <Field label="Təsvir">
+              <textarea
+                className={inputClass}
+                rows={2}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
+            </Field>
+          </div>
+          <Field label="Görünürlük" required>
             <select
               className={inputClass}
-              value={maxTeams}
-              onChange={(event) => setMaxTeams(event.target.value)}
+              value={visibility}
+              onChange={(event) =>
+                setVisibility(event.target.value as ChampionshipVisibility)
+              }
             >
-              <option value="4">4 (yarımfinal)</option>
-              <option value="8">8 (1/4 final)</option>
-              <option value="16">16 (1/8 final)</option>
+              <option value="PUBLIC">İctimai</option>
+              <option value="PRIVATE">Özəl</option>
             </select>
           </Field>
-        ) : null}
-        <Field label="Başlama tarixi">
-          <input
-            type="date"
-            className={inputClass}
-            value={startDate}
-            onChange={(event) => setStartDate(event.target.value)}
-          />
-        </Field>
-        <Field label="Oyun formatı" required>
-          <select
-            className={inputClass}
-            value={matchFormat}
-            onChange={(event) =>
-              setMatchFormat(event.target.value as ChampionshipMatchFormat)
-            }
-          >
-            <option value="SINGLE">1 oyun</option>
-            <option value="HOME_AWAY">Ev-səfər</option>
-          </select>
-        </Field>
+          <Field label="Format" required>
+            <select
+              className={inputClass}
+              value={format}
+              onChange={(event) =>
+                handleFormatChange(event.target.value as ChampionshipFormat)
+              }
+            >
+              <option value="GROUP_AND_PLAYOFF">Qrup + Playoff</option>
+              <option value="PLAYOFF_ONLY">Yalnız Playoff</option>
+            </select>
+          </Field>
+          <p className="col-span-2 -mt-1 mb-3 text-xs leading-snug text-slate-500">
+            {format === "PLAYOFF_ONLY"
+              ? "Yalnız 4, 8 və ya 16 komanda. Başladıqda mərhələlər komanda sayına görə yaranır."
+              : "Əvvəl qrup mərhələsi, sonra playoff. Komandalar 6–20 aralığında əlavə olunur."}
+          </p>
+          {format === "PLAYOFF_ONLY" ? (
+            <Field label="Komanda sayı" required>
+              <select
+                className={inputClass}
+                value={maxTeams}
+                onChange={(event) => setMaxTeams(event.target.value)}
+              >
+                <option value="4">4 (yarımfinal)</option>
+                <option value="8">8 (1/4 final)</option>
+                <option value="16">16 (1/8 final)</option>
+              </select>
+            </Field>
+          ) : null}
+          <div className={format === "PLAYOFF_ONLY" ? undefined : "col-span-2"}>
+            <Field label="Oyun formatı" required>
+              <select
+                className={inputClass}
+                value={matchFormat}
+                onChange={(event) =>
+                  setMatchFormat(event.target.value as ChampionshipMatchFormat)
+                }
+              >
+                <option value="SINGLE">1 oyun</option>
+                <option value="HOME_AWAY">Ev-səfər</option>
+              </select>
+            </Field>
+          </div>
+        </div>
         {formError ? (
           <p className="text-sm font-medium text-rose-600">{formError}</p>
         ) : null}

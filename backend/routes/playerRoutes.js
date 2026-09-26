@@ -1,6 +1,5 @@
 import express from "express";
 import {
-  createPlayer,
   deletePlayer,
   getPlayerProfile,
 } from "../controllers/playerController.js";
@@ -11,14 +10,6 @@ import { permissionMiddleware } from "../middlewares/permissionMiddleware.js";
 const router = express.Router();
 
 router.get("/players/:playerId", authMiddleware, getPlayerProfile);
-
-router.post(
-  "/teams/:teamId/players",
-  authMiddleware,
-  adminMiddleware,
-  permissionMiddleware("football", "create"),
-  createPlayer,
-);
 
 router.delete(
   "/leagues/:leagueId/teams/:teamId/players/:playerId",
