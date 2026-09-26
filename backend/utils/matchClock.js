@@ -171,14 +171,14 @@ export function assertMatchEventsWritable(match, ctx = {}, now = new Date()) {
 
 export function assertEventMinute(minute) {
   const minuteValue = Number(minute);
+  const min = 1;
+  const max = 180;
   if (
     !Number.isInteger(minuteValue) ||
-    minuteValue < 0 ||
-    minuteValue > MATCH_CLOCK_MAX_MINUTES
+    minuteValue < min ||
+    minuteValue > max
   ) {
-    throw new MatchClockError(
-      `Dəqiqə 0–${MATCH_CLOCK_MAX_MINUTES} arası olmalıdır`,
-    );
+    throw new MatchClockError(`Dəqiqə ${min}–${max} arası olmalıdır`);
   }
   return minuteValue;
 }

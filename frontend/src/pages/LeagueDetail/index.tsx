@@ -6,24 +6,24 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
-import { Calendar, Lock, Radio, Target, Trophy } from "lucide-react";
-import { Badge, Button } from "../components/ui";
+import { Lock, Target, Trophy } from "lucide-react";
+import { Badge, Button } from "../../components/ui";
 import {
   fetchLeague,
   fetchLeagueMatches,
   fetchLeaguePlayers,
   fetchLeagueStandings,
-} from "../api/leagues";
-import { mediaUrl } from "../api/base";
-import type { League, LeaguePlayerRow, StandingRow } from "../types/league";
-import type { Match, MatchStatus } from "../types/match";
-import type { AppOutletContext } from "../App";
-import { formatMatchStamp, groupMatchesByRound } from "../lib/championshipUi";
+} from "../../api/leagues";
+import { mediaUrl } from "../../api/base";
+import type { League, LeaguePlayerRow, StandingRow } from "../../types/league";
+import type { Match } from "../../types/match";
+import type { AppOutletContext } from "../../App";
 import {
   competitionPhaseClass,
   leaguePhase,
   leagueStatusLabel,
-} from "../lib/competitionStatus";
+} from "../../lib/competitionStatus";
+import { LeagueMatches } from "./components/LeagueMatches";
 
 type TabId = "standings" | "matches" | "goals" | "assists" | "ga";
 
@@ -34,14 +34,6 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "assists", label: "Asistlər" },
   { id: "ga", label: "Qol + Asist" },
 ];
-
-const STATUS_LABEL: Record<MatchStatus, string> = {
-  SCHEDULED: "Planlı",
-  LIVE: "Canlı",
-  FINISHED: "Bitib",
-  CANCELLED: "Ləğv",
-  POSTPONED: "Təxirə",
-};
 
 function formatDiff(value: number): string {
   if (value > 0) return `+${value}`;
@@ -71,7 +63,6 @@ export default function LeagueDetailPage() {
   const rowHover = light
     ? "border-gray-100 hover:bg-gray-50/70"
     : "border-white/5 hover:bg-white/[0.03]";
-  const divide = light ? "divide-gray-100" : "divide-white/5";
   const borderSoft = light ? "border-gray-200" : "border-white/10";
 
   const tabParam = searchParams.get("tab");
@@ -83,7 +74,6 @@ export default function LeagueDetailPage() {
   const [standings, setStandings] = useState<StandingRow[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [players, setPlayers] = useState<LeaguePlayerRow[]>([]);
-  const [matchView, setMatchView] = useState<"all" | "live">("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -120,18 +110,6 @@ export default function LeagueDetailPage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  const liveMatches = useMemo(
-    () =>
-      matches
-        .filter((m) => m.status === "LIVE")
-        .sort(
-          (a, b) =>
-            (a.round ?? Number.MAX_SAFE_INTEGER) -
-              (b.round ?? Number.MAX_SAFE_INTEGER) || a.id - b.id,
-        ),
-    [matches],
-  );
 
   const goalTable = useMemo(
     () =>
@@ -176,33 +154,6 @@ export default function LeagueDetailPage() {
     setSearchParams({ tab: id }, { replace: true });
   };
 
-  const statusBadgeClass = (status: MatchStatus) => {
-    if (light) {
-      switch (status) {
-        case "LIVE":
-          return "bg-rose-50 text-rose-700 ring-1 ring-rose-200";
-        case "FINISHED":
-          return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
-        case "CANCELLED":
-        case "POSTPONED":
-          return "bg-slate-100 text-slate-500 ring-1 ring-slate-200";
-        default:
-          return "bg-sky-50 text-sky-700 ring-1 ring-sky-200";
-      }
-    }
-    switch (status) {
-      case "LIVE":
-        return "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30";
-      case "FINISHED":
-        return "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30";
-      case "CANCELLED":
-      case "POSTPONED":
-        return "bg-white/5 text-white/40 ring-1 ring-white/10";
-      default:
-        return "bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30";
-    }
-  };
-
   if (loading) {
     return (
       <p
@@ -228,141 +179,6 @@ export default function LeagueDetailPage() {
       </div>
     );
   }
-
-  const renderMatchRow = (match: Match) => (
-            <li key={match.id}>
-              <button
-                type="button"
-                onClick={() =>
-                  navigate(`/leagues/${leagueId}/matches/${match.id}`)
-                }
-                className={`flex w-full cursor-pointer flex-col gap-3 px-4 py-4 text-left transition sm:flex-row sm:items-center sm:gap-4 ${rowHover}`}
-              >
-              <div
-                className={`flex w-full shrink-0 items-center gap-2 text-xs sm:w-44 sm:flex-col sm:items-start sm:gap-1 ${muted}`}
-              >
-                <span
-                  className={`inline-flex items-center gap-1 font-medium ${soft}`}
-                >
-                  <Calendar className="h-3.5 w-3.5" />
-                  {formatMatchStamp(match.scheduledAt)}
-                </span>
-                <span className="truncate">
-                  {match.venue || "Meydan yoxdur"}
-                </span>
-              </div>
-              <div className="grid min-w-0 flex-1 grid-cols-[1fr_auto_1fr] items-center gap-3">
-                <div className="flex min-w-0 flex-row-reverse items-center gap-2 text-right">
-                  {match.homeTeam.logo ? (
-                    <img
-                      src={mediaUrl(match.homeTeam.logo)}
-                      alt=""
-                      className="h-8 w-8 rounded-full object-cover"
-                    />
-                  ) : (
-                    <span
-                      className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
-                        light
-                          ? "bg-emerald-50 text-emerald-600"
-                          : "bg-white/10 text-[#c5f135]"
-                      }`}
-                    >
-                      {match.homeTeam.name.slice(0, 1).toUpperCase()}
-                    </span>
-                  )}
-                  <span className={`truncate font-semibold ${ink}`}>
-                    {match.homeTeam.name}
-                  </span>
-                </div>
-                <div className="min-w-[4.5rem] text-center">
-                  {match.status === "SCHEDULED" ? (
-                    <span
-                      className={`text-lg font-bold tracking-wide ${light ? "text-gray-300" : "text-white/25"}`}
-                    >
-                      vs
-                    </span>
-                  ) : (
-                    <span
-                      className={`text-xl font-black tabular-nums ${ink}`}
-                    >
-                      {match.homeScore}:{match.awayScore}
-                    </span>
-                  )}
-                  {match.status === "LIVE" && match.minute != null ? (
-                    <span className="mt-0.5 flex items-center justify-center gap-1 text-[11px] font-semibold text-rose-500">
-                      <Radio className="h-3 w-3 animate-pulse" />
-                      {match.minute}&apos;
-                    </span>
-                  ) : null}
-                </div>
-                <div className="flex min-w-0 items-center gap-2">
-                  {match.awayTeam.logo ? (
-                    <img
-                      src={mediaUrl(match.awayTeam.logo)}
-                      alt=""
-                      className="h-8 w-8 rounded-full object-cover"
-                    />
-                  ) : (
-                    <span
-                      className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
-                        light
-                          ? "bg-emerald-50 text-emerald-600"
-                          : "bg-white/10 text-[#c5f135]"
-                      }`}
-                    >
-                      {match.awayTeam.name.slice(0, 1).toUpperCase()}
-                    </span>
-                  )}
-                  <span className={`truncate font-semibold ${ink}`}>
-                    {match.awayTeam.name}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center justify-end sm:w-28">
-                <span
-                  className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ${statusBadgeClass(match.status)}`}
-                >
-                  {STATUS_LABEL[match.status]}
-                </span>
-              </div>
-              </button>
-            </li>
-  );
-
-  const renderRoundMatchList = (rows: Match[], empty: string) => {
-    const groups = groupMatchesByRound(rows);
-    if (rows.length === 0) {
-      return (
-        <section className={`overflow-hidden rounded-2xl border ${card}`}>
-          <p className={`px-4 py-8 text-center text-sm ${muted}`}>{empty}</p>
-        </section>
-      );
-    }
-    return (
-      <div className="space-y-4">
-        {groups.map((group) => (
-          <section
-            key={group.key}
-            className={`overflow-hidden rounded-2xl border ${card}`}
-          >
-            <div
-              className={`flex items-center justify-between border-b px-4 py-3 ${borderSoft}`}
-            >
-              <h3 className={`text-sm font-bold ${ink}`}>
-                {group.label ?? "Oyunlar"}
-              </h3>
-              <span className={`text-xs font-semibold ${muted}`}>
-                {group.matches.length} oyun
-              </span>
-            </div>
-            <ul className={`divide-y ${divide}`}>
-              {group.matches.map((match) => renderMatchRow(match))}
-            </ul>
-          </section>
-        ))}
-      </div>
-    );
-  };
 
   const renderPlayerTable = (
     rows: LeaguePlayerRow[],
@@ -496,7 +312,6 @@ export default function LeagueDetailPage() {
             </Badge>
           </div>
           <p className={`text-sm ${muted}`}>
-            {league.season || "Mövsüm yoxdur"}
             {league.description ? ` · ${league.description}` : ""}
           </p>
         </div>
@@ -646,51 +461,12 @@ export default function LeagueDetailPage() {
         ) : null}
 
         {activeTab === "matches" ? (
-          <div className="space-y-5">
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setMatchView("all")}
-                className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
-                  matchView === "all"
-                    ? light
-                      ? "bg-gray-900 text-white"
-                      : "bg-white text-[#08080e]"
-                    : light
-                      ? "bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50"
-                      : "bg-white/5 text-white/70 ring-1 ring-white/10 hover:bg-white/10"
-                }`}
-              >
-                Bütün oyunlar
-              </button>
-              <button
-                type="button"
-                onClick={() => setMatchView("live")}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
-                  matchView === "live"
-                    ? "bg-rose-600 text-white"
-                    : light
-                      ? "bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50"
-                      : "bg-white/5 text-white/70 ring-1 ring-white/10 hover:bg-white/10"
-                }`}
-              >
-                {liveMatches.length > 0 ? (
-                  <Radio className="h-3.5 w-3.5 animate-pulse" />
-                ) : null}
-                Canlı
-                <span className="text-xs opacity-80">{liveMatches.length}</span>
-              </button>
-            </div>
-            {matchView === "live"
-              ? renderRoundMatchList(
-                  liveMatches,
-                  "Hazırda canlı oyun yoxdur.",
-                )
-              : renderRoundMatchList(
-                  matches,
-                  "Bu liqada hələ oyun yoxdur.",
-                )}
-          </div>
+          <LeagueMatches
+            leagueId={leagueId}
+            matches={matches}
+            light={light}
+            onOpenMatch={(match) => navigate(`/leagues/${leagueId}/matches/${match.id}`)}
+          />
         ) : null}
 
         {activeTab === "goals" ? (
