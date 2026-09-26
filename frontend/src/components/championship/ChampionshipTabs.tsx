@@ -1,9 +1,4 @@
-export type ChampionshipTabId =
-  | "overview"
-  | "groups"
-  | "playoff"
-  | "scorers"
-  | "matches";
+export type ChampionshipTabId = "overview" | "groups" | "matches" | "playoff" | "scorers";
 
 export function ChampionshipTabs({
   tabs,
@@ -15,16 +10,14 @@ export function ChampionshipTabs({
   onChange: (id: ChampionshipTabId) => void;
 }) {
   return (
-    <div className="flex gap-1 overflow-x-auto border-b border-gray-200 pb-px">
+    <div className="flex gap-2 overflow-x-auto pb-1">
       {tabs.map((tab) => (
         <button
           key={tab.id}
           type="button"
           onClick={() => onChange(tab.id)}
-          className={`shrink-0 whitespace-nowrap rounded-t-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
-            active === tab.id
-              ? "border-b-2 border-emerald-500 text-emerald-600"
-              : "text-gray-400 hover:text-gray-700"
+          className={`shrink-0 rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+            active === tab.id ? "bg-ink text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
           }`}
         >
           {tab.label}

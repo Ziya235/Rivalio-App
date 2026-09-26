@@ -53,7 +53,7 @@ function azOrdinalSuffix(value: number): "ci" | "cı" | "cu" | "cü" {
   return "ci";
 }
 
-function roundLabelAz(round: number | null | undefined): string | null {
+export function formatRoundLabel(round: number | null | undefined): string | null {
   if (round == null || !Number.isFinite(round) || round < 1) return null;
   return `${round}-${azOrdinalSuffix(round)} tur`;
 }
@@ -108,7 +108,7 @@ export function buildLeagueRounds(matches: Match[]): LeagueRoundGroup[] {
     return {
       key: group.key,
       round: round != null && round >= 1 ? round : null,
-      label: roundLabelAz(round) ?? group.label ?? "Oyunlar",
+      label: formatRoundLabel(round) ?? group.label ?? "Oyunlar",
       matches: group.matches,
       status,
       dateLabel: formatRoundDateRange(group.matches),

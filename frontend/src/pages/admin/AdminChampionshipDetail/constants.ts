@@ -56,3 +56,13 @@ export type PlayoffPlaceholder = {
 };
 
 export type PlayoffBoardTab = "overview" | MatchStage;
+
+export type ManagementTabId = "overview" | "groups" | "matches" | "playoff" | "stats";
+
+export const MANAGEMENT_TABS: { id: ManagementTabId; label: string }[] = [
+  { id: "overview", label: "İcmal" },
+  { id: "groups", label: "Qruplar" },
+  { id: "matches", label: "Bütün oyunlar" },
+  { id: "playoff", label: "Pley-off" },
+  { id: "stats", label: "Statistika" },
+];

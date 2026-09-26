@@ -55,14 +55,16 @@ export function PlayoffMatchCard({
   match,
   onSelect,
   onEnter,
+  allowSchedule = true,
 }: {
   match: Match;
   onSelect: (match: Match) => void;
   onEnter: (match: Match) => void;
+  allowSchedule?: boolean;
 }) {
   const meta = parsePlayoffNotes(match.notes);
   const ready = isFixtureReady(match);
-  const editable = canEditSchedule(match);
+  const editable = allowSchedule && canEditSchedule(match);
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -153,6 +155,7 @@ export function PlayoffStageColumn({
   onSelect,
   onEnter,
   showConnector,
+  allowSchedule = true,
 }: {
   stage: MatchStage;
   matches: Match[];
@@ -160,6 +163,7 @@ export function PlayoffStageColumn({
   onSelect: (match: Match) => void;
   onEnter: (match: Match) => void;
   showConnector: boolean;
+  allowSchedule?: boolean;
 }) {
   return (
     <div className="flex w-[17rem] shrink-0">
@@ -176,6 +180,7 @@ export function PlayoffStageColumn({
               match={match}
               onSelect={onSelect}
               onEnter={onEnter}
+              allowSchedule={allowSchedule}
             />
           ))}
           {placeholders.map((item) => (

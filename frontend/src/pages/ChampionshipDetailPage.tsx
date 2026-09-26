@@ -19,6 +19,7 @@ import { ChampError, ChampionshipDetailSkeleton } from "../components/championsh
 import { TopScorers } from "../components/championship/TopScorers";
 import { Button } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
+import { buildGroupRoundViews, resolveChampionshipRound } from "../lib/championshipRounds";
 import type {
   ChampionshipListItem,
   ChampionshipStatistics,
@@ -26,13 +27,7 @@ import type {
 } from "../types/championship";
 import type { Match } from "../types/match";
 
-const TAB_IDS: ChampionshipTabId[] = [
-  "overview",
-  "groups",
-  "playoff",
-  "scorers",
-  "matches",
-];
+const TAB_IDS: ChampionshipTabId[] = ["overview", "groups", "matches", "playoff", "scorers"];
 
 export default function ChampionshipDetailPage() {
   const { championshipId: idParam } = useParams();
@@ -121,12 +116,12 @@ export default function ChampionshipDetailPage() {
 
   const tabs = useMemo(() => {
     const all: { id: ChampionshipTabId; label: string }[] = [
-      { id: "overview", label: "Ümumi baxış" },
+      { id: "overview", label: "İcmal" },
     ];
     if (hasGroups) all.push({ id: "groups", label: "Qruplar" });
-    if (hasPlayoff) all.push({ id: "playoff", label: "Playoff" });
+    all.push({ id: "matches", label: "Bütün oyunlar" });
+    if (hasPlayoff) all.push({ id: "playoff", label: "Pley-off" });
     all.push({ id: "scorers", label: "Statistika" });
-    all.push({ id: "matches", label: "Oyunlar" });
     return all;
   }, [hasGroups, hasPlayoff]);
 
@@ -140,6 +135,18 @@ export default function ChampionshipDetailPage() {
   const myTeamIds = useMemo(
     () => new Set((championship?.myTeams ?? []).map((t) => t.id)),
     [championship?.myTeams],
+  );
+
+  const roundState = useMemo(
+    () =>
+      championship
+        ? resolveChampionshipRound(matches, championship.status, championship.currentStage)
+        : null,
+    [championship, matches],
+  );
+  const groupViews = useMemo(
+    () => buildGroupRoundViews(matches, championship?.groups ?? []),
+    [matches, championship?.groups],
   );
 
   const openMatch = (match: Match) => {
@@ -208,29 +215,43 @@ export default function ChampionshipDetailPage() {
           />
         </div>
         <div className="mt-6">
-          {activeTab === "overview" ? (
+          {activeTab === "overview" && roundState ? (
             <ChampionshipOverview
               championship={championship}
               matches={matches}
               standings={standings}
-              statistics={statistics}
+              roundState={roundState}
+              groupViews={groupViews}
+              onOpenMatch={openMatch}
+              onOpenTab={(id) => setSearchParams({ tab: id }, { replace: true })}
+              onRefresh={() => load(true)}
             />
           ) : null}
           {activeTab === "groups" ? (
-            <ChampionshipGroups standings={standings} myTeamIds={myTeamIds} />
-          ) : null}
-          {activeTab === "playoff" ? (
-            <ChampionshipPlayoff matches={matches} onOpenMatch={openMatch} />
-          ) : null}
-          {activeTab === "scorers" ? (
-            <TopScorers rows={statistics.players} />
-          ) : null}
-          {activeTab === "matches" ? (
-            <ChampionshipMatches
+            <ChampionshipGroups
+              groups={championship.groups}
+              standings={standings}
               matches={matches}
+              groupViews={groupViews}
+              myTeamIds={myTeamIds}
               onOpenMatch={openMatch}
             />
           ) : null}
+          {activeTab === "matches" && roundState ? (
+            <ChampionshipMatches
+              groups={championship.groups}
+              roundState={roundState}
+              onOpenMatch={openMatch}
+            />
+          ) : null}
+          {activeTab === "playoff" ? (
+            <ChampionshipPlayoff
+              matches={matches}
+              currentStage={roundState?.playoffStage ?? null}
+              onOpenMatch={openMatch}
+            />
+          ) : null}
+          {activeTab === "scorers" ? <TopScorers rows={statistics.players} /> : null}
         </div>
       </div>
     </div>

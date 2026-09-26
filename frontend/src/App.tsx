@@ -32,6 +32,7 @@ import { AdminTeamPage } from './pages/admin/AdminTeamPage'
 import { AdminMatchDetailPage } from './pages/admin/AdminMatchDetail'
 import { AdminChampionshipsPage } from './pages/admin/AdminChampionships'
 import { AdminChampionshipDetailPage } from './pages/admin/AdminChampionshipDetail'
+import { AdminChampionshipSetupPage } from './pages/admin/AdminChampionshipSetup'
 import ChampionshipDetailPage from './pages/ChampionshipDetailPage'
 import ChampionshipMatchPage from './pages/ChampionshipMatchPage'
 import PlayerProfilePage from './pages/PlayerProfile'
@@ -187,6 +188,7 @@ export default function App() {
           <Route path="football/matches" element={<Navigate to="/admin/football/leagues" replace />} />
           <Route path="football/matches/:matchId" element={<AdminMatchDetailPage />} />
           <Route path="football/championships" element={<AdminChampionshipsPage />} />
+          <Route path="football/championships/:championshipId/setup" element={<AdminChampionshipSetupPage />} />
           <Route path="football/championships/:championshipId" element={<AdminChampionshipDetailPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="matches" element={<Navigate to="/admin/football/matches" replace />} />
