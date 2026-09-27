@@ -423,14 +423,22 @@ function StageMatch({
   const meta = parsePlayoffNotes(match.notes);
   const played = match.status === "FINISHED" || live;
   const score = played ? `${match.homeScore} : ${match.awayScore}` : "vs";
+  const groupName = match.group?.name && (!match.stage || match.stage === "GROUP_STAGE") ? match.group.name : null;
 
   if (live) {
     return (
       <article className="rounded-2xl border border-lime-300 bg-lime-50 px-4 py-4">
         <div className="mb-3 flex items-center justify-between gap-2 text-[11px]">
-          <span className="inline-flex items-center gap-1 font-bold text-rose-600">
-            <Radio className="h-3 w-3 animate-pulse" />
-            Canlı{minute != null ? ` · ${minute}'` : ""}
+          <span className="inline-flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 font-bold text-rose-600">
+              <Radio className="h-3 w-3 animate-pulse" />
+              Canlı{minute != null ? ` · ${minute}'` : ""}
+            </span>
+            {groupName ? (
+              <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-lime-200">
+                {groupName}
+              </span>
+            ) : null}
           </span>
           <span className="font-semibold text-slate-500">
             {stageLabel}
@@ -472,21 +480,28 @@ function StageMatch({
 
   return (
     <article className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 px-3 py-2.5">
-      <div className="w-28 shrink-0">
-        <span
-          className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
-            match.status === "FINISHED" ? "bg-lime-100 text-lime-800" : "bg-slate-100 text-slate-500"
-          }`}
-        >
-          {match.status === "FINISHED" ? "Bitib" : "Gözlənilir"}
-        </span>
+      <div className="w-32 shrink-0">
+        <div className="flex flex-wrap items-center gap-1">
+          {groupName ? (
+            <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+              {groupName}
+            </span>
+          ) : null}
+          <span
+            className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
+              match.status === "FINISHED" ? "bg-lime-100 text-lime-800" : "bg-slate-100 text-slate-500"
+            }`}
+          >
+            {match.status === "FINISHED" ? "Bitib" : "Gözlənilir"}
+          </span>
+        </div>
         <p className="mt-1 text-[11px] text-slate-400">{formatCompactWhen(match.scheduledAt)}</p>
       </div>
       <div className="grid min-w-0 flex-1 grid-cols-[1fr_auto_1fr] items-center gap-2">
         <TeamFace
           name={match.homeTeam.name}
           logo={match.homeTeam.logo}
-          hint={meta?.homeLabel ?? match.group?.name}
+          hint={meta?.homeLabel}
           align="right"
         />
         <p className={`text-center text-lg font-black tabular-nums ${played ? "text-ink" : "text-slate-300"}`}>

@@ -36,7 +36,6 @@ export function ChampionshipHeader({
         >
           {championship.visibility === "PUBLIC" ? "İctimai" : "Özəl"}
         </span>
-        <span className="text-xs text-slate-400">{championship.sport?.name ?? "Futbol"}</span>
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {tabs.map((tab) => (
