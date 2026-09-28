@@ -107,7 +107,7 @@ function AppLayout() {
     <div
       className={`${isLoginPage ? 'h-dvh' : 'min-h-screen'} font-body transition-colors duration-300 ${isLightMode
           ? 'text-slate-900'
-          : 'bg-[#08080e] text-white'
+          : 'bg-#08080e text-white'
         }`}
     >
       {showHeader && (
@@ -133,7 +133,7 @@ function AppLayout() {
 
       {toast && (
         <div
-          className={`fixed bottom-6 right-6 z-[999] px-5 py-3 rounded-xl border text-sm font-medium backdrop-blur-sm animate-count ${toast.type === 'success'
+          className={`fixed bottom-6 right-6 z-999 px-5 py-3 rounded-xl border text-sm font-medium backdrop-blur-sm animate-count ${toast.type === 'success'
               ? 'bg-[#c5f135]/10 border-[#c5f135]/30 text-[#c5f135]'
               : 'bg-red-500/10 border-red-500/30 text-red-400'
             }`}
@@ -243,7 +243,6 @@ export default function App() {
             element={<ChampionshipMatchPage />}
           />
           <Route path="players/:playerId" element={<PlayerProfilePage />} />
-          <Route path="users/:userId" element={<PlayerProfilePage />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />

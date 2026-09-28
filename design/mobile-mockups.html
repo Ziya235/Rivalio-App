@@ -1,0 +1,1078 @@
+<!doctype html>
+<html lang="az">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>Rivalio Mobil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=DM+Sans:opsz,wght@9..40,300..700&display=swap">
+<style>
+/* ---------- Canvas (maketlərin ətrafı) — Rivalio brendi üçün qəsdən tək, qaranlıq görünüş ---------- */
+:root{color-scheme:dark;--cv:#0a0a10;--cv2:#13131b;--cvtx:#f3f4f6;--cvmut:rgba(243,244,246,.56);--cvbd:rgba(255,255,255,.08);--lime:#c5f135}
+*{box-sizing:border-box}
+body{margin:0;background:var(--cv);color:var(--cvtx);font-family:'DM Sans',system-ui,-apple-system,'Segoe UI',sans-serif;padding-inline:16px;padding-block:28px 72px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1560px;margin:0 auto;display:flex;flex-direction:column;gap:56px}
+.page-h{display:flex;flex-wrap:wrap;gap:24px 40px;justify-content:space-between;align-items:flex-end;padding-bottom:28px;border-bottom:1px solid var(--cvbd)}
+.page-h h1{font:800 clamp(40px,7vw,68px)/.9 'Barlow Condensed',Impact,sans-serif;text-transform:uppercase;margin:14px 0 12px;letter-spacing:.005em;text-wrap:balance}
+.page-h h1 em{font-style:normal;color:var(--lime)}
+.page-h p{margin:0;max-width:62ch;color:var(--cvmut);line-height:1.6}
+.page-h code,.cap code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+.ctrl{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.ctrl span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--cvmut);font-weight:600}
+.seg{display:inline-flex;padding:4px;border-radius:14px;background:var(--cv2);border:1px solid var(--cvbd)}
+.seg button{font:600 14px 'DM Sans',sans-serif;border:0;background:transparent;color:var(--cvmut);height:38px;padding:0 16px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.seg button[aria-pressed="true"]{background:var(--lime);color:#08080e}
+.seg button:focus-visible,.jump a:focus-visible{outline:2px solid var(--lime);outline-offset:2px}
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:4px}
+.note{background:var(--cv2);border:1px solid var(--cvbd);border-radius:14px;padding:14px 16px;font-size:13.5px;line-height:1.5;color:var(--cvmut)}
+.note b{display:block;color:var(--cvtx);font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}
+.jump{display:flex;flex-wrap:wrap;gap:8px}
+.jump a{color:var(--cvtx);text-decoration:none;font-size:13px;font-weight:600;height:34px;padding:0 14px;border-radius:99px;border:1px solid var(--cvbd);display:inline-flex;align-items:center;gap:8px}
+.jump a:hover{border-color:var(--lime);color:var(--lime)}
+.jump a i{font-style:normal;color:var(--cvmut);font-weight:500}
+.grp>header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:24px}
+.grp>header h2{font:800 32px/1 'Barlow Condensed',Impact,sans-serif;text-transform:uppercase;margin:0;letter-spacing:.01em}
+.grp>header p{margin:0;color:var(--cvmut);font-size:14px}
+.grid{display:flex;flex-wrap:wrap;gap:44px 32px}
+.ph{width:360px;max-width:100%;display:flex;flex-direction:column;gap:14px}
+.cap{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:0 8px}
+.cap b{font:700 17px 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.02em}
+.cap code{color:var(--cvmut);text-align:right}
+.fr{background:#1b1b24;border-radius:50px;padding:9px;box-shadow:inset 0 0 0 1px #2b2b37,0 40px 70px -30px rgba(0,0,0,.8)}
+
+/* ---------- Ekran tokenləri (web-dəki index.css ilə eyni) ---------- */
+.scr{--bgfill:#08080e;--card:#101017;--card2:#18181f;--bd:rgba(255,255,255,.07);--bd2:rgba(255,255,255,.13);--tx:#fff;--tx2:rgba(255,255,255,.58);--tx3:rgba(255,255,255,.38);--acc:#c5f135;--accTx:#c5f135;--accSoft:rgba(197,241,53,.1);--accBd:rgba(197,241,53,.3);--onAcc:#08080e;--gA:#c5f135;--gB:#86ef35;--bar:rgba(12,12,18,.9);--inp:#0c0c13;--pur:#a78bfa;--purSoft:rgba(124,58,237,.18);--blu:#60a5fa;--bluSoft:rgba(59,130,246,.16);--org:#fb923c;--orgSoft:rgba(249,115,22,.15);--red:#f87171;--redSoft:rgba(239,68,68,.13);--grn:#4ade80;--shadow:none;--ov:rgba(0,0,0,.6)}
+.light .scr:not(.dk){--bgfill:linear-gradient(160deg,#e8fff3,#eaf8ff 48%,#f2edff);--card:#fff;--card2:#f1f5f9;--bd:rgba(15,23,42,.08);--bd2:rgba(15,23,42,.14);--tx:#0f172a;--tx2:#52606f;--tx3:#8995a2;--accTx:#4d6b0b;--accSoft:rgba(197,241,53,.3);--accBd:rgba(110,150,15,.35);--gA:#4d6b0b;--gB:#2f8a18;--bar:rgba(255,255,255,.88);--inp:#fff;--pur:#6d28d9;--purSoft:rgba(124,58,237,.1);--blu:#2563eb;--bluSoft:rgba(59,130,246,.1);--org:#c2410c;--orgSoft:rgba(249,115,22,.12);--red:#dc2626;--redSoft:rgba(239,68,68,.1);--grn:#16a34a;--shadow:0 1px 2px rgba(15,23,42,.04),0 6px 18px rgba(15,23,42,.05);--ov:rgba(15,23,42,.38)}
+.scr{position:relative;height:740px;border-radius:41px;overflow:hidden;background:var(--bgfill);color:var(--tx);display:flex;flex-direction:column;font-size:14px;line-height:1.45;transition:background .3s,color .3s}
+.sb{height:46px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:4px 26px 0 34px;font-size:14.5px;font-weight:600;position:relative;z-index:6}
+.sb::after{content:"";position:absolute;left:50%;top:11px;width:98px;height:29px;border-radius:20px;background:#000;transform:translateX(-50%)}
+.sbi{width:68px;height:12px;fill:currentColor}
+.tb{height:54px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;position:relative;z-index:2}
+.tt{font:700 21px/1 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.02em}
+.bd{flex:1;overflow-y:auto;padding:6px 16px 104px;display:flex;flex-direction:column;gap:16px;scrollbar-width:none;position:relative}
+.bd.nb{padding-bottom:36px}
+.bd::-webkit-scrollbar,.tabs::-webkit-scrollbar,.chips::-webkit-scrollbar,.hs::-webkit-scrollbar,.tsc::-webkit-scrollbar{display:none}
+.hi{position:absolute;bottom:8px;left:50%;width:124px;height:5px;border-radius:3px;background:var(--tx);opacity:.85;transform:translateX(-50%);z-index:9}
+.nav{position:absolute;left:0;right:0;bottom:0;height:82px;background:var(--bar);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--bd);display:grid;grid-template-columns:repeat(5,1fr);padding-top:9px;z-index:5}
+.nav a{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10.5px;font-weight:600;color:var(--tx3);position:relative}
+.nav a.on{color:var(--accTx)}
+.nav a.on::before{content:"";position:absolute;top:-10px;width:22px;height:3px;border-radius:0 0 3px 3px;background:var(--acc)}
+.nav .ic{width:22px;height:22px}
+.n{position:absolute;top:-5px;left:calc(50% + 5px);min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--acc);color:#08080e;font:800 10px/17px 'DM Sans',sans-serif;text-align:center;font-style:normal}
+.ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ic.s{width:15px;height:15px}.ic.xs{width:13px;height:13px}.ic.l{width:26px;height:26px}
+a{color:inherit;text-decoration:none}
+
+/* typography */
+.h1{font:800 38px/.93 'Barlow Condensed',Impact,sans-serif;text-transform:uppercase;letter-spacing:.005em;margin:0;text-wrap:balance}
+.h2{font:800 26px/1 'Barlow Condensed',Impact,sans-serif;text-transform:uppercase;margin:0;letter-spacing:.01em;text-wrap:balance}
+.h3{font:700 18px/1.1 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.03em;margin:0}
+.t{font-weight:700;font-size:14.5px;line-height:1.3}
+.mut{color:var(--tx2)}.dim{color:var(--tx3)}.sm{font-size:12.5px}.xs{font-size:11px}.acc{color:var(--accTx)}
+.eb{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accTx);font-weight:700}
+.grad{background:linear-gradient(90deg,var(--gA),var(--gB));-webkit-background-clip:text;background-clip:text;color:transparent}
+.num{font-variant-numeric:tabular-nums}
+p{margin:0}
+
+/* layout helpers */
+.row{display:flex;align-items:center;gap:10px}.row.t0{align-items:flex-start}
+.col{display:flex;flex-direction:column;gap:12px}.col.g6{gap:6px}.col.g8{gap:8px}
+.sp{flex:1;min-width:0}
+.tr{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.sh{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hs{display:flex;gap:10px;overflow-x:auto;margin:0 -16px;padding:2px 16px;scrollbar-width:none}
+
+/* components */
+.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:14px;box-shadow:var(--shadow)}
+.card.p0{padding:0}.card.hl{border-color:var(--accBd)}
+.soft{background:var(--card2);border-radius:12px;padding:10px 12px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:44px;padding:0 16px;border-radius:12px;font:600 14px 'DM Sans',sans-serif;border:1px solid transparent;white-space:nowrap}
+.pri{background:var(--acc);color:var(--onAcc);box-shadow:0 8px 22px -8px rgba(197,241,53,.6)}
+.sec{background:var(--card2);border-color:var(--bd2);color:var(--tx)}
+.out{border-color:var(--bd2);color:var(--tx)}
+.gh{color:var(--tx2)}
+.dng{background:var(--redSoft);color:var(--red)}
+.btn.s{height:34px;padding:0 12px;font-size:12.5px;border-radius:10px}
+.blk{width:100%}
+.ib{width:40px;height:40px;border-radius:12px;border:1px solid var(--bd2);display:grid;place-items:center;color:var(--tx);position:relative;flex:none;background:transparent}
+.ib .n{top:-6px;left:auto;right:-6px}
+.bdg{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 9px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap;flex:none}
+.lime{background:var(--accSoft);color:var(--accTx)}.pur{background:var(--purSoft);color:var(--pur)}.blu{background:var(--bluSoft);color:var(--blu)}.org{background:var(--orgSoft);color:var(--org)}.red{background:var(--redSoft);color:var(--red)}.gry{background:var(--card2);color:var(--tx2)}
+.live{background:#ef4444;color:#fff}
+.av{width:38px;height:38px;border-radius:50%;flex:none;display:grid;place-items:center;font:700 15px 'Barlow Condensed',sans-serif;color:var(--accTx);background:linear-gradient(135deg,rgba(197,241,53,.28),rgba(124,58,237,.42));border:1px solid var(--accBd);position:relative}
+.av.xl{width:84px;height:84px;font-size:34px;border-width:2px}
+.av.s{width:30px;height:30px;font-size:12px}
+.av .on{position:absolute;right:0;bottom:0;width:10px;height:10px;border-radius:50%;background:#22c55e;border:2px solid var(--card)}
+.crest{width:42px;height:42px;border-radius:12px;flex:none;display:grid;place-items:center;font:800 16px 'Barlow Condensed',sans-serif;color:#fff;letter-spacing:.02em}
+.crest.s{width:28px;height:28px;border-radius:8px;font-size:11.5px}
+.crest.xl{width:76px;height:76px;border-radius:20px;font-size:30px}
+.c-gf{background:#f97316}.c-xl{background:#eab308;color:#1a1400}.c-yu{background:#7c3aed}.c-nf{background:#10b981}.c-bs{background:#ef4444}.c-qa{background:#334155}.c-sk{background:#2563eb}.c-nv{background:#0ea5e9}
+.tabs{display:flex;gap:20px;overflow-x:auto;border-bottom:1px solid var(--bd);margin:0 -16px;padding:0 16px;scrollbar-width:none;flex:none}
+.tabs a{padding:11px 0 10px;font-size:13.5px;font-weight:600;color:var(--tx3);white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs a.on{color:var(--accTx);border-color:var(--acc)}
+.chips{display:flex;gap:8px;overflow-x:auto;margin:0 -16px;padding:0 16px;scrollbar-width:none;flex:none}
+.chip{height:32px;padding:0 13px;border-radius:99px;border:1px solid var(--bd2);font-size:12.5px;font-weight:600;color:var(--tx2);display:inline-flex;align-items:center;white-space:nowrap;gap:6px;flex:none}
+.chip.on{background:var(--acc);color:var(--onAcc);border-color:var(--acc)}
+.chip .dt{width:7px;height:7px;border-radius:50%;background:#ef4444}
+.fld{display:flex;flex-direction:column;gap:6px}
+.fld>label{font-size:12.5px;font-weight:600;color:var(--tx2)}
+.fld>label i{font-style:normal;color:var(--accTx)}
+.inp{min-height:46px;border-radius:12px;border:1px solid var(--bd2);background:var(--inp);padding:0 14px;display:flex;align-items:center;gap:10px;color:var(--tx);font-size:14px}
+.inp .ph{color:var(--tx3)}
+.inp.foc{border-color:var(--acc);box-shadow:0 0 0 3px var(--accSoft)}
+.inp.ta{min-height:84px;align-items:flex-start;padding-top:12px}
+.hint{font-size:11.5px;color:var(--tx3)}
+.li{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--bd)}
+.li:first-child{border-top:0}
+.divl{display:flex;align-items:center;gap:10px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tx3)}
+.divl::after{content:"";flex:1;height:1px;background:var(--bd)}
+.meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--tx2)}
+.meta span{display:inline-flex;align-items:center;gap:5px}
+.stat{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px;text-align:center;box-shadow:var(--shadow)}
+.stat b{display:block;font:800 28px/1 'Barlow Condensed',sans-serif;font-variant-numeric:tabular-nums}
+.stat span{font-size:11.5px;color:var(--tx2)}
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+.tbl th{font-size:10.5px;color:var(--tx3);font-weight:700;text-transform:uppercase;padding:9px 4px;text-align:center;letter-spacing:.04em}
+.tbl td{padding:10px 4px;text-align:center;border-top:1px solid var(--bd)}
+.tbl .l{text-align:left}
+.tbl .pts{font-weight:800;color:var(--tx)}
+.tbl td.pos{width:26px;font-weight:700;color:var(--tx2);position:relative}
+.tbl tr.q td.pos::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:2px;background:var(--acc)}
+.tbl tr.r td.pos::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:2px;background:#ef4444}
+.tsc{overflow-x:auto;scrollbar-width:none}
+.tsc .tbl{min-width:430px}
+.tsc .stk{position:sticky;left:0;background:var(--card);z-index:1}
+.fm{display:inline-flex;gap:3px}
+.fm i{width:17px;height:17px;border-radius:5px;font:800 9.5px/17px 'DM Sans',sans-serif;text-align:center;font-style:normal;color:#fff}
+.fm .w{background:#22c55e}.fm .d{background:#94a3b8}.fm .x{background:#ef4444}
+.ov{position:absolute;inset:0;background:var(--ov);z-index:7}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:8;background:var(--card);border-radius:26px 26px 0 0;border-top:1px solid var(--bd2);padding:10px 16px 34px;display:flex;flex-direction:column;gap:13px}
+.handle{width:40px;height:5px;border-radius:3px;background:var(--bd2);margin:0 auto 4px}
+.upl{border:1.5px dashed var(--bd2);border-radius:14px;display:flex;align-items:center;gap:12px;padding:12px}
+.upl .box{width:48px;height:48px;border-radius:12px;background:var(--card2);display:grid;place-items:center;color:var(--tx2)}
+.acc-i{border-top:1px solid var(--bd);padding:14px 0}
+.acc-i:first-child{border-top:0}
+.acc-i .q{display:flex;justify-content:space-between;align-items:center;gap:12px;font-weight:600;font-size:14px}
+.acc-i .a{font-size:13px;color:var(--tx2);margin-top:8px;line-height:1.55}
+.acc-i.op .q{color:var(--accTx)}
+.logo{display:flex;align-items:center;gap:8px;font:800 23px/1 'Barlow Condensed',sans-serif;letter-spacing:.01em}
+.lm{width:30px;height:30px;border-radius:8px;background:#c5f135;color:#08080e;display:grid;place-items:center;font-size:19px}
+.logo em{font-style:normal;color:var(--accTx)}
+.glow{position:absolute;border-radius:50%;filter:blur(60px);pointer-events:none;z-index:0}
+.icb{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:none}
+.score{font:800 50px/1 'Barlow Condensed',sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.msg{max-width:80%;padding:9px 13px;border-radius:18px;font-size:13.5px;line-height:1.4}
+.msg small{display:block;font-size:10.5px;opacity:.6;margin-top:3px;text-align:right}
+.me{align-self:flex-end;background:var(--acc);color:#08080e;border-bottom-right-radius:6px}
+.them{align-self:flex-start;background:var(--card2);border-bottom-left-radius:6px}
+.ev{display:grid;grid-template-columns:1fr 44px 1fr;align-items:center;gap:6px;position:relative}
+.ev .m{width:40px;height:26px;border-radius:13px;background:var(--card2);border:1px solid var(--bd2);display:grid;place-items:center;font-size:11.5px;font-weight:700;justify-self:center;z-index:1;font-variant-numeric:tabular-nums}
+.ev .h{text-align:right;font-size:12.5px}.ev .a{font-size:12.5px}
+.ev .h b,.ev .a b{display:block;font-weight:600;font-size:13px}
+.evs{position:relative;display:flex;flex-direction:column;gap:16px;padding:6px 0}
+.evs::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--bd2)}
+.yc{display:inline-block;width:9px;height:12px;border-radius:2px;background:#facc15;vertical-align:-1px}
+.brk{display:flex;gap:14px;overflow-x:auto;margin:0 -16px;padding:4px 16px;scrollbar-width:none}
+.rnd{display:flex;flex-direction:column;gap:10px;flex:none;width:176px}
+.rnd>.xs{font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--tx3)}
+.rnd .stack{flex:1;display:flex;flex-direction:column;justify-content:space-around;gap:14px}
+.mc{background:var(--card);border:1px solid var(--bd);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+.mc .tm{display:flex;align-items:center;gap:8px;padding:8px 10px;font-size:12.5px}
+.mc .tm+.tm{border-top:1px solid var(--bd)}
+.mc .tm b{margin-left:auto;font-variant-numeric:tabular-nums}
+.mc .tm.lo{color:var(--tx3)}
+.mc .tm.wi{font-weight:700}
+.pitch{position:absolute;inset:0;width:100%;height:100%;z-index:0;opacity:.9}
+.step{display:flex;gap:12px;align-items:flex-start}
+.step .k{width:30px;height:30px;border-radius:50%;background:var(--accSoft);color:var(--accTx);border:1px solid var(--accBd);display:grid;place-items:center;font:800 15px 'Barlow Condensed',sans-serif;flex:none}
+.prog{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.prog i{height:4px;border-radius:2px;background:var(--bd2)}
+.prog i.on{background:var(--acc)}
+.pick{border:1px solid var(--bd2);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.pick.on{border-color:var(--acc);background:var(--accSoft)}
+.unr{position:relative}
+.unr::after{content:"";position:absolute;top:16px;right:14px;width:8px;height:8px;border-radius:50%;background:var(--acc)}
+@media (prefers-reduced-motion:reduce){.scr{transition:none}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="sbi" viewBox="0 0 68 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="4.5" y="6" width="3" height="6" rx="1"/><rect x="9" y="3.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="1" width="3" height="11" rx="1"/><path d="M29 3.2a9.5 9.5 0 0 1 12 0l-1.3 1.5a7.5 7.5 0 0 0-9.4 0zM31.3 5.9a6 6 0 0 1 7.4 0l-1.3 1.5a4 4 0 0 0-4.8 0zM35 11.5l-2-2.3a3 3 0 0 1 4 0z"/><rect x="45.5" y="1" width="20" height="10" rx="3" fill="none" stroke="currentColor" stroke-opacity=".45"/><rect x="47.5" y="3" width="15" height="6" rx="1.5"/><rect x="66.5" y="4" width="1.5" height="4" rx=".75" fill-opacity=".45"/></symbol>
+<symbol id="home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+<symbol id="ball" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m12 7.5 4 2.9-1.5 4.7h-5L8 10.4z"/><path d="M12 3v4.5M16 10.4l4.3-1.3M14.5 15.1l2.6 3.7M9.5 15.1l-2.6 3.7M8 10.4 3.7 9.1"/></symbol>
+<symbol id="trophy" viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></symbol>
+<symbol id="msg" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-12.6 7.3L3 20l1.3-5A8.5 8.5 0 1 1 21 11.5z"/></symbol>
+<symbol id="bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></symbol>
+<symbol id="user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+<symbol id="users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 3.1a4 4 0 0 1 0 7.8M22 21a7 7 0 0 0-4-6.3"/></symbol>
+<symbol id="uplus" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M19 8v6M16 11h6"/></symbol>
+<symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+<symbol id="moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></symbol>
+<symbol id="menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+<symbol id="x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+<symbol id="cl" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+<symbol id="cr" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+<symbol id="cd" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="cu" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></symbol>
+<symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+<symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></symbol>
+<symbol id="cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+<symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+<symbol id="send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></symbol>
+<symbol id="swords" viewBox="0 0 24 24"><path d="M14.5 17.5 3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M14.5 6.5 18 3h3v3l-3.5 3.5M5 14l4 4M7 17l-3 3M3 19l2 2"/></symbol>
+<symbol id="check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="radio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></symbol>
+<symbol id="shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>
+<symbol id="camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></symbol>
+<symbol id="lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+<symbol id="globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+<symbol id="chart" viewBox="0 0 24 24"><path d="M3 3v18h18M8 17v-7M13 17V6M18 17v-4"/></symbol>
+<symbol id="target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+<symbol id="edit" viewBox="0 0 24 24"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></symbol>
+<symbol id="mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></symbol>
+<symbol id="arr" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></symbol>
+<symbol id="flag" viewBox="0 0 24 24"><path d="M4 22V4a1 1 0 0 1 1-1h13l-3 5 3 5H5"/></symbol>
+<symbol id="heart" viewBox="0 0 24 24"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 12 5.3 5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/></symbol>
+<symbol id="scale" viewBox="0 0 24 24"><path d="M12 3v18M7 21h10M3 7h18M6 7l-3 7a3 3 0 0 0 6 0zM18 7l-3 7a3 3 0 0 0 6 0z"/></symbol>
+<symbol id="zap" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></symbol>
+<symbol id="dots" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></symbol>
+</svg>
+
+<div class="wrap">
+
+<header class="page-h">
+  <div>
+    <div class="logo" style="--accTx:#c5f135"><span class="lm">R</span><span>Rival<em>io</em></span></div>
+    <h1>Mobil <em>dizayn</em></h1>
+    <p>Web versiyanın admin olmayan bütün səhifələri (<code>frontend/src/App.tsx</code>), 390pt telefon ekranına uyğunlaşdırılıb. Rənglər, şriftlər və komponentlər web-dəki kimidir: <code>#08080e</code> fon, <code>#c5f135</code> lime, Barlow Condensed + DM Sans. Hər telefonun içi scroll olunur.</p>
+  </div>
+  <div class="ctrl">
+    <span>Tema</span>
+    <div class="seg" role="group" aria-label="Tema">
+      <button type="button" id="t-dark" aria-pressed="true"><svg class="ic s"><use href="#moon"/></svg>Qaranlıq</button>
+      <button type="button" id="t-light" aria-pressed="false"><svg class="ic s"><use href="#sun"/></svg>İşıqlı</button>
+    </div>
+  </div>
+</header>
+
+<div class="notes">
+  <div class="note"><b>Alt naviqasiya</b>Daxil olmuş istifadəçi üçün 5 bölmə: Ana səhifə, İdmanlar, Chat, Bildirişlər, Profil. Web-dəki header dropdown-larını əvəz edir.</div>
+  <div class="note"><b>Qonaq</b>Hamburger menyusu açılır: Ana Səhifə, İdmanlar, Haqqımızda, FAQ, Daxil ol və Qeydiyyat.</div>
+  <div class="note"><b>Modallar və cədvəllər</b>Modallar aşağıdan açılan panel (bottom sheet) olur. Geniş cədvəllərdə birinci sütun sabit qalır, qalanı yana sürüşür.</div>
+  <div class="note"><b>Tema</b>Web-dəki kimi qaranlıq və işıqlı tema. Login və Qeydiyyat həmişə qaranlıq qalır.</div>
+</div>
+
+<nav class="jump" aria-label="Bölmələr">
+  <a href="#auth">Giriş <i>3</i></a><a href="#landing">Ana səhifə <i>4</i></a><a href="#football">İdmanlar və Futbol <i>6</i></a><a href="#team">Komanda <i>1</i></a><a href="#league">Liqa <i>3</i></a><a href="#champ">Çempionat və oyun <i>3</i></a><a href="#social">Chat və bildirişlər <i>3</i></a><a href="#profile">Profil <i>3</i></a><a href="#info">Haqqımızda və FAQ <i>2</i></a>
+</nav>
+
+<!-- ================= AUTH ================= -->
+<section class="grp" id="auth">
+<header><h2>Giriş və qeydiyyat</h2><p>/login, /register · həmişə qaranlıq</p></header>
+<div class="grid">
+
+<div class="ph"><div class="fr"><div class="scr dk">
+  <div class="glow" style="width:280px;height:280px;background:rgba(197,241,53,.2);top:-90px;right:-110px"></div>
+  <div class="glow" style="width:240px;height:240px;background:rgba(124,58,237,.28);bottom:120px;left:-140px"></div>
+  <svg class="pitch" viewBox="0 0 342 722" preserveAspectRatio="xMidYMid slice" fill="none" stroke="rgba(197,241,53,.07)" stroke-width="1.5"><rect x="18" y="40" width="306" height="640" rx="4"/><path d="M18 360h306"/><circle cx="171" cy="360" r="54"/><rect x="86" y="40" width="170" height="92"/><rect x="126" y="40" width="90" height="36"/><rect x="86" y="588" width="170" height="92"/><rect x="126" y="644" width="90" height="36"/></svg>
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="bd nb" style="justify-content:space-between;padding-top:30px;z-index:1">
+    <div class="col" style="gap:18px">
+      <div class="logo"><span class="lm">R</span><span>Rival<em>io</em></span></div>
+      <h1 class="h1" style="font-size:44px">Oyun sənin<br><span class="grad">meydanındır.</span></h1>
+      <p class="mut">Rivalio-ya qoşul. Oyunçu tap, komanda qur, rəqib axtar.</p>
+    </div>
+    <div class="card col" style="gap:14px;padding:18px;background:rgba(16,16,23,.85);backdrop-filter:blur(10px)">
+      <div><div class="h2">Xoş gəldiniz!</div><p class="mut sm" style="margin-top:4px">Hesabınıza daxil olun</p></div>
+      <div class="fld"><label>Email</label><div class="inp foc"><svg class="ic s mut"><use href="#mail"/></svg>elvin.m@example.com</div></div>
+      <div class="fld"><label>Şifrə</label><div class="inp"><svg class="ic s mut"><use href="#lock"/></svg><span class="sp">••••••••</span><svg class="ic s mut"><use href="#eye"/></svg></div></div>
+      <a class="btn pri blk">Daxil ol<svg class="ic s"><use href="#arr"/></svg></a>
+      <p class="sm mut" style="text-align:center">Hesabınız yoxdur? <a class="acc" style="font-weight:700">Qeydiyyatdan keç</a></p>
+    </div>
+  </div>
+  <span class="hi"></span>
+</div></div><div class="cap"><b>Daxil ol</b><code>/login</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr dk">
+  <div class="glow" style="width:240px;height:240px;background:rgba(197,241,53,.14);top:-120px;left:-80px"></div>
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><a class="ib"><svg class="ic"><use href="#cl"/></svg></a><div class="sp"></div><span class="sm mut">Addım 1 / 2</span></div>
+  <div class="bd nb" style="z-index:1">
+    <div class="prog"><i class="on"></i><i></i></div>
+    <div><h2 class="h2">Əsas məlumatlar</h2><p class="mut sm" style="margin-top:4px">Hesabını yarat, sonra profili tamamla.</p></div>
+    <div class="fld"><label>İstifadəçi adı <i>*</i></label><div class="inp"><span class="dim">@</span>elvin10</div></div>
+    <div class="g2">
+      <div class="fld"><label>Ad <i>*</i></label><div class="inp">Elvin</div></div>
+      <div class="fld"><label>Soyad <i>*</i></label><div class="inp foc">Məmmədov</div></div>
+    </div>
+    <div class="fld"><label>Email <i>*</i></label><div class="inp"><span class="ph">ad@nümunə.az</span></div></div>
+    <div class="fld"><label>Şifrə <i>*</i></label><div class="inp"><span class="ph sp">Şifrə</span><svg class="ic s mut"><use href="#eye"/></svg></div><span class="hint">Minimum 6 simvol</span></div>
+    <div class="fld"><label>Şifrəni təkrar et <i>*</i></label><div class="inp"><span class="ph">Şifrəni təkrar et</span></div></div>
+    <div class="fld"><label>Doğum tarixi <i>*</i></label><div class="inp"><span class="ph sp">gg.aa.iiii</span><svg class="ic s mut"><use href="#cal"/></svg></div></div>
+    <div class="fld"><label>Hesab tipi <i>*</i></label>
+      <div class="g2">
+        <div class="pick on"><svg class="ic acc"><use href="#user"/></svg><b class="sm">İstifadəçi</b><span class="xs mut">Oyna, komanda qur</span></div>
+        <div class="pick"><svg class="ic mut"><use href="#shield"/></svg><b class="sm">Admin</b><span class="xs mut">Liqa və çempionat idarə et</span></div>
+      </div>
+    </div>
+    <a class="btn pri blk">İrəli<svg class="ic s"><use href="#arr"/></svg></a>
+    <p class="sm mut" style="text-align:center">Artıq hesabın var? <a class="acc" style="font-weight:700">Daxil ol</a></p>
+  </div>
+  <span class="hi"></span>
+</div></div><div class="cap"><b>Qeydiyyat · addım 1</b><code>/register</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr dk">
+  <div class="glow" style="width:240px;height:240px;background:rgba(124,58,237,.22);top:-120px;right:-80px"></div>
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><a class="ib"><svg class="ic"><use href="#cl"/></svg></a><div class="sp"></div><span class="sm mut">Addım 2 / 2</span></div>
+  <div class="bd nb" style="z-index:1">
+    <div class="prog"><i class="on"></i><i class="on"></i></div>
+    <div class="row"><h2 class="h2">Profil</h2><span class="bdg gry">optional</span></div>
+    <div class="col" style="align-items:center;gap:10px;padding:8px 0">
+      <div class="av xl" style="border-style:dashed"><svg class="ic l"><use href="#camera"/></svg></div>
+      <span class="sm acc" style="font-weight:600">Şəkil yüklə</span>
+    </div>
+    <div class="fld"><label>Bio</label><div class="inp ta foc">Hücumçu. Həftəsonları 5x5 oynayıram.</div></div>
+    <div class="fld"><label>İş yeri</label><div class="inp"><span class="ph">Harada işləyirsən?</span></div></div>
+    <div class="fld"><label>Oxuduğunuz yer</label><div class="inp"><span class="ph">Universitet, məktəb</span></div></div>
+    <div class="soft sm mut">Bu məlumatları sonra profil səhifəsindən dəyişə bilərsən.</div>
+    <div class="row" style="margin-top:auto"><a class="btn sec">Geri</a><a class="btn pri sp">Qeydiyyatı tamamla</a></div>
+  </div>
+  <span class="hi"></span>
+</div></div><div class="cap"><b>Qeydiyyat · addım 2</b><code>/register</code></div></div>
+
+</div></section>
+
+<!-- ================= LANDING ================= -->
+<section class="grp" id="landing">
+<header><h2>Ana səhifə</h2><p>/ · qonaq görünüşü, 3 hissəyə bölünüb + menyu</p></header>
+<div class="grid">
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="glow" style="width:300px;height:300px;background:rgba(197,241,53,.16);top:40px;right:-160px"></div>
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><div class="logo"><span class="lm">R</span><span>Rival<em>io</em></span></div><div class="sp"></div><a class="ib"><svg class="ic s"><use href="#sun"/></svg></a><a class="ib"><svg class="ic"><use href="#menu"/></svg></a></div>
+  <div class="bd nb" style="z-index:1">
+    <span class="bdg lime" style="align-self:flex-start;height:28px;padding:0 12px"><span style="width:7px;height:7px;border-radius:50%;background:var(--acc)"></span>2,500+ aktiv oyunçu</span>
+    <h1 class="h1" style="font-size:46px">Rəqibini tap.<br>Komandanı qur.<br><span class="grad">Oyuna qoşul.</span></h1>
+    <p class="mut">Bakıda həvəskar futbol üçün platforma: oyunçu tap, komanda yarat, liqalarda yarış.</p>
+    <div class="col g8"><a class="btn pri blk">İndi Başla<svg class="ic s"><use href="#arr"/></svg></a><a class="btn out blk">İdmanları Kəşf Et</a></div>
+    <div class="row sm mut">Dəstəklənən idmanlar: <span style="font-size:17px;letter-spacing:3px">⚽🏀🎾🏓🏐</span></div>
+    <div class="card hl col g8" style="margin-top:4px">
+      <div class="sh"><span class="xs mut">Son oyun · 7-ci tur</span><span class="bdg lime">Qələbə 🏆</span></div>
+      <div class="row"><span class="crest s c-gf">GF</span><b class="sp sm">Gənclik Feniks</b><b class="h2 num">3 – 1</b><b class="sp sm" style="text-align:right">Qara Atlar</b><span class="crest s c-qa">QA</span></div>
+    </div>
+    <div class="sh" style="margin-top:6px"><h3 class="h3">İdman növünü seç</h3><a class="sm acc">Hamısı</a></div>
+    <div class="hs">
+      <div class="card col g6" style="width:118px;flex:none"><span style="font-size:26px">⚽</span><b class="sm">Futbol</b><span class="xs mut">1,240 oyunçu</span></div>
+      <div class="card col g6" style="width:118px;flex:none"><span style="font-size:26px">🏀</span><b class="sm">Basketbol</b><span class="xs mut">540 oyunçu</span></div>
+      <div class="card col g6" style="width:118px;flex:none"><span style="font-size:26px">🎾</span><b class="sm">Tennis</b><span class="xs mut">310 oyunçu</span></div>
+    </div>
+  </div>
+  <span class="hi"></span>
+</div></div><div class="cap"><b>Landing · hero</b><code>/</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><div class="logo"><span class="lm">R</span><span>Rival<em>io</em></span></div><div class="sp"></div><a class="ib"><svg class="ic s"><use href="#sun"/></svg></a><a class="ib"><svg class="ic"><use href="#menu"/></svg></a></div>
+  <div class="bd nb">
+    <div><span class="eb">İmkanlar</span><h2 class="h2" style="margin-top:6px">Oyun üçün lazım olan hər şey</h2></div>
+    <div class="g2">
+      <div class="card col g6"><span class="icb lime"><svg class="ic"><use href="#search"/></svg></span><b class="sm">Oyunçu tap</b><span class="xs mut">Çatışmayan oyunçunu bir neçə dəqiqəyə tap.</span></div>
+      <div class="card col g6"><span class="icb pur"><svg class="ic"><use href="#shield"/></svg></span><b class="sm">Komanda yarat</b><span class="xs mut">Heyətini qur, kapitan ol.</span></div>
+      <div class="card col g6"><span class="icb blu"><svg class="ic"><use href="#swords"/></svg></span><b class="sm">Rəqib tap</b><span class="xs mut">Oyun təklifi göndər, meydançanı seç.</span></div>
+      <div class="card col g6"><span class="icb org"><svg class="ic"><use href="#trophy"/></svg></span><b class="sm">Liqalara qoşul</b><span class="xs mut">Turlar, cədvəl, bombardirlər.</span></div>
+      <div class="card col g6"><span class="icb lime"><svg class="ic"><use href="#chart"/></svg></span><b class="sm">Statistikanı izlə</b><span class="xs mut">Qol, asist, oyun sayı.</span></div>
+      <div class="card col g6"><span class="icb pur"><svg class="ic"><use href="#msg"/></svg></span><b class="sm">Mesajlaş</b><span class="xs mut">Dostlarla birbaşa chat.</span></div>
+    </div>
+    <div style="margin-top:6px"><span class="eb">Necə işləyir?</span><h2 class="h2" style="margin-top:6px">4 addımda meydançaya</h2></div>
+    <div class="card col" style="gap:16px">
+      <div class="step"><span class="k">1</span><div><b class="sm">Profilini yarat</b><p class="xs mut">Mövqeyini və şəhərini qeyd et.</p></div></div>
+      <div class="step"><span class="k">2</span><div><b class="sm">Komanda qur və ya qoşul</b><p class="xs mut">Dostlarını dəvət et.</p></div></div>
+      <div class="step"><span class="k">3</span><div><b class="sm">Rəqib tap</b><p class="xs mut">Tarix, saat və meydança seç.</p></div></div>
+      <div class="step"><span class="k">4</span><div><b class="sm">Oyna və izlə</b><p class="xs mut">Nəticə və statistika profilə yazılır.</p></div></div>
+    </div>
+    <div class="g2">
+      <div class="stat"><b class="acc">2,500+</b><span>Aktiv oyunçu</span></div>
+      <div class="stat"><b>180+</b><span>Yaradılmış komanda</span></div>
+      <div class="stat"><b>1,200+</b><span>Keçirilmiş oyun</span></div>
+      <div class="stat"><b>24</b><span>Aktiv liqa</span></div>
+    </div>
+  </div>
+  <span class="hi"></span>
+</div></div><div class="cap"><b>Landing · imkanlar</b><code>/</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><div class="logo"><span class="lm">R</span><span>Rival<em>io</em></span></div><div class="sp"></div><a class="ib"><svg class="ic s"><use href="#sun"/></svg></a><a class="ib"><svg class="ic"><use href="#menu"/></svg></a></div>
+  <div class="bd nb">
+    <div class="card col" style="gap:10px">
+      <div class="row"><span class="icb pur"><svg class="ic"><use href="#users"/></svg></span><div class="sp"><b class="sm">Komanda dəvəti</b><p class="xs mut">Yasamal United sizi komandaya dəvət edir</p></div></div>
+      <div class="row"><a class="btn pri s sp">Qəbul</a><a class="btn sec s sp">Rədd</a></div>
+    </div>
+    <div class="card col g8">
+      <p class="sm">“Cümə axşamı 2 oyunçumuz çatmırdı. Axtarış yaratdım, 20 dəqiqəyə tapdıq.”</p>
+      <div class="row"><span class="av s">NƏ</span><div><b class="xs">Nihad Əliyev</b><p class="xs dim">Nərimanov FC kapitanı</p></div></div>
+    </div>
+    <div><h3 class="h3">Tez-tez verilən suallar</h3></div>
+    <div class="card" style="padding:0 14px">
+      <div class="acc-i op"><div class="q">Necə qeydiyyatdan keçə bilərəm?<svg class="ic s"><use href="#cu"/></svg></div><p class="a">“Qeydiyyatdan keç” düyməsini bas, iki addımı tamamla. Profil məlumatları istəyə bağlıdır.</p></div>
+      <div class="acc-i"><div class="q">Platformadan istifadə ödənişlidirmi?<svg class="ic s dim"><use href="#cd"/></svg></div></div>
+      <div class="acc-i"><div class="q">Private liqaları kim görə bilər?<svg class="ic s dim"><use href="#cd"/></svg></div></div>
+    </div>
+    <div class="card hl col" style="gap:12px;text-align:center;background:linear-gradient(160deg,var(--accSoft),var(--card) 70%)">
+      <h2 class="h2">Növbəti oyunun səni gözləyir</h2>
+      <a class="btn pri blk">İndi Başla</a>
+    </div>
+    <footer class="col" style="gap:16px;padding-top:12px;border-top:1px solid var(--bd)">
+      <div class="logo" style="font-size:20px"><span class="lm" style="width:26px;height:26px;font-size:16px">R</span><span>Rival<em>io</em></span></div>
+      <div class="g3 sm">
+        <div class="col g6"><b class="xs dim">MƏHSUL</b><span class="mut">İdmanlar</span><span class="mut">Komandalar</span><span class="mut">Liqalar</span></div>
+        <div class="col g6"><b class="xs dim">ŞİRKƏT</b><span class="mut">Haqqımızda</span><span class="mut">Əlaqə</span><span class="mut">Karyera</span></div>
+        <div class="col g6"><b class="xs dim">DƏSTƏK</b><span class="mut">FAQ</span><span class="mut">Qaydalar</span></div>
+      </div>
+      <div class="chips" style="margin:0;padding:0"><span class="chip on">🇦🇿 AZ</span><span class="chip">🇬🇧 EN</span><span class="chip">🇷🇺 RU</span></div>
+      <p class="xs dim">© 2026 Rivalio. Bütün hüquqlar qorunur.</p>
+    </footer>
+  </div>
+  <span class="hi"></span>
+</div></div><div class="cap"><b>Landing · FAQ və footer</b><code>/</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><div class="logo"><span class="lm">R</span><span>Rival<em>io</em></span></div></div>
+  <div class="bd nb"><h1 class="h1" style="font-size:40px;opacity:.5">Rəqibini tap.</h1></div>
+  <div class="ov"></div>
+  <div style="position:absolute;top:0;right:0;bottom:0;width:84%;z-index:8;background:var(--card);border-left:1px solid var(--bd2);display:flex;flex-direction:column;padding:58px 18px 34px;gap:6px">
+    <div class="sh" style="margin-bottom:14px"><div class="logo"><span class="lm">R</span><span>Rival<em>io</em></span></div><a class="ib"><svg class="ic"><use href="#x"/></svg></a></div>
+    <a class="row" style="height:48px;padding:0 14px;border-radius:12px;background:var(--accSoft);color:var(--accTx);font-weight:600"><svg class="ic"><use href="#home"/></svg>Ana Səhifə</a>
+    <a class="row" style="height:48px;padding:0 14px;font-weight:600"><svg class="ic mut"><use href="#ball"/></svg>İdmanlar</a>
+    <a class="row" style="height:48px;padding:0 14px;font-weight:600"><svg class="ic mut"><use href="#users"/></svg>Haqqımızda</a>
+    <a class="row" style="height:48px;padding:0 14px;font-weight:600"><svg class="ic mut"><use href="#msg"/></svg>FAQ</a>
+    <div class="row" style="height:48px;padding:0 14px;margin-top:6px;border-top:1px solid var(--bd)"><svg class="ic mut"><use href="#moon"/></svg><span class="sp sm">Qaranlıq tema</span><span style="width:40px;height:24px;border-radius:12px;background:var(--acc);position:relative"><span style="position:absolute;right:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#08080e"></span></span></div>
+    <div class="col g8" style="margin-top:auto"><a class="btn out blk">Daxil ol</a><a class="btn pri blk">Qeydiyyatdan keç</a></div>
+  </div>
+  <span class="hi"></span>
+</div></div><div class="cap"><b>Menyu · qonaq</b><code>header drawer</code></div></div>
+
+</div></section>
+
+<!-- ================= FOOTBALL ================= -->
+<section class="grp" id="football">
+<header><h2>İdmanlar və Futbol</h2><p>/sports, /sports/football · 5 tab + “Komanda yarat” paneli</p></header>
+<div class="grid">
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><div class="logo"><span class="lm">R</span><span>Rival<em>io</em></span></div><div class="sp"></div><a class="ib"><svg class="ic s"><use href="#sun"/></svg></a></div>
+  <div class="bd">
+    <div><h1 class="h1">İdman növləri</h1><p class="mut sm" style="margin-top:8px">Sevdiyin idmanı seç, oyunçuları tap, komandalar qur və rəqabətə qoşul.</p></div>
+    <div class="card hl col" style="gap:12px">
+      <div class="row"><span class="icb" style="background:rgba(197,241,53,.14);font-size:22px">⚽</span><div class="sp"><b>Futbol</b><p class="xs mut">5x5 · 7x7 · 11x11</p></div><svg class="ic acc"><use href="#cr"/></svg></div>
+      <div class="g3 num"><div class="soft"><b>1,240</b><p class="xs mut">Oyunçu</p></div><div class="soft"><b>86</b><p class="xs mut">Komanda</p></div><div class="soft"><b>12</b><p class="xs mut">Liqa</p></div></div>
+    </div>
+    <div class="card row"><span class="icb" style="background:rgba(249,115,22,.14);font-size:22px">🏀</span><div class="sp"><b>Basketbol</b><p class="xs mut">540 oyunçu · 3x3 · 5x5</p></div><svg class="ic dim"><use href="#cr"/></svg></div>
+    <div class="card row"><span class="icb" style="background:rgba(234,179,8,.14);font-size:22px">🎾</span><div class="sp"><b>Tennis</b><p class="xs mut">310 oyunçu · tək · cüt</p></div><svg class="ic dim"><use href="#cr"/></svg></div>
+    <div class="card row"><span class="icb" style="background:rgba(59,130,246,.14);font-size:22px">🏓</span><div class="sp"><b>Stolüstü Tennis</b><p class="xs mut">220 oyunçu · tək · cüt</p></div><svg class="ic dim"><use href="#cr"/></svg></div>
+    <div class="card row"><span class="icb" style="background:rgba(124,58,237,.16);font-size:22px">🏐</span><div class="sp"><b>Voleybol</b><p class="xs mut">190 oyunçu · 6x6</p></div><svg class="ic dim"><use href="#cr"/></svg></div>
+  </div>
+  <nav class="nav"><a><svg class="ic"><use href="#home"/></svg>Ana səhifə</a><a class="on"><svg class="ic"><use href="#ball"/></svg>İdmanlar</a><a><svg class="ic"><use href="#msg"/></svg>Chat<i class="n">3</i></a><a><svg class="ic"><use href="#bell"/></svg>Bildirişlər<i class="n">5</i></a><a><svg class="ic"><use href="#user"/></svg>Profil</a></nav><span class="hi"></span>
+</div></div><div class="cap"><b>İdmanlar</b><code>/sports</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><a class="ib"><svg class="ic"><use href="#cl"/></svg></a><span class="tt sp">Futbol</span><a class="ib"><svg class="ic s"><use href="#sun"/></svg></a></div>
+  <div class="bd">
+    <div class="tabs"><a class="on">Komanda profilim</a><a>Oyunçu axtarışı</a><a>Oyun təklifləri</a><a>Liqalar</a><a>Çempionatlar</a></div>
+    <a class="btn pri blk"><svg class="ic s"><use href="#plus"/></svg>Komanda yarat</a>
+    <div class="card col" style="gap:12px">
+      <div class="row"><span class="crest c-gf">GF</span><div class="sp"><div class="row" style="gap:6px"><b>Gənclik Feniks</b><span class="bdg lime">Kapitan</span></div><p class="xs mut">Bakı · 12 oyunçu</p></div><svg class="ic dim"><use href="#cr"/></svg></div>
+      <div class="g3 num sm"><div class="soft"><b>18</b><p class="xs mut">Oyun</p></div><div class="soft"><b class="acc">42</b><p class="xs mut">Qol</p></div><div class="soft"><b>29</b><p class="xs mut">Asist</p></div></div>
+    </div>
+    <div class="card row"><span class="crest c-yu">YU</span><div class="sp"><b>Yasamal United</b><p class="xs mut">Bakı · 9 oyunçu</p></div><span class="bdg gry">Üzv</span></div>
+    <div class="card row" style="border-style:dashed;background:transparent;box-shadow:none"><span class="icb gry"><svg class="ic"><use href="#search"/></svg></span><div class="sp"><b class="sm">Komanda axtarırsan?</b><p class="xs mut">“Oyunçu axtarışı” tabında elanlara bax.</p></div></div>
+  </div>
+  <nav class="nav"><a><svg class="ic"><use href="#home"/></svg>Ana səhifə</a><a class="on"><svg class="ic"><use href="#ball"/></svg>İdmanlar</a><a><svg class="ic"><use href="#msg"/></svg>Chat<i class="n">3</i></a><a><svg class="ic"><use href="#bell"/></svg>Bildirişlər<i class="n">5</i></a><a><svg class="ic"><use href="#user"/></svg>Profil</a></nav><span class="hi"></span>
+</div></div><div class="cap"><b>Futbol · komanda profilim</b><code>/sports/football</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><a class="ib"><svg class="ic"><use href="#cl"/></svg></a><span class="tt sp">Futbol</span><a class="ib"><svg class="ic s"><use href="#sun"/></svg></a></div>
+  <div class="bd">
+    <div class="tabs"><a>Komanda profilim</a><a class="on">Oyunçu axtarışı</a><a>Oyun təklifləri</a><a>Liqalar</a></div>
+    <a class="btn pri blk"><svg class="ic s"><use href="#plus"/></svg>Axtarış yarat</a>
+    <h3 class="h3">Sənin axtarışların</h3>
+    <div class="card col" style="gap:12px">
+      <div class="row"><span class="crest s c-gf">GF</span><b class="sp sm">Gənclik Feniks</b><span class="bdg org">2 oyunçu lazımdır</span></div>
+      <div class="meta"><span><svg class="ic xs"><use href="#cal"/></svg>2 Okt, 20:00</span><span><svg class="ic xs"><use href="#pin"/></svg>Dinamo Arena, Yasamal</span></div>
+      <div class="divl">Gələn sorğular · 2</div>
+      <div class="row"><span class="av s">RQ</span><div class="sp"><b class="sm">@rauf_q</b><p class="xs dim">Yarımmüdafiəçi</p></div><a class="btn pri s">Qəbul</a><a class="btn sec s">Rədd</a></div>
+      <div class="row"><span class="av s">SR</span><div class="sp"><b class="sm">@samir.rz</b><p class="xs dim">Qapıçı</p></div><a class="btn pri s">Qəbul</a><a class="btn sec s">Rədd</a></div>
+    </div>
+    <h3 class="h3">Digər axtarışlar</h3>
+    <div class="card col" style="gap:10px">
+      <div class="row"><span class="crest s c-xl">XL</span><b class="sp sm">Xətai Lions</b><span class="bdg org">1 oyunçu</span></div>
+      <div class="meta"><span><svg class="ic xs"><use href="#cal"/></svg>1 Okt, 19:00</span><span><svg class="ic xs"><use href="#pin"/></svg>Xətai İdman Mərkəzi</span></div>
+      <a class="btn out s blk">Sorğu göndər</a>
+    </div>
+    <div class="card col" style="gap:10px">
+      <div class="row"><span class="crest s c-nf">NF</span><b class="sp sm">Nərimanov FC</b><span class="bdg org">3 oyunçu</span></div>
+      <div class="meta"><span><svg class="ic xs"><use href="#cal"/></svg>4 Okt, 11:00</span><span><svg class="ic xs"><use href="#pin"/></svg>Nərimanov meydançası</span></div>
+      <div class="row"><span class="bdg org sp" style="justify-content:center;height:34px;border-radius:10px">Gözləyir</span><a class="btn dng s">Ləğv et</a></div>
+    </div>
+  </div>
+  <nav class="nav"><a><svg class="ic"><use href="#home"/></svg>Ana səhifə</a><a class="on"><svg class="ic"><use href="#ball"/></svg>İdmanlar</a><a><svg class="ic"><use href="#msg"/></svg>Chat<i class="n">3</i></a><a><svg class="ic"><use href="#bell"/></svg>Bildirişlər<i class="n">5</i></a><a><svg class="ic"><use href="#user"/></svg>Profil</a></nav><span class="hi"></span>
+</div></div><div class="cap"><b>Futbol · oyunçu axtarışı</b><code>/sports/football</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><a class="ib"><svg class="ic"><use href="#cl"/></svg></a><span class="tt sp">Futbol</span><a class="ib"><svg class="ic s"><use href="#sun"/></svg></a></div>
+  <div class="bd">
+    <div class="tabs"><a>Komanda profilim</a><a>Oyunçu axtarışı</a><a class="on">Oyun təklifləri</a><a>Liqalar</a></div>
+    <a class="btn pri blk"><svg class="ic s"><use href="#swords"/></svg>Oyun təklifi yarat</a>
+    <h3 class="h3">Sənin oyun təkliflərin</h3>
+    <div class="card col" style="gap:10px">
+      <div class="row"><span class="crest s c-gf">GF</span><b class="sp sm">Gənclik Feniks</b><span class="bdg blu">rəqib axtarır</span></div>
+      <div class="meta"><span><svg class="ic xs"><use href="#cal"/></svg>5 Okt, 18:00</span><span><svg class="ic xs"><use href="#pin"/></svg>Dinamo Arena</span></div>
+      <p class="xs mut">Qeyd: 7x7, 2x30 dəqiqə. Meydança pulu yarı-yarıya.</p>
+    </div>
+    <div class="card col" style="gap:10px">
+      <div class="row"><span class="crest s c-gf">GF</span><span class="xs dim">vs</span><span class="crest s c-bs">BŞ</span><b class="sp sm tr">Bakı Şimşəkləri</b><span class="bdg lime"><svg class="ic xs"><use href="#check"/></svg>Rəqib tapıldı</span></div>
+      <div class="meta"><span><svg class="ic xs"><use href="#cal"/></svg>29 Sen, 21:00</span><span><svg class="ic xs"><use href="#pin"/></svg>Neftçilər meydançası</span></div>
+    </div>
+    <h3 class="h3">Digər oyun təklifləri</h3>
+    <div class="card col" style="gap:10px">
+      <div class="row"><span class="crest s c-sk">SK</span><b class="sp sm">Sumqayıt Kartalları</b><span class="bdg blu">rəqib axtarır</span></div>
+      <div class="meta"><span><svg class="ic xs"><use href="#cal"/></svg>3 Okt, 17:00</span><span><svg class="ic xs"><use href="#pin"/></svg>Sumqayıt, Olimpiya Mərkəzi</span></div>
+      <div class="inp" style="min-height:40px"><span class="crest s c-gf" style="width:22px;height:22px;font-size:9px;border-radius:6px">GF</span><span class="sp sm">Gənclik Feniks</span><svg class="ic s mut"><use href="#cd"/></svg></div>
+      <a class="btn pri s blk">Təklifi qəbul et</a>
+    </div>
+  </div>
+  <nav class="nav"><a><svg class="ic"><use href="#home"/></svg>Ana səhifə</a><a class="on"><svg class="ic"><use href="#ball"/></svg>İdmanlar</a><a><svg class="ic"><use href="#msg"/></svg>Chat<i class="n">3</i></a><a><svg class="ic"><use href="#bell"/></svg>Bildirişlər<i class="n">5</i></a><a><svg class="ic"><use href="#user"/></svg>Profil</a></nav><span class="hi"></span>
+</div></div><div class="cap"><b>Futbol · oyun təklifləri</b><code>/sports/football</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><a class="ib"><svg class="ic"><use href="#cl"/></svg></a><span class="tt sp">Futbol</span><a class="ib"><svg class="ic s"><use href="#sun"/></svg></a></div>
+  <div class="bd">
+    <div class="tabs"><a>Oyunçu axtarışı</a><a>Oyun təklifləri</a><a class="on">Liqalar</a><a>Çempionatlar</a></div>
+    <div class="chips"><span class="chip on">Hamısı</span><span class="chip">Planlaşdırılır</span><span class="chip">Davam edir</span><span class="chip">Başa çatıb</span></div>
+    <div class="row"><div class="seg" style="--cv2:var(--card2);--cvbd:var(--bd);--cvmut:var(--tx2);padding:3px;border-radius:12px;width:100%;display:grid;grid-template-columns:1fr 1fr"><button type="button" aria-pressed="true" style="height:32px;justify-content:center;font-size:12.5px"><svg class="ic xs"><use href="#globe"/></svg>İctimai</button><button type="button" aria-pressed="false" style="height:32px;justify-content:center;font-size:12.5px"><svg class="ic xs"><use href="#lock"/></svg>Özəl</button></div></div>
+    <div class="card col" style="gap:12px">
+      <div class="row t0"><span class="icb org"><svg class="ic"><use href="#trophy"/></svg></span><div class="sp"><b>Bakı Həvəskar Liqası 2026</b><div class="row" style="gap:6px;margin-top:5px"><span class="bdg lime">Davam edir</span><span class="bdg blu">İctimai</span></div></div></div>
+      <div class="meta"><span><svg class="ic xs"><use href="#users"/></svg>8 komanda</span><span><svg class="ic xs"><use href="#cal"/></svg>1 Sen – 30 Noy</span></div>
+      <div class="soft col g8">
+        <div class="row"><span class="crest s c-gf">GF</span><span class="sp sm">Gənclik Feniks</span><span class="bdg lime"><svg class="ic xs"><use href="#check"/></svg>Qoşulub</span></div>
+      </div>
+    </div>
+    <div class="card col" style="gap:12px">
+      <div class="row t0"><span class="icb pur"><svg class="ic"><use href="#trophy"/></svg></span><div class="sp"><b>Abşeron Payız Liqası</b><div class="row" style="gap:6px;margin-top:5px"><span class="bdg org">Planlaşdırılır</span><span class="bdg blu">İctimai</span></div></div></div>
+      <div class="meta"><span><svg class="ic xs"><use href="#users"/></svg>6 / 10 komanda</span><span><svg class="ic xs"><use href="#cal"/></svg>15 Okt-dan</span></div>
+      <div class="soft col g8">
+        <div class="row"><span class="crest s c-gf">GF</span><span class="sp sm">Gənclik Feniks</span><a class="btn pri s">Dəvət göndər</a></div>
+        <div class="row"><span class="crest s c-yu">YU</span><span class="sp sm">Yasamal United</span><span class="bdg org">Gözləyir</span></div>
+      </div>
+    </div>
+  </div>
+  <nav class="nav"><a><svg class="ic"><use href="#home"/></svg>Ana səhifə</a><a class="on"><svg class="ic"><use href="#ball"/></svg>İdmanlar</a><a><svg class="ic"><use href="#msg"/></svg>Chat<i class="n">3</i></a><a><svg class="ic"><use href="#bell"/></svg>Bildirişlər<i class="n">5</i></a><a><svg class="ic"><use href="#user"/></svg>Profil</a></nav><span class="hi"></span>
+</div></div><div class="cap"><b>Futbol · liqalar</b><code>/sports/football</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><a class="ib"><svg class="ic"><use href="#cl"/></svg></a><span class="tt sp">Futbol</span></div>
+  <div class="bd"><div class="tabs"><a class="on">Komanda profilim</a><a>Oyunçu axtarışı</a></div><a class="btn pri blk">Komanda yarat</a></div>
+  <div class="ov"></div>
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sh"><h2 class="h2">Komanda yarat</h2><a class="ib" style="width:34px;height:34px"><svg class="ic s"><use href="#x"/></svg></a></div>
+    <div class="upl"><div class="box"><svg class="ic"><use href="#camera"/></svg></div><div class="sp"><b class="sm">Loqo yüklə</b><p class="xs dim">PNG və ya JPG, 2 MB-a qədər</p></div></div>
+    <div class="fld"><label>Komanda adı <i>*</i></label><div class="inp foc">Gənclik Feniks</div></div>
+    <div class="g2">
+      <div class="fld"><label>Qısa ad</label><div class="inp">GF</div></div>
+      <div class="fld"><label>Şəhər</label><div class="inp">Bakı</div></div>
+    </div>
+    <div class="fld"><label>Təsvir</label><div class="inp ta" style="min-height:64px"><span class="ph">Komanda haqqında qısa məlumat</span></div></div>
+    <div class="row"><a class="btn sec">Ləğv et</a><a class="btn pri sp">Yarat</a></div>
+  </div>
+  <span class="hi"></span>
+</div></div><div class="cap"><b>Komanda yarat · panel</b><code>modal → bottom sheet</code></div></div>
+
+</div></section>
+
+<!-- ================= TEAM ================= -->
+<section class="grp" id="team">
+<header><h2>Komanda</h2><p>/teams/:teamId</p></header>
+<div class="grid">
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><a class="ib"><svg class="ic"><use href="#cl"/></svg></a><span class="sp sm mut">Geri</span><a class="ib"><svg class="ic s"><use href="#dots"/></svg></a></div>
+  <div class="bd">
+    <div class="col" style="align-items:center;text-align:center;gap:10px">
+      <span class="crest xl c-gf">GF</span>
+      <h1 class="h1" style="font-size:36px">Gənclik Feniks</h1>
+      <div class="meta" style="justify-content:center"><span><svg class="ic xs"><use href="#pin"/></svg>Bakı</span><span><svg class="ic xs"><use href="#users"/></svg>12 oyunçu</span><span>Kapitan: <b class="acc">@elvin10</b></span></div>
+    </div>
+    <div class="col g6">
+      <div class="g3"><div class="stat"><b>18</b><span>Oyun</span></div><div class="stat"><b class="acc">42</b><span>Qol</span></div><div class="stat"><b>29</b><span>Asist</span></div></div>
+      <p class="xs dim" style="text-align:center">Bütün liqalar və çempionatlar üzrə statistika</p>
+    </div>
+    <div class="col g8"><b class="xs dim" style="letter-spacing:.1em">LİQALAR</b><div class="chips"><span class="chip"><svg class="ic xs"><use href="#trophy"/></svg>Bakı Həvəskar Liqası<span class="bdg blu" style="height:18px">İctimai</span></span><span class="chip">Abşeron Payız<span class="bdg pur" style="height:18px">Özəl</span></span></div></div>
+    <div class="col g8"><b class="xs dim" style="letter-spacing:.1em">ÇEMPİONATLAR</b><div class="chips"><span class="chip"><svg class="ic xs"><use href="#trophy"/></svg>Payız Kuboku 2026<span class="bdg lime" style="height:18px">Davam edir</span></span></div></div>
+    <div class="card col" style="gap:12px">
+      <b class="sm">Oyunçuya komanda dəvəti göndər</b>
+      <div class="inp"><span class="dim">@</span><span class="ph">Username</span></div>
+      <div class="inp"><span class="ph">Dəvət mesajı</span></div>
+      <a class="btn pri s blk"><svg class="ic xs"><use href="#send"/></svg>Dəvət göndər</a>
+    </div>
+    <div class="sh"><h3 class="h3">Heyət</h3><span class="sm dim">12</span></div>
+    <div class="card" style="padding:4px 14px">
+      <div class="li"><span class="av">EM</span><div class="sp"><b class="sm">Elvin Məmmədov</b><p class="xs dim">@elvin10 · Hücumçu</p></div><span class="bdg lime">Kapitan</span></div>
+      <div class="li"><span class="av">RQ</span><div class="sp"><b class="sm">Rauf Quliyev</b><p class="xs dim">@rauf_q · Yarımmüdafiəçi</p></div><span class="xs mut num">6 qol</span></div>
+      <div class="li"><span class="av">KB</span><div class="sp"><b class="sm">Kənan Bayramov</b><p class="xs dim">@kenan_b · Müdafiəçi</p></div><span class="xs mut num">1 qol</span></div>
+      <div class="li"><span class="av">SR</span><div class="sp"><b class="sm">Samir Rzayev</b><p class="xs dim">@samir.rz · Qapıçı</p></div><span class="xs mut num">0 qol</span></div>
+    </div>
+  </div>
+  <nav class="nav"><a><svg class="ic"><use href="#home"/></svg>Ana səhifə</a><a class="on"><svg class="ic"><use href="#ball"/></svg>İdmanlar</a><a><svg class="ic"><use href="#msg"/></svg>Chat<i class="n">3</i></a><a><svg class="ic"><use href="#bell"/></svg>Bildirişlər<i class="n">5</i></a><a><svg class="ic"><use href="#user"/></svg>Profil</a></nav><span class="hi"></span>
+</div></div><div class="cap"><b>Komanda səhifəsi</b><code>/teams/:teamId</code></div></div>
+
+</div></section>
+
+<!-- ================= LEAGUE ================= -->
+<section class="grp" id="league">
+<header><h2>Liqa</h2><p>/leagues/:leagueId · Cədvəl, Oyunlar, Bombardirlər, Asistlər, Qol + Asist</p></header>
+<div class="grid">
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><a class="ib"><svg class="ic"><use href="#cl"/></svg></a><span class="sp"></span><a class="ib"><svg class="ic s"><use href="#sun"/></svg></a></div>
+  <div class="bd">
+    <div class="row t0"><span class="icb org" style="width:52px;height:52px;border-radius:14px"><svg class="ic l"><use href="#trophy"/></svg></span><div class="sp"><h1 class="h2">Bakı Həvəskar Liqası 2026</h1><div class="row" style="gap:6px;margin-top:6px"><span class="bdg lime">Davam edir</span><span class="bdg blu">İctimai</span><span class="xs mut">7 / 14 tur</span></div></div></div>
+    <div class="tabs"><a class="on">Cədvəl</a><a>Oyunlar</a><a>Bombardirlər</a><a>Asistlər</a><a>Qol + Asist</a></div>
+    <div class="card p0" style="padding:2px 8px">
+      <table class="tbl">
+        <thead><tr><th>#</th><th class="l">Komanda</th><th>O</th><th>Q</th><th>H</th><th>M</th><th>TF</th><th>X</th></tr></thead>
+        <tbody>
+          <tr class="q"><td class="pos">1</td><td class="l"><div class="row" style="gap:7px"><span class="crest s c-gf">GF</span><b class="tr">Gənclik Feniks</b></div></td><td>7</td><td>6</td><td>1</td><td>0</td><td>+14</td><td class="pts acc">19</td></tr>
+          <tr class="q"><td class="pos">2</td><td class="l"><div class="row" style="gap:7px"><span class="crest s c-xl">XL</span><span class="tr">Xətai Lions</span></div></td><td>7</td><td>5</td><td>1</td><td>1</td><td>+9</td><td class="pts">16</td></tr>
+          <tr><td class="pos">3</td><td class="l"><div class="row" style="gap:7px"><span class="crest s c-yu">YU</span><span class="tr">Yasamal Utd</span></div></td><td>7</td><td>4</td><td>2</td><td>1</td><td>+6</td><td class="pts">14</td></tr>
+          <tr><td class="pos">4</td><td class="l"><div class="row" style="gap:7px"><span class="crest s c-nf">NF</span><span class="tr">Nərimanov FC</span></div></td><td>7</td><td>3</td><td>2</td><td>2</td><td>+2</td><td class="pts">11</td></tr>
+          <tr><td class="pos">5</td><td class="l"><div class="row" style="gap:7px"><span class="crest s c-bs">BŞ</span><span class="tr">B. Şimşəkləri</span></div></td><td>7</td><td>3</td><td>0</td><td>4</td><td>−1</td><td class="pts">9</td></tr>
+          <tr><td class="pos">6</td><td class="l"><div class="row" style="gap:7px"><span class="crest s c-qa">QA</span><span class="tr">Qara Atlar FK</span></div></td><td>7</td><td>2</td><td>1</td><td>4</td><td>−5</td><td class="pts">7</td></tr>
+          <tr class="r"><td class="pos">7</td><td class="l"><div class="row" style="gap:7px"><span class="crest s c-sk">SK</span><span class="tr">S. Kartalları</span></div></td><td>7</td><td>1</td><td>2</td><td>4</td><td>−9</td><td class="pts">5</td></tr>
+          <tr class="r"><td class="pos">8</td><td class="l"><div class="row" style="gap:7px"><span class="crest s c-nv">NV</span><span class="tr">Neftçi Vet.</span></div></td><td>7</td><td>0</td><td>1</td><td>6</td><td>−16</td><td class="pts">1</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="meta xs"><span><i style="width:10px;height:3px;border-radius:2px;background:var(--acc);display:inline-block"></i>Liderlər</span><span><i style="width:10px;height:3px;border-radius:2px;background:#ef4444;display:inline-block"></i>Aşağı zona</span><span>O oyun · Q qələbə · H heç-heçə · M məğlubiyyət · TF top fərqi · X xal</span></div>
+  </div>
+  <nav class="nav"><a><svg class="ic"><use href="#home"/></svg>Ana səhifə</a><a class="on"><svg class="ic"><use href="#ball"/></svg>İdmanlar</a><a><svg class="ic"><use href="#msg"/></svg>Chat<i class="n">3</i></a><a><svg class="ic"><use href="#bell"/></svg>Bildirişlər<i class="n">5</i></a><a><svg class="ic"><use href="#user"/></svg>Profil</a></nav><span class="hi"></span>
+</div></div><div class="cap"><b>Liqa · cədvəl</b><code>/leagues/:leagueId</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><a class="ib"><svg class="ic"><use href="#cl"/></svg></a><span class="tt sp tr">Bakı Həvəskar Liqası</span></div>
+  <div class="bd">
+    <div class="tabs"><a>Cədvəl</a><a class="on">Oyunlar</a><a>Bombardirlər</a><a>Asistlər</a><a>Qol + Asist</a></div>
+    <div class="card row" style="padding:8px">
+      <a class="ib" style="width:36px;height:36px"><svg class="ic s"><use href="#cl"/></svg></a>
+      <div class="sp" style="text-align:center"><b class="h3">7-ci tur</b><p class="xs acc">Cari tur</p></div>
+      <a class="ib" style="width:36px;height:36px"><svg class="ic s"><use href="#cr"/></svg></a>
+    </div>
+    <div class="chips"><span class="chip">Bütün turlar</span><span class="chip on"><span class="dt"></span>Canlı</span><span class="chip">Qarşıdadır</span><span class="chip">Tamamlanıb</span></div>
+    <div class="card col hl" style="gap:10px">
+      <div class="sh"><span class="bdg live"><svg class="ic xs"><use href="#radio"/></svg>LIVE 67'</span><span class="xs mut">Dinamo Arena</span></div>
+      <div class="row"><span class="crest s c-gf">GF</span><b class="sp sm">Gənclik Feniks</b><b class="h2 num">2</b></div>
+      <div class="row"><span class="crest s c-xl">XL</span><span class="sp sm">Xətai Lions</span><b class="h2 num mut">1</b></div>
+    </div>
+    <div class="card col" style="gap:10px">
+      <div class="sh"><span class="bdg gry">Bitib</span><span class="xs mut">27 Sen</span></div>
+      <div class="row"><span class="crest s c-yu">YU</span><b class="sp sm">Yasamal United</b><b class="h2 num">3</b></div>
+      <div class="row"><span class="crest s c-qa">QA</span><span class="sp sm mut">Qara Atlar FK</span><b class="h2 num mut">0</b></div>
+    </div>
+    <div class="card col" style="gap:10px">
+      <div class="sh"><span class="bdg blu">Planlı</span><span class="xs mut">28 Sen, 21:00</span></div>
+      <div class="row"><span class="crest s c-nf">NF</span><span class="sp sm">Nərimanov FC</span><span class="sm dim">–</span></div>
+      <div class="row"><span class="crest s c-bs">BŞ</span><span class="sp sm">Bakı Şimşəkləri</span><span class="sm dim">–</span></div>
+    </div>
+    <div class="card col" style="gap:10px">
+      <div class="sh"><span class="bdg org">Təxirə</span><span class="xs mut">Yeni tarix bəlli deyil</span></div>
+      <div class="row"><span class="crest s c-sk">SK</span><span class="sp sm">Sumqayıt Kartalları</span><span class="sm dim">–</span></div>
+      <div class="row"><span class="crest s c-nv">NV</span><span class="sp sm">Neftçi Veteranlar</span><span class="sm dim">–</span></div>
+    </div>
+  </div>
+  <nav class="nav"><a><svg class="ic"><use href="#home"/></svg>Ana səhifə</a><a class="on"><svg class="ic"><use href="#ball"/></svg>İdmanlar</a><a><svg class="ic"><use href="#msg"/></svg>Chat<i class="n">3</i></a><a><svg class="ic"><use href="#bell"/></svg>Bildirişlər<i class="n">5</i></a><a><svg class="ic"><use href="#user"/></svg>Profil</a></nav><span class="hi"></span>
+</div></div><div class="cap"><b>Liqa · oyunlar</b><code>/leagues/:leagueId</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><a class="ib"><svg class="ic"><use href="#cl"/></svg></a><span class="tt sp tr">Bakı Həvəskar Liqası</span></div>
+  <div class="bd">
+    <div class="tabs"><a>Cədvəl</a><a>Oyunlar</a><a class="on">Bombardirlər</a><a>Asistlər</a><a>Qol + Asist</a></div>
+    <div class="card hl row" style="gap:14px;background:linear-gradient(135deg,var(--accSoft),var(--card) 65%)">
+      <div class="av xl" style="width:64px;height:64px;font-size:26px">EM</div>
+      <div class="sp"><span class="eb">1-ci yer</span><b style="display:block;font-size:16px;margin-top:2px">Elvin Məmmədov</b><div class="row" style="gap:6px;margin-top:4px"><span class="crest s c-gf" style="width:20px;height:20px;font-size:8px;border-radius:5px">GF</span><span class="xs mut">Gənclik Feniks · 7 oyun</span></div></div>
+      <div style="text-align:center"><b class="score acc" style="font-size:44px">9</b><p class="xs mut">qol</p></div>
+    </div>
+    <div class="card p0" style="padding:2px 10px">
+      <table class="tbl">
+        <thead><tr><th>#</th><th class="l">Oyunçu</th><th>O</th><th>Qol</th></tr></thead>
+        <tbody>
+          <tr><td class="pos">2</td><td class="l"><b>Kamran Babayev</b><p class="xs dim">Xətai Lions</p></td><td>7</td><td class="pts">8</td></tr>
+          <tr><td class="pos">3</td><td class="l"><b>Rauf Quliyev</b><p class="xs dim">Gənclik Feniks</p></td><td>7</td><td class="pts">6</td></tr>
+          <tr><td class="pos">4</td><td class="l"><b>Orxan Səfərov</b><p class="xs dim">Yasamal United</p></td><td>6</td><td class="pts">5</td></tr>
+          <tr><td class="pos">5</td><td class="l"><b>Tural Həsənli</b><p class="xs dim">Xətai Lions</p></td><td>7</td><td class="pts">5</td></tr>
+          <tr><td class="pos">6</td><td class="l"><b>Nihad Əliyev</b><p class="xs dim">Nərimanov FC</p></td><td>7</td><td class="pts">4</td></tr>
+          <tr><td class="pos">7</td><td class="l"><b>Samir Rzayev</b><p class="xs dim">Bakı Şimşəkləri</p></td><td>5</td><td class="pts">4</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <nav class="nav"><a><svg class="ic"><use href="#home"/></svg>Ana səhifə</a><a class="on"><svg class="ic"><use href="#ball"/></svg>İdmanlar</a><a><svg class="ic"><use href="#msg"/></svg>Chat<i class="n">3</i></a><a><svg class="ic"><use href="#bell"/></svg>Bildirişlər<i class="n">5</i></a><a><svg class="ic"><use href="#user"/></svg>Profil</a></nav><span class="hi"></span>
+</div></div><div class="cap"><b>Liqa · bombardirlər</b><code>/leagues/:leagueId</code></div></div>
+
+</div></section>
+
+<!-- ================= CHAMPIONSHIP + MATCH ================= -->
+<section class="grp" id="champ">
+<header><h2>Çempionat və oyun</h2><p>/sports/football/championships/:id · …/matches/:matchId</p></header>
+<div class="grid">
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><a class="ib"><svg class="ic"><use href="#cl"/></svg></a><span class="sp sm mut">Çempionatlara qayıt</span></div>
+  <div class="bd">
+    <div class="card col" style="gap:10px;background:linear-gradient(150deg,var(--purSoft),var(--card) 60%)">
+      <div class="row" style="gap:6px"><span class="bdg lime">Qrup mərhələsi</span><span class="bdg blu">İctimai</span></div>
+      <h1 class="h2" style="font-size:30px">Payız Kuboku 2026</h1>
+      <div class="meta"><span><svg class="ic xs"><use href="#users"/></svg>8 komanda · 2 qrup</span><span><svg class="ic xs"><use href="#cal"/></svg>1 Sen – 12 Okt</span></div>
+    </div>
+    <div class="tabs"><a>İcmal</a><a class="on">Qruplar</a><a>Pley-off</a><a>Bütün oyunlar</a><a>Statistika</a></div>
+    <div class="sh"><h3 class="h3">A qrupu</h3><span class="xs dim">← sürüşdür →</span></div>
+    <div class="card p0 tsc">
+      <table class="tbl">
+        <thead><tr><th class="stk l" style="padding-left:10px">Komanda</th><th>O</th><th>Q</th><th>H</th><th>M</th><th>Qol</th><th>+/-</th><th>Xal</th><th>Forma</th></tr></thead>
+        <tbody>
+          <tr><td class="stk l" style="padding-left:10px"><div class="row" style="gap:7px"><span class="dim xs">1</span><span class="crest s c-gf">GF</span><b>G. Feniks</b></div></td><td>3</td><td>2</td><td>1</td><td>0</td><td>8:3</td><td>+5</td><td class="pts acc">7</td><td><span class="fm"><i class="w">Q</i><i class="w">Q</i><i class="d">H</i></span></td></tr>
+          <tr><td class="stk l" style="padding-left:10px"><div class="row" style="gap:7px"><span class="dim xs">2</span><span class="crest s c-yu">YU</span><span>Yasamal Utd</span></div></td><td>3</td><td>2</td><td>0</td><td>1</td><td>6:4</td><td>+2</td><td class="pts">6</td><td><span class="fm"><i class="w">Q</i><i class="x">M</i><i class="w">Q</i></span></td></tr>
+          <tr><td class="stk l" style="padding-left:10px"><div class="row" style="gap:7px"><span class="dim xs">3</span><span class="crest s c-qa">QA</span><span>Qara Atlar</span></div></td><td>3</td><td>1</td><td>0</td><td>2</td><td>4:6</td><td>−2</td><td class="pts">3</td><td><span class="fm"><i class="x">M</i><i class="w">Q</i><i class="x">M</i></span></td></tr>
+          <tr><td class="stk l" style="padding-left:10px"><div class="row" style="gap:7px"><span class="dim xs">4</span><span class="crest s c-sk">SK</span><span>S. Kartalları</span></div></td><td>3</td><td>0</td><td>1</td><td>2</td><td>2:7</td><td>−5</td><td class="pts">1</td><td><span class="fm"><i class="d">H</i><i class="x">M</i><i class="x">M</i></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3 class="h3">B qrupu</h3>
+    <div class="card p0 tsc">
+      <table class="tbl">
+        <thead><tr><th class="stk l" style="padding-left:10px">Komanda</th><th>O</th><th>Q</th><th>H</th><th>M</th><th>Qol</th><th>+/-</th><th>Xal</th><th>Forma</th></tr></thead>
+        <tbody>
+          <tr><td class="stk l" style="padding-left:10px"><div class="row" style="gap:7px"><span class="dim xs">1</span><span class="crest s c-xl">XL</span><b>Xətai Lions</b></div></td><td>3</td><td>3</td><td>0</td><td>0</td><td>9:2</td><td>+7</td><td class="pts acc">9</td><td><span class="fm"><i class="w">Q</i><i class="w">Q</i><i class="w">Q</i></span></td></tr>
+          <tr><td class="stk l" style="padding-left:10px"><div class="row" style="gap:7px"><span class="dim xs">2</span><span class="crest s c-nf">NF</span><span>Nərimanov FC</span></div></td><td>3</td><td>1</td><td>1</td><td>1</td><td>5:5</td><td>0</td><td class="pts">4</td><td><span class="fm"><i class="d">H</i><i class="w">Q</i><i class="x">M</i></span></td></tr>
+          <tr><td class="stk l" style="padding-left:10px"><div class="row" style="gap:7px"><span class="dim xs">3</span><span class="crest s c-bs">BŞ</span><span>B. Şimşəkləri</span></div></td><td>3</td><td>1</td><td>0</td><td>2</td><td>4:6</td><td>−2</td><td class="pts">3</td><td><span class="fm"><i class="x">M</i><i class="x">M</i><i class="w">Q</i></span></td></tr>
+          <tr><td class="stk l" style="padding-left:10px"><div class="row" style="gap:7px"><span class="dim xs">4</span><span class="crest s c-nv">NV</span><span>Neftçi Vet.</span></div></td><td>3</td><td>0</td><td>1</td><td>2</td><td>3:8</td><td>−5</td><td class="pts">1</td><td><span class="fm"><i class="x">M</i><i class="d">H</i><i class="x">M</i></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <nav class="nav"><a><svg class="ic"><use href="#home"/></svg>Ana səhifə</a><a class="on"><svg class="ic"><use href="#ball"/></svg>İdmanlar</a><a><svg class="ic"><use href="#msg"/></svg>Chat<i class="n">3</i></a><a><svg class="ic"><use href="#bell"/></svg>Bildirişlər<i class="n">5</i></a><a><svg class="ic"><use href="#user"/></svg>Profil</a></nav><span class="hi"></span>
+</div></div><div class="cap"><b>Çempionat · qruplar</b><code>/championships/:id</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><a class="ib"><svg class="ic"><use href="#cl"/></svg></a><span class="tt sp">Payız Kuboku 2026</span></div>
+  <div class="bd">
+    <div class="tabs"><a>İcmal</a><a>Qruplar</a><a class="on">Pley-off</a><a>Bütün oyunlar</a><a>Statistika</a></div>
+    <div><h3 class="h3">Turnir yolu</h3><p class="xs mut" style="margin-top:4px">Hər qrupdan ilk 2 komanda yarımfinala keçir.</p></div>
+    <div class="brk">
+      <div class="rnd"><span class="xs">Yarımfinal</span><div class="stack">
+        <div class="col g6"><span class="xs dim">8 Okt · Bitib</span><div class="mc"><div class="tm wi"><span class="crest s c-gf">GF</span>G. Feniks<b>2</b></div><div class="tm lo"><span class="crest s c-nf">NF</span>Nərimanov FC<b>1</b></div></div></div>
+        <div class="col g6"><span class="xs dim">8 Okt · Bitib</span><div class="mc"><div class="tm lo"><span class="crest s c-xl">XL</span>Xətai Lions<b>1</b></div><div class="tm wi"><span class="crest s c-yu">YU</span>Yasamal Utd<b>2</b></div></div></div>
+      </div></div>
+      <div class="rnd"><span class="xs">Final</span><div class="stack">
+        <div class="col g6"><span class="xs acc" style="font-weight:700">12 Okt, 19:00 · Planlı</span><div class="mc" style="border-color:var(--accBd)"><div class="tm"><span class="crest s c-gf">GF</span>G. Feniks<b class="dim">–</b></div><div class="tm"><span class="crest s c-yu">YU</span>Yasamal Utd<b class="dim">–</b></div></div></div>
+      </div></div>
+      <div class="rnd" style="width:120px"><span class="xs">Çempion</span><div class="stack"><div class="col" style="align-items:center;gap:8px;text-align:center"><span class="icb" style="width:60px;height:60px;border-radius:18px;background:var(--accSoft);color:var(--accTx)"><svg class="ic l"><use href="#trophy"/></svg></span><span class="xs mut">Final 12 Okt</span></div></div></div>
+    </div>
+    <div class="card col g8">
+      <div class="sh"><b class="sm">Final</b><span class="bdg blu">Planlı</span></div>
+      <div class="meta"><span><svg class="ic xs"><use href="#cal"/></svg>12 Oktyabr, 19:00</span><span><svg class="ic xs"><use href="#pin"/></svg>Dalğa Arena</span></div>
+    </div>
+  </div>
+  <nav class="nav"><a><svg class="ic"><use href="#home"/></svg>Ana səhifə</a><a class="on"><svg class="ic"><use href="#ball"/></svg>İdmanlar</a><a><svg class="ic"><use href="#msg"/></svg>Chat<i class="n">3</i></a><a><svg class="ic"><use href="#bell"/></svg>Bildirişlər<i class="n">5</i></a><a><svg class="ic"><use href="#user"/></svg>Profil</a></nav><span class="hi"></span>
+</div></div><div class="cap"><b>Çempionat · pley-off</b><code>/championships/:id</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="glow" style="width:260px;height:200px;background:rgba(239,68,68,.16);top:60px;left:50px"></div>
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><a class="ib"><svg class="ic"><use href="#cl"/></svg></a><span class="sp sm mut">Liqaya qayıt</span></div>
+  <div class="bd" style="z-index:1">
+    <div class="card col" style="align-items:center;gap:14px;padding:18px 14px">
+      <div class="row xs mut" style="gap:6px">7-ci tur · 28 Sen 2026, 19:30</div>
+      <span class="bdg live" style="height:26px;padding:0 11px"><svg class="ic xs"><use href="#radio"/></svg>LIVE 67'</span>
+      <div class="row" style="width:100%;align-items:flex-start">
+        <div class="col sp" style="align-items:center;gap:8px;text-align:center"><span class="crest c-gf" style="width:58px;height:58px;border-radius:16px;font-size:22px">GF</span><b class="sm">Gənclik Feniks</b></div>
+        <div class="score" style="padding-top:8px">2<span class="dim" style="margin:0 8px">-</span>1</div>
+        <div class="col sp" style="align-items:center;gap:8px;text-align:center"><span class="crest c-xl" style="width:58px;height:58px;border-radius:16px;font-size:22px">XL</span><b class="sm">Xətai Lions</b></div>
+      </div>
+      <div class="meta"><span><svg class="ic xs"><use href="#pin"/></svg>Dinamo Arena, Yasamal</span></div>
+    </div>
+    <h3 class="h3">Hadisələr</h3>
+    <div class="card">
+      <div class="evs">
+        <div class="ev"><div class="h"><b><span class="yc"></span> N. Əliyev</b><span class="dim">Sarı vərəqə</span></div><span class="m">63'</span><div></div></div>
+        <div class="ev"><div class="h"><b>⚽ R. Quliyev</b><span class="dim">Penalti</span></div><span class="m">58'</span><div></div></div>
+        <div class="ev"><div></div><span class="m">44'</span><div class="a"><b>K. Babayev ⚽</b><span class="dim">Asist: T. Həsənli</span></div></div>
+        <div class="ev"><div></div><span class="m">31'</span><div class="a"><b>T. Həsənli <span class="yc"></span></b><span class="dim">Sarı vərəqə</span></div></div>
+        <div class="ev"><div class="h"><b>⚽ E. Məmmədov</b><span class="dim">Asist: R. Quliyev</span></div><span class="m">12'</span><div></div></div>
+      </div>
+    </div>
+  </div>
+  <nav class="nav"><a><svg class="ic"><use href="#home"/></svg>Ana səhifə</a><a class="on"><svg class="ic"><use href="#ball"/></svg>İdmanlar</a><a><svg class="ic"><use href="#msg"/></svg>Chat<i class="n">3</i></a><a><svg class="ic"><use href="#bell"/></svg>Bildirişlər<i class="n">5</i></a><a><svg class="ic"><use href="#user"/></svg>Profil</a></nav><span class="hi"></span>
+</div></div><div class="cap"><b>Oyun · canlı</b><code>/leagues/:id/matches/:id</code></div></div>
+
+</div></section>
+
+<!-- ================= SOCIAL ================= -->
+<section class="grp" id="social">
+<header><h2>Chat və bildirişlər</h2><p>/chat, /notifications</p></header>
+<div class="grid">
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><span class="tt sp" style="font-size:26px">Dostlar</span><a class="ib"><svg class="ic s"><use href="#uplus"/></svg></a></div>
+  <div class="bd" style="gap:10px">
+    <div class="inp"><svg class="ic s mut"><use href="#search"/></svg><span class="ph">Dost axtar...</span></div>
+    <div class="col" style="gap:0">
+      <div class="li"><span class="av">RQ<i class="on"></i></span><div class="sp"><div class="sh"><b class="sm">Rauf Quliyev</b><span class="xs acc">21:04</span></div><div class="sh"><p class="xs mut tr">Sabah 19:30-da meydançada olacam</p><i class="n" style="position:static">2</i></div></div></div>
+      <div class="li"><span class="av">KB<i class="on"></i></span><div class="sp"><div class="sh"><b class="sm">Kamran Babayev</b><span class="xs acc">20:41</span></div><div class="sh"><p class="xs mut tr">Sabah saat neçədə?</p><i class="n" style="position:static">1</i></div></div></div>
+      <div class="li"><span class="av">OS</span><div class="sp"><div class="sh"><b class="sm">Orxan Səfərov</b><span class="xs dim">Dünən</span></div><p class="xs dim tr">Yaxşı oyun idi 👏</p></div></div>
+      <div class="li"><span class="av">NƏ</span><div class="sp"><div class="sh"><b class="sm">Nihad Əliyev</b><span class="xs dim">Bazar</span></div><p class="xs dim tr">Siz: Formanı gətirərsən?</p></div></div>
+      <div class="li"><span class="av">SR</span><div class="sp"><div class="sh"><b class="sm">Samir Rzayev</b><span class="xs dim">24 Sen</span></div><p class="xs dim tr">Qapıda mən dururam, narahat olma</p></div></div>
+      <div class="li"><span class="av">TH</span><div class="sp"><div class="sh"><b class="sm">Tural Həsənli</b><span class="xs dim">20 Sen</span></div><p class="xs dim tr">Oyun təklifini qəbul etdik</p></div></div>
+    </div>
+  </div>
+  <nav class="nav"><a><svg class="ic"><use href="#home"/></svg>Ana səhifə</a><a><svg class="ic"><use href="#ball"/></svg>İdmanlar</a><a class="on"><svg class="ic"><use href="#msg"/></svg>Chat<i class="n">3</i></a><a><svg class="ic"><use href="#bell"/></svg>Bildirişlər<i class="n">5</i></a><a><svg class="ic"><use href="#user"/></svg>Profil</a></nav><span class="hi"></span>
+</div></div><div class="cap"><b>Chat · dostlar</b><code>/chat</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb" style="border-bottom:1px solid var(--bd)"><a class="ib" style="border:0;width:30px"><svg class="ic"><use href="#cl"/></svg></a><span class="av s">RQ<i class="on"></i></span><div class="sp"><b class="sm">Rauf Quliyev</b><p class="xs dim">@rauf_q</p></div><a class="ib"><svg class="ic s"><use href="#user"/></svg></a></div>
+  <div class="bd nb" style="gap:8px;padding-top:12px;padding-bottom:12px">
+    <a class="btn gh s" style="align-self:center">Köhnə mesajlar</a>
+    <div class="msg them">Salam! Cümə axşamı oyuna gəlirsən?<small>20:12</small></div>
+    <div class="msg me">Salam, hə gəlirəm. Saat neçədə başlayır?<small>20:14</small></div>
+    <div class="msg them">19:30, Dinamo Arena. 7x7 oynayırıq.<small>20:15</small></div>
+    <div class="msg me">Əla, Samiri də gətirim? Qapıçımız yoxdur.<small>20:16</small></div>
+    <div class="divl" style="color:var(--accTx);margin:6px 0">Yeni mesaj</div>
+    <div class="msg them">Gətir, lap yaxşı olar 👍<small>21:03</small></div>
+    <div class="msg them">Sabah 19:30-da meydançada olacam<small>21:04</small></div>
+  </div>
+  <div class="row" style="padding:10px 12px 30px;border-top:1px solid var(--bd);background:var(--bar)">
+    <div class="inp sp" style="border-radius:22px;min-height:44px"><span class="ph">Mesaj yaz...</span></div>
+    <a class="btn pri" style="width:44px;padding:0;border-radius:22px"><svg class="ic s"><use href="#send"/></svg></a>
+  </div>
+  <span class="hi"></span>
+</div></div><div class="cap"><b>Chat · söhbət</b><code>/chat</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><span class="tt sp" style="font-size:26px">Bildirişlər</span><a class="ib"><svg class="ic s"><use href="#check"/></svg></a></div>
+  <div class="bd" style="gap:10px">
+    <p class="xs mut" style="margin-top:-6px">Bütün bildirişlər tarixə görə, ən yenilər üstdə</p>
+    <div class="divl">Bu gün</div>
+    <div class="card col unr" style="gap:10px">
+      <div class="row t0"><span class="icb org"><svg class="ic"><use href="#swords"/></svg></span><div class="sp" style="padding-right:10px"><p class="sm"><b>Xətai Lions</b> Gənclik Feniks-ə oyun təklif etdi</p><div class="meta xs" style="margin-top:4px"><span><svg class="ic xs"><use href="#cal"/></svg>3 Okt, 18:00</span><span><svg class="ic xs"><use href="#pin"/></svg>Dinamo Arena</span></div></div></div>
+      <div class="row"><a class="btn pri s sp">Qəbul et</a><a class="btn sec s sp">Rədd et</a></div>
+      <span class="xs dim">5 dəq əvvəl</span>
+    </div>
+    <div class="card col unr" style="gap:10px">
+      <div class="row t0"><span class="icb blu"><svg class="ic"><use href="#uplus"/></svg></span><div class="sp" style="padding-right:10px"><p class="sm"><b>@rauf_q</b> sizə dostluq sorğusu göndərdi</p></div></div>
+      <div class="row"><a class="btn pri s sp">Qəbul et</a><a class="btn sec s sp">Rədd et</a></div>
+      <span class="xs dim">1 saat əvvəl</span>
+    </div>
+    <div class="card col" style="gap:8px">
+      <div class="row t0"><span class="icb pur"><svg class="ic"><use href="#msg"/></svg></span><div class="sp"><p class="sm"><b>@kamran_b</b>: Sabah saat neçədə?</p><span class="xs dim">3 saat əvvəl</span></div><a class="sm acc" style="font-weight:600">Mesaja keç</a></div>
+    </div>
+    <div class="divl">Bu həftə</div>
+    <div class="card col" style="gap:8px">
+      <div class="row t0"><span class="icb lime"><svg class="ic"><use href="#trophy"/></svg></span><div class="sp"><p class="sm"><b>Bakı Həvəskar Liqası 2026</b> liqasına dəvət</p><div class="row" style="gap:8px;margin-top:6px"><span class="bdg lime"><svg class="ic xs"><use href="#check"/></svg>Qəbul edildi</span><a class="xs acc" style="font-weight:600">Liqaya keç</a></div></div></div>
+    </div>
+    <div class="card col" style="gap:8px">
+      <div class="row t0"><span class="icb gry"><svg class="ic"><use href="#users"/></svg></span><div class="sp"><p class="sm mut"><b>Yasamal United</b> sizi komandaya dəvət edir</p><div class="row" style="gap:8px;margin-top:6px"><span class="bdg red">Rədd edildi</span></div></div></div>
+    </div>
+    <div class="card col" style="gap:8px">
+      <div class="row t0"><span class="icb gry"><svg class="ic"><use href="#uplus"/></svg></span><div class="sp"><p class="sm mut"><b>@tural.h</b> Gənclik Feniks-ə qoşulmaq istəyir</p><div class="row" style="gap:8px;margin-top:6px"><span class="bdg gry">Bağlandı</span></div></div></div>
+    </div>
+  </div>
+  <nav class="nav"><a><svg class="ic"><use href="#home"/></svg>Ana səhifə</a><a><svg class="ic"><use href="#ball"/></svg>İdmanlar</a><a><svg class="ic"><use href="#msg"/></svg>Chat<i class="n">3</i></a><a class="on"><svg class="ic"><use href="#bell"/></svg>Bildirişlər<i class="n">5</i></a><a><svg class="ic"><use href="#user"/></svg>Profil</a></nav><span class="hi"></span>
+</div></div><div class="cap"><b>Bildirişlər</b><code>/notifications</code></div></div>
+
+</div></section>
+
+<!-- ================= PROFILE ================= -->
+<section class="grp" id="profile">
+<header><h2>Profil</h2><p>/profile, /players/:playerId</p></header>
+<div class="grid">
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="glow" style="width:280px;height:200px;background:rgba(124,58,237,.24);top:20px;left:40px"></div>
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><span class="tt sp">Profilim</span><a class="ib"><svg class="ic s"><use href="#sun"/></svg></a><a class="ib"><svg class="ic s"><use href="#logout"/></svg></a></div>
+  <div class="bd" style="z-index:1">
+    <div class="col" style="align-items:center;text-align:center;gap:8px">
+      <div class="av xl">EM</div>
+      <div><h1 class="h2">Elvin Məmmədov</h1><p class="sm acc">@elvin10</p></div>
+    </div>
+    <div class="g3"><div class="stat"><b>24</b><span>Oyun</span></div><div class="stat"><b class="acc">17</b><span>Qol</span></div><div class="stat"><b>9</b><span>Asist</span></div></div>
+    <div class="tabs"><a class="on">Profil Məlumatları</a><a>Komandalar</a><a>Liqalar</a><a>Çempionatlar</a><a>Dostlar</a></div>
+    <div class="card" style="padding:4px 14px">
+      <div class="sh" style="padding:10px 0"><b class="sm">Şəxsi məlumatlar</b><a class="btn out s"><svg class="ic xs"><use href="#edit"/></svg>Redaktə et</a></div>
+      <div class="li"><span class="sm mut sp">Ad</span><b class="sm">Elvin</b></div>
+      <div class="li"><span class="sm mut sp">Soyad</span><b class="sm">Məmmədov</b></div>
+      <div class="li"><span class="sm mut sp">İstifadəçi adı</span><b class="sm">elvin10</b></div>
+      <div class="li"><span class="sm mut sp">Email</span><b class="sm">elvin.m@example.com</b></div>
+      <div class="li"><span class="sm mut sp">Doğum tarixi</span><b class="sm num">14.03.1998</b></div>
+      <div class="li"><span class="sm mut sp">Yaş</span><b class="sm num">28</b></div>
+      <div class="li"><span class="sm mut sp">İş yeri</span><b class="sm">Frilans dizayner</b></div>
+      <div class="li"><span class="sm mut sp">Oxuduğunuz yer</span><b class="sm">BDU</b></div>
+      <div class="li" style="flex-direction:column;align-items:flex-start;gap:4px"><span class="sm mut">Bio</span><p class="sm">Hücumçu. Həftəsonları 5x5 oynayıram, komanda üçün hər zaman hazıram.</p></div>
+    </div>
+  </div>
+  <nav class="nav"><a><svg class="ic"><use href="#home"/></svg>Ana səhifə</a><a><svg class="ic"><use href="#ball"/></svg>İdmanlar</a><a><svg class="ic"><use href="#msg"/></svg>Chat<i class="n">3</i></a><a><svg class="ic"><use href="#bell"/></svg>Bildirişlər<i class="n">5</i></a><a class="on"><svg class="ic"><use href="#user"/></svg>Profil</a></nav><span class="hi"></span>
+</div></div><div class="cap"><b>Profilim · məlumatlar</b><code>/profile</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><span class="tt sp">Profilim</span><a class="ib"><svg class="ic s"><use href="#sun"/></svg></a><a class="ib"><svg class="ic s"><use href="#logout"/></svg></a></div>
+  <div class="bd">
+    <div class="row" style="gap:12px"><div class="av" style="width:52px;height:52px;font-size:20px">EM</div><div class="sp"><b>Elvin Məmmədov</b><p class="xs acc">@elvin10</p></div><div class="row num sm" style="gap:12px;text-align:center"><div><b>24</b><p class="xs dim">Oyun</p></div><div><b class="acc">17</b><p class="xs dim">Qol</p></div></div></div>
+    <div class="tabs"><a>Profil Məlumatları</a><a>Komandalar</a><a>Liqalar</a><a>Çempionatlar</a><a class="on">Dostlar</a></div>
+    <div class="sh"><h3 class="h3">Gələn sorğular</h3><span class="bdg lime">2</span></div>
+    <div class="card col" style="gap:12px">
+      <div class="row"><span class="av">RQ</span><div class="sp"><b class="sm">Rauf Quliyev</b><p class="xs dim">@rauf_q · 4 ortaq dost</p></div></div>
+      <div class="row"><a class="btn pri s sp">Qəbul et</a><a class="btn sec s sp">Rədd et</a></div>
+    </div>
+    <div class="card col" style="gap:12px">
+      <div class="row"><span class="av">AH</span><div class="sp"><b class="sm">Aqil Hüseynov</b><p class="xs dim">@aqil_h · 1 ortaq dost</p></div></div>
+      <div class="row"><a class="btn pri s sp">Qəbul et</a><a class="btn sec s sp">Rədd et</a></div>
+    </div>
+    <div class="sh"><h3 class="h3">Dostlar</h3><span class="sm dim">18</span></div>
+    <div class="card" style="padding:4px 14px">
+      <div class="li"><span class="av s">KB</span><div class="sp"><b class="sm">Kamran Babayev</b><p class="xs dim">@kamran_b</p></div><a class="ib" style="width:34px;height:34px"><svg class="ic s"><use href="#msg"/></svg></a></div>
+      <div class="li"><span class="av s">OS</span><div class="sp"><b class="sm">Orxan Səfərov</b><p class="xs dim">@orxan.s</p></div><a class="ib" style="width:34px;height:34px"><svg class="ic s"><use href="#msg"/></svg></a></div>
+      <div class="li"><span class="av s">NƏ</span><div class="sp"><b class="sm">Nihad Əliyev</b><p class="xs dim">@nihad_e</p></div><a class="ib" style="width:34px;height:34px"><svg class="ic s"><use href="#msg"/></svg></a></div>
+    </div>
+  </div>
+  <nav class="nav"><a><svg class="ic"><use href="#home"/></svg>Ana səhifə</a><a><svg class="ic"><use href="#ball"/></svg>İdmanlar</a><a><svg class="ic"><use href="#msg"/></svg>Chat<i class="n">3</i></a><a><svg class="ic"><use href="#bell"/></svg>Bildirişlər<i class="n">5</i></a><a class="on"><svg class="ic"><use href="#user"/></svg>Profil</a></nav><span class="hi"></span>
+</div></div><div class="cap"><b>Profilim · dostlar</b><code>/profile</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="glow" style="width:280px;height:200px;background:rgba(197,241,53,.14);top:20px;left:40px"></div>
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><a class="ib"><svg class="ic"><use href="#cl"/></svg></a><span class="sp"></span><a class="ib"><svg class="ic s"><use href="#dots"/></svg></a></div>
+  <div class="bd" style="z-index:1">
+    <div class="col" style="align-items:center;text-align:center;gap:8px">
+      <div class="av xl">RQ</div>
+      <div><h1 class="h2">Rauf Quliyev</h1><p class="sm acc">@rauf_q</p></div>
+      <div class="row" style="width:100%;margin-top:4px"><a class="btn pri s sp"><svg class="ic xs"><use href="#uplus"/></svg>Dostluq göndər</a><a class="btn sec s sp"><svg class="ic xs"><use href="#msg"/></svg>Mesaj yaz</a></div>
+    </div>
+    <div class="g3"><div class="stat"><b>21</b><span>Oyun</span></div><div class="stat"><b class="acc">11</b><span>Qol</span></div><div class="stat"><b>14</b><span>Asist</span></div></div>
+    <div class="tabs"><a>Profil Məlumatları</a><a class="on">Komandalar</a><a>Liqalar</a><a>Çempionatlar</a></div>
+    <div class="card row"><span class="crest c-gf">GF</span><div class="sp"><b class="sm">Gənclik Feniks</b><p class="xs dim">Bakı · 12 oyunçu</p></div><span class="bdg lime">Aktiv oyunçu</span></div>
+    <div class="card row"><span class="crest c-nf">NF</span><div class="sp"><b class="sm">Nərimanov FC</b><p class="xs dim">Bakı · 10 oyunçu</p></div><span class="bdg lime">Aktiv oyunçu</span></div>
+    <div class="card col g8">
+      <b class="xs dim" style="letter-spacing:.1em">QISA MƏLUMAT</b>
+      <div class="li" style="padding:6px 0"><span class="sm mut sp">Pozisiya</span><b class="sm">Yarımmüdafiəçi</b></div>
+      <div class="li" style="padding:6px 0"><span class="sm mut sp">Təhsil</span><b class="sm">ADNSU</b></div>
+    </div>
+  </div>
+  <nav class="nav"><a><svg class="ic"><use href="#home"/></svg>Ana səhifə</a><a class="on"><svg class="ic"><use href="#ball"/></svg>İdmanlar</a><a><svg class="ic"><use href="#msg"/></svg>Chat<i class="n">3</i></a><a><svg class="ic"><use href="#bell"/></svg>Bildirişlər<i class="n">5</i></a><a><svg class="ic"><use href="#user"/></svg>Profil</a></nav><span class="hi"></span>
+</div></div><div class="cap"><b>Oyunçu profili</b><code>/players/:playerId</code></div></div>
+
+</div></section>
+
+<!-- ================= INFO ================= -->
+<section class="grp" id="info">
+<header><h2>Haqqımızda və FAQ</h2><p>/about-us, /faq</p></header>
+<div class="grid">
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><div class="logo"><span class="lm">R</span><span>Rival<em>io</em></span></div><div class="sp"></div><a class="ib"><svg class="ic s"><use href="#sun"/></svg></a><a class="ib"><svg class="ic"><use href="#menu"/></svg></a></div>
+  <div class="bd nb">
+    <div><span class="eb">Haqqımızda</span><h1 class="h1" style="margin-top:8px;font-size:34px">Oyunçu, komanda və rəqib tapmaq üçün sosial idman platforması</h1></div>
+    <div class="card col g8"><h3 class="h3">Missiyamız</h3><p class="sm mut">Həvəskar idmanı təşkil etməyi asanlaşdırmaq. Bir mesajla komanda yığılsın, bir kliklə rəqib tapılsın.</p></div>
+    <div class="g2">
+      <div class="stat"><b class="acc">2,500+</b><span>Aktiv oyunçu</span></div>
+      <div class="stat"><b>180+</b><span>Komanda</span></div>
+    </div>
+    <h3 class="h3">Necə işləyir</h3>
+    <div class="col" style="gap:14px">
+      <div class="step"><span class="k">1</span><div><b class="sm">Profilini yarat</b></div></div>
+      <div class="step"><span class="k">2</span><div><b class="sm">Komanda qur və ya qoşul</b></div></div>
+      <div class="step"><span class="k">3</span><div><b class="sm">Rəqib tap</b></div></div>
+      <div class="step"><span class="k">4</span><div><b class="sm">Oyna və izlə</b></div></div>
+    </div>
+    <h3 class="h3">Dəyərlərimiz</h3>
+    <div class="g2">
+      <div class="card col g6"><span class="icb lime"><svg class="ic"><use href="#users"/></svg></span><b class="sm">İcma</b></div>
+      <div class="card col g6"><span class="icb org"><svg class="ic"><use href="#zap"/></svg></span><b class="sm">Rəqabət</b></div>
+      <div class="card col g6"><span class="icb blu"><svg class="ic"><use href="#scale"/></svg></span><b class="sm">Ədalət</b></div>
+      <div class="card col g6"><span class="icb pur"><svg class="ic"><use href="#shield"/></svg></span><b class="sm">Güvən</b></div>
+    </div>
+    <div class="card hl col" style="gap:10px;text-align:center;background:linear-gradient(160deg,var(--accSoft),var(--card) 70%)">
+      <h2 class="h2">Növbəti oyunun səni gözləyir</h2>
+      <a class="btn pri blk">Qeydiyyatdan keç</a><a class="btn out blk">İdmanları kəşf et</a>
+    </div>
+  </div>
+  <span class="hi"></span>
+</div></div><div class="cap"><b>Haqqımızda</b><code>/about-us</code></div></div>
+
+<div class="ph"><div class="fr"><div class="scr">
+  <div class="sb"><span>9:41</span><svg class="sbi"><use href="#sbi"/></svg></div>
+  <div class="tb"><div class="logo"><span class="lm">R</span><span>Rival<em>io</em></span></div><div class="sp"></div><a class="ib"><svg class="ic s"><use href="#sun"/></svg></a><a class="ib"><svg class="ic"><use href="#menu"/></svg></a></div>
+  <div class="bd nb">
+    <div><span class="eb">Dəstək</span><h1 class="h1" style="margin-top:8px">Tez-tez verilən suallar</h1><p class="sm mut" style="margin-top:8px">Qeydiyyat, komandalar, liqalar və chat haqqında ən çox soruşulanlar.</p></div>
+    <div class="card" style="padding:0 14px">
+      <div class="acc-i"><div class="q">Necə qeydiyyatdan keçə bilərəm?<svg class="ic s dim"><use href="#cd"/></svg></div></div>
+      <div class="acc-i op"><div class="q">Komandanı necə yaradım?<svg class="ic s"><use href="#cu"/></svg></div><p class="a">İdmanlar → Futbol → “Komanda profilim” tabında “Komanda yarat” düyməsini bas. Komandanı yaradan avtomatik kapitan olur.</p></div>
+      <div class="acc-i"><div class="q">Rəqibi necə tapım?<svg class="ic s dim"><use href="#cd"/></svg></div></div>
+      <div class="acc-i"><div class="q">Private liqaları kim görə bilər?<svg class="ic s dim"><use href="#cd"/></svg></div></div>
+      <div class="acc-i"><div class="q">Statistika necə hesablanır?<svg class="ic s dim"><use href="#cd"/></svg></div></div>
+      <div class="acc-i"><div class="q">Platformadan istifadə ödənişlidirmi?<svg class="ic s dim"><use href="#cd"/></svg></div></div>
+    </div>
+    <div class="card col" style="gap:10px;text-align:center">
+      <b>Cavabını tapmadın?</b>
+      <p class="sm mut">Bizim haqqımızda oxu və ya hesab yaradıb başla.</p>
+      <div class="row"><a class="btn out s sp">Haqqımızda</a><a class="btn pri s sp">Qeydiyyatdan keç</a></div>
+    </div>
+  </div>
+  <span class="hi"></span>
+</div></div><div class="cap"><b>FAQ</b><code>/faq</code></div></div>
+
+</div></section>
+
+</div>
+
+<script>
+(function(){
+  var d=document.getElementById('t-dark'),l=document.getElementById('t-light');
+  function set(mode){
+    document.body.classList.toggle('light',mode==='light');
+    d.setAttribute('aria-pressed',mode==='dark');l.setAttribute('aria-pressed',mode==='light');
+    try{localStorage.setItem('rivalio-mock-theme',mode)}catch(e){}
+  }
+  d.addEventListener('click',function(){set('dark')});
+  l.addEventListener('click',function(){set('light')});
+  try{if(localStorage.getItem('rivalio-mock-theme')==='light')set('light')}catch(e){}
+})();
+</script>
+
+</body>
+</html>
