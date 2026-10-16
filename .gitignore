@@ -1,5 +1,18 @@
 node_modules
-# Keep environment variables out of version control
+# Keep environment variables out of version control.
+# .env.production is the public frontend API URL used by Vite and stays tracked.
+# .env.example documents variable names and stays tracked.
 .env
+.env.*
+!.env.example
+!.env.production
+
+# Private keys and credential files
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
 
 /generated/prisma

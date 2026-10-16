@@ -1,7 +1,18 @@
+# Frontend web service managed by this Blueprint.
+# The production API (rivalio-app.onrender.com) is configured in the Render
+# dashboard and is intentionally omitted here so a Blueprint sync cannot create
+# a second API or replace that service's environment variables.
+#
+# autoDeployTrigger waits for GitHub checks on the commit that reached main.
+# Apply this file in Render, and set the same auto-deploy option on the API
+# service in the dashboard. This file does not start a deployment by itself.
+
 services:
   - type: web
     name: rivalio-app-frontend
     runtime: node
+    branch: main
     rootDir: frontend
     buildCommand: npm ci && npm run build
     startCommand: npm start
+    autoDeployTrigger: checksPass
