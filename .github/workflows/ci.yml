@@ -4,6 +4,7 @@
 # frontend/ (Vite). Render deploys main only after this workflow reports a
 # successful check when the service auto-deploy setting is "After CI Checks Pass".
 # This workflow does not deploy and does not run database migrations.
+# Feature-branch pushes do not start it. Open a pull request into main.
 
 name: CI
 
