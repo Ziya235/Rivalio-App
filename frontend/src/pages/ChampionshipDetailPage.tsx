@@ -189,7 +189,7 @@ export default function ChampionshipDetailPage() {
             }
             onRetry={() => void load()}
           />
-          <div className="mt-4 text-center">
+          <di className="mt-4 text-center">
             <Button
               variant="outline"
               className="border-gray-200 text-gray-700"
