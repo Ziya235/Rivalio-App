@@ -12,6 +12,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { Avatar, Button } from "../components/ui";
+import { NotificationMessage } from "../components/NotificationMessage";
 import { NotificationTime } from "../components/NotificationTime";
 import {
   respondChampionshipInvite,
@@ -46,6 +47,7 @@ import { subscribeSocketEvent } from "../services/socket";
 import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import type { AppOutletContext } from "../App";
 import {
+  challengeParts,
   isAcceptedNotification,
   isPendingChampionshipInvite,
   isPendingChampionshipJoinRequest,
@@ -53,8 +55,10 @@ import {
   isPendingJoinRequest,
   isPendingLeagueInvite,
   isRejectedNotification,
-  notificationLabel,
+  notificationParts,
   personName,
+  playerSearchParts,
+  teamPlayerInviteParts,
 } from "../lib/notificationDisplay";
 
 type FeedEntry =
@@ -350,9 +354,6 @@ export default function NotificationsPage() {
             {entries.map((entry) => {
               if (entry.kind === "player") {
                 const request = entry.request;
-                const actorName = entry.incoming
-                  ? personName(request.user)
-                  : request.playerSearch.hostTeam.name;
                 const pending = entry.incoming && request.status === "PENDING";
                 const accepted = request.status === "ACCEPTED";
                 const rejected =
@@ -368,20 +369,10 @@ export default function NotificationsPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className={`text-sm ${title}`}>
-                          <span className="font-semibold">{actorName}</span>{" "}
-                          <span className={body}>
-                            {entry.incoming
-                              ? accepted
-                                ? "oyunçu axtarışı sorğusunu qəbul etdiniz"
-                                : request.status === "REJECTED"
-                                  ? "oyunçu axtarışı sorğusunu rədd etdiniz"
-                                  : "komandanızın oyunçu axtarışına qoşulmaq istəyir"
-                              : accepted
-                                ? "oyunçu axtarışı sorğunuzu qəbul etdi"
-                                : request.status === "CANCELLED"
-                                  ? "oyunçu axtarışını bağladı"
-                                  : "oyunçu axtarışı sorğunuzu rədd etdi"}
-                          </span>
+                          <NotificationMessage
+                            parts={playerSearchParts(request, entry.incoming)}
+                            mutedClass={body}
+                          />
                         </p>
                         <NotificationTime value={request.createdAt} light={light} />
                         {request.playerSearch.venue ? (
@@ -454,9 +445,6 @@ export default function NotificationsPage() {
 
               if (entry.kind === "challenge") {
                 const request = entry.request;
-                const actorName = entry.incoming
-                  ? request.team.name
-                  : request.challenge.team.name;
                 const pending = entry.incoming && request.status === "PENDING";
                 const accepted = request.status === "ACCEPTED";
                 const rejected =
@@ -472,18 +460,10 @@ export default function NotificationsPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className={`text-sm ${title}`}>
-                          <span className="font-semibold">{actorName}</span>{" "}
-                          <span className={body}>
-                            {entry.incoming
-                              ? request.status === "PENDING"
-                                ? "sizin challenge elanınıza sorğu göndərdi"
-                                : accepted
-                                  ? "challenge sorğusunu qəbul etdiniz"
-                                  : "challenge sorğusunu rədd etdiniz"
-                              : accepted
-                                ? "challenge sorğunuzu qəbul etdi"
-                                : "challenge sorğunuzu rədd etdi"}
-                          </span>
+                          <NotificationMessage
+                            parts={challengeParts(request, entry.incoming)}
+                            mutedClass={body}
+                          />
                         </p>
                         <NotificationTime value={request.createdAt} light={light} />
                         {pending ? (
@@ -545,7 +525,6 @@ export default function NotificationsPage() {
               if (entry.kind === "team-player") {
                 const invite = entry.invite;
                 const pending = entry.incoming && invite.status === "PENDING";
-                const accepted = invite.status === "ACCEPTED";
                 return (
                   <div
                     key={entry.key}
@@ -557,21 +536,10 @@ export default function NotificationsPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className={`text-sm ${title}`}>
-                          {entry.incoming ? (
-                            <>
-                              <span className="font-semibold">{invite.team.name}</span>{" "}
-                              <span className={body}>komandası sizi heyətinə dəvət edir</span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="font-semibold">
-                                @{invite.invitedUser.username}
-                              </span>{" "}
-                              <span className={body}>
-                                dəvəti {accepted ? "qəbul etdi" : "rədd etdi"}
-                              </span>
-                            </>
-                          )}
+                          <NotificationMessage
+                            parts={teamPlayerInviteParts(invite, entry.incoming)}
+                            mutedClass={body}
+                          />
                         </p>
                         <NotificationTime
                           value={invite.respondedAt || invite.createdAt}
@@ -656,10 +624,10 @@ export default function NotificationsPage() {
                     />
                     <div className="min-w-0 flex-1">
                       <p className={`text-sm ${title}`}>
-                        <span className="font-semibold">{actorName}</span>{" "}
-                        <span className={body}>
-                          {notificationLabel(notification)}
-                        </span>
+                        <NotificationMessage
+                          parts={notificationParts(notification)}
+                          mutedClass={body}
+                        />
                       </p>
                       <NotificationTime
                         value={notification.createdAt}

@@ -4,6 +4,7 @@ import {
   teamSelect,
   userBriefSelect,
 } from "../utils/helpers.js";
+import { emitSocialRequestsChanged } from "../socket/socket.emit.js";
 
 const inviteInclude = {
   team: { select: teamSelect },
@@ -107,6 +108,8 @@ export const invitePlayerToTeam = async (req, res) => {
       include: inviteInclude,
     });
 
+    emitSocialRequestsChanged([user.id]);
+
     return res.status(201).json({
       success: true,
       message: "Player invitation sent",
@@ -209,6 +212,8 @@ export const respondTeamPlayerInvite = async (req, res) => {
         include: inviteInclude,
       });
 
+      emitSocialRequestsChanged([invite.invitedById, invite.invitedUserId]);
+
       return res.status(200).json({
         success: true,
         message: "Invitation rejected",
@@ -274,6 +279,8 @@ export const respondTeamPlayerInvite = async (req, res) => {
         include: inviteInclude,
       });
     });
+
+    emitSocialRequestsChanged([invite.invitedById, invite.invitedUserId]);
 
     return res.status(200).json({
       success: true,

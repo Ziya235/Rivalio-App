@@ -23,7 +23,7 @@ import type { AppNotification } from "../../types/notification";
 import type { ChallengeRequestNotice, PlayerSearchRequestNotice } from "../../types/social";
 import type { TeamPlayerInvite } from "../../types/team";
 import { formatDateTime, formatRelative, fullName } from "../../utils/format";
-import { notificationOutcome, notificationText, pendingAction } from "../../utils/notifications";
+import { challengeParts, notificationOutcome, notificationParts, pendingAction, playerSearchParts, teamPlayerInviteParts, type MessagePart } from "../../utils/notifications";
 
 type Entry =
   | { key: string; at: number; kind: "social"; n: AppNotification }
@@ -157,8 +157,7 @@ export function NotificationsScreen() {
           tone={n.type === "FRIEND_REQUEST" || n.type === "FRIEND_ACCEPTED" ? "blue" : n.type === "NEW_MESSAGE" ? "violet" : "lime"}
           unread={!n.isRead}
           avatar={n.actor ? { uri: n.actor.image, name: fullName(n.actor) } : undefined}
-          actor={n.actor ? fullName(n.actor) : "Rivalio"}
-          text={notificationText(n)}
+          parts={notificationParts(n)}
           at={n.createdAt}
           onPress={() => openSocial(n)}
           pending={pending != null}
@@ -172,24 +171,12 @@ export function NotificationsScreen() {
     if (item.kind === "player") {
       const r = item.r;
       const pending = item.incoming && r.status === "PENDING";
-      const text = item.incoming
-        ? r.status === "ACCEPTED"
-          ? "oyunçu axtarışı sorğusunu qəbul etdiniz"
-          : r.status === "REJECTED"
-            ? "oyunçu axtarışı sorğusunu rədd etdiniz"
-            : "komandanızın oyunçu axtarışına qoşulmaq istəyir"
-        : r.status === "ACCEPTED"
-          ? "oyunçu axtarışı sorğunuzu qəbul etdi"
-          : r.status === "CANCELLED"
-            ? "oyunçu axtarışını bağladı"
-            : "oyunçu axtarışı sorğunuzu rədd etdi";
       return (
         <Item
           icon="person-add-outline"
           tone="violet"
-          avatar={item.incoming && r.user ? { uri: r.user.image, name: fullName(r.user) } : undefined}
-          actor={item.incoming ? fullName(r.user) : r.playerSearch.hostTeam.name}
-          text={text}
+          avatar={item.incoming && r.user ? { uri: r.user.image, name: fullName(r.user) } : { uri: r.playerSearch.hostTeam.logo, name: r.playerSearch.hostTeam.name }}
+          parts={playerSearchParts(r, item.incoming)}
           extra={`${r.playerSearch.venue} · ${formatDateTime(r.playerSearch.scheduledAt)}`}
           at={r.createdAt}
           pending={pending}
@@ -203,22 +190,12 @@ export function NotificationsScreen() {
     if (item.kind === "challenge") {
       const r = item.r;
       const pending = item.incoming && r.status === "PENDING";
-      const text = item.incoming
-        ? r.status === "PENDING"
-          ? "oyun təklifinizə sorğu göndərdi"
-          : r.status === "ACCEPTED"
-            ? "oyun təklifi sorğusunu qəbul etdiniz"
-            : "oyun təklifi sorğusunu rədd etdiniz"
-        : r.status === "ACCEPTED"
-          ? "oyun təklifi sorğunuzu qəbul etdi"
-          : "oyun təklifi sorğunuzu rədd etdi";
       return (
         <Item
           icon="flash-outline"
           tone="orange"
           avatar={{ uri: item.incoming ? r.team.logo : r.challenge.team.logo, name: item.incoming ? r.team.name : r.challenge.team.name }}
-          actor={item.incoming ? r.team.name : r.challenge.team.name}
-          text={text}
+          parts={challengeParts(r, item.incoming)}
           extra={`${r.challenge.venue} · ${formatDateTime(r.challenge.scheduledAt)}`}
           at={r.createdAt}
           pending={pending}
@@ -235,17 +212,11 @@ export function NotificationsScreen() {
       <Item
         icon="shirt-outline"
         tone="blue"
-        avatar={{ uri: r.team.logo, name: r.team.name }}
-        actor={item.incoming ? r.team.name : fullName(r.invitedUser)}
-        text={
-          item.incoming
-            ? r.status === "PENDING"
-              ? `komandasına qoşulmağa dəvət edir${r.message ? ` · “${r.message}”` : ""}`
-              : r.status === "ACCEPTED"
-                ? "komanda dəvətini qəbul etdiniz"
-                : "komanda dəvətini rədd etdiniz"
-            : `${r.team.name} komandasına dəvəti ${r.status === "ACCEPTED" ? "qəbul etdi" : "rədd etdi"}`
-        }
+        avatar={{
+          uri: item.incoming ? r.invitedBy.image : r.invitedUser.image,
+          name: item.incoming ? fullName(r.invitedBy) : fullName(r.invitedUser),
+        }}
+        parts={teamPlayerInviteParts(r, item.incoming)}
         at={r.createdAt}
         pending={pending}
         busy={busyKey === `t-${r.id}`}
@@ -299,8 +270,7 @@ function Item({
   icon,
   tone = "lime",
   avatar,
-  actor,
-  text,
+  parts,
   extra,
   at,
   unread,
@@ -314,8 +284,7 @@ function Item({
   icon: IconName;
   tone?: Tone;
   avatar?: { uri: string | null | undefined; name: string };
-  actor: string;
-  text: string;
+  parts: MessagePart[];
   extra?: string;
   at: string;
   unread?: boolean;
@@ -337,7 +306,11 @@ function Item({
         </View>
         <View style={{ flex: 1, paddingRight: unread ? 12 : 0 }}>
           <Text style={[styles.text, resolved && { color: c.textMuted }]} onPress={onPress} accessibilityRole={onPress ? "button" : undefined}>
-            <Text style={styles.actor}>{actor}</Text> {text}
+            {parts.map((part, index) => (
+              <Text key={index} style={part.strong ? styles.actor : undefined}>
+                {part.text}
+              </Text>
+            ))}
           </Text>
           {extra ? (
             <View style={styles.extra}>

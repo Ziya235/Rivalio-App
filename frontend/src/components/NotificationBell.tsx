@@ -14,8 +14,11 @@ import {
 } from "../api/notifications";
 import { respondChampionshipInvite, respondChampionshipJoinRequest } from "../api/championships";
 import {
+  fetchMyTeamPlayerInviteNotifications,
   respondLeagueJoinRequest,
   respondTeamInvite,
+  respondTeamPlayerInvite,
+  type TeamPlayerInvite,
 } from "../api/teams";
 import {
   fetchMyChallengeNotifications,
@@ -25,7 +28,9 @@ import {
   type ChallengeNotificationRequest,
   type PlayerSearchNotificationRequest,
 } from "../api/social";
+import { NotificationMessage } from "./NotificationMessage";
 import {
+  challengeParts,
   isAcceptedNotification,
   isPendingChampionshipInvite,
   isPendingChampionshipJoinRequest,
@@ -33,60 +38,15 @@ import {
   isPendingJoinRequest,
   isPendingLeagueInvite,
   isRejectedNotification,
-  notificationLabel,
+  notificationParts,
   personName,
+  playerSearchParts,
+  teamPlayerInviteParts,
 } from "../lib/notificationDisplay";
 
 type NotificationBellProps = {
   isLightMode?: boolean;
 };
-
-function playerSearchLabel(
-  request: PlayerSearchNotificationRequest,
-  incoming: boolean,
-) {
-  if (incoming) {
-    if (request.status === "ACCEPTED") {
-      return "oyunçu axtarışı sorğusunu qəbul etdiniz";
-    }
-    if (request.status === "REJECTED") {
-      return "oyunçu axtarışı sorğusunu rədd etdiniz";
-    }
-    return "komandanızın oyunçu axtarışına qoşulmaq istəyir";
-  }
-  if (request.status === "ACCEPTED") {
-    return "oyunçu axtarışı sorğunuzu qəbul etdi";
-  }
-  if (request.status === "CANCELLED") {
-    return "oyunçu axtarışını bağladı";
-  }
-  return "oyunçu axtarışı sorğunuzu rədd etdi";
-}
-
-function challengeLabel(
-  request: ChallengeNotificationRequest,
-  incoming: boolean,
-) {
-  if (incoming) {
-    if (request.status === "PENDING") {
-      return "sizin challenge elanınıza sorğu göndərdi";
-    }
-    if (request.status === "ACCEPTED") {
-      return "challenge sorğusunu qəbul etdiniz";
-    }
-    if (request.status === "REJECTED") {
-      return "challenge sorğusunu rədd etdiniz";
-    }
-    return "üçün başqa rəqib seçildi";
-  }
-  if (request.status === "ACCEPTED") {
-    return "challenge sorğunuzu qəbul etdi";
-  }
-  if (request.status === "REJECTED") {
-    return "challenge sorğunuzu rədd etdi";
-  }
-  return "başqa rəqib seçdi";
-}
 
 function seenStorageKey(userId: number) {
   return `rivalio.notificationSeen.${userId}`;
@@ -142,6 +102,8 @@ export default function NotificationBell({
   const [challengeOutcomes, setChallengeOutcomes] = useState<
     ChallengeNotificationRequest[]
   >([]);
+  const [teamIncoming, setTeamIncoming] = useState<TeamPlayerInvite[]>([]);
+  const [teamOutcomes, setTeamOutcomes] = useState<TeamPlayerInvite[]>([]);
   const ref = useRef<HTMLDivElement>(null);
 
   const iconButton = isLightMode
@@ -155,14 +117,17 @@ export default function NotificationBell({
 
   const loadExtraNotifications = useCallback(async () => {
     try {
-      const [playerSearch, challenges] = await Promise.all([
+      const [playerSearch, challenges, teamInvites] = await Promise.all([
         fetchMyPlayerSearchNotifications(),
         fetchMyChallengeNotifications(),
+        fetchMyTeamPlayerInviteNotifications(),
       ]);
       setPlayerIncoming(playerSearch.incoming);
       setPlayerOutcomes(playerSearch.outcomes);
       setChallengeIncoming(challenges.incoming);
       setChallengeOutcomes(challenges.outcomes);
+      setTeamIncoming(teamInvites.incoming);
+      setTeamOutcomes(teamInvites.outcomes);
     } catch {
       // Keep previously loaded extra notifications if a refresh fails.
     }
@@ -218,8 +183,17 @@ export default function NotificationBell({
       ...playerOutcomes.map((request) => `player-out-${request.id}`),
       ...challengeIncoming.map((request) => `challenge-in-${request.id}`),
       ...challengeOutcomes.map((request) => `challenge-out-${request.id}`),
+      ...teamIncoming.map((invite) => `team-in-${invite.id}`),
+      ...teamOutcomes.map((invite) => `team-out-${invite.id}`),
     ],
-    [playerIncoming, playerOutcomes, challengeIncoming, challengeOutcomes],
+    [
+      playerIncoming,
+      playerOutcomes,
+      challengeIncoming,
+      challengeOutcomes,
+      teamIncoming,
+      teamOutcomes,
+    ],
   );
 
   useEffect(() => {
@@ -241,7 +215,9 @@ export default function NotificationBell({
     playerIncoming.length > 0 ||
     playerOutcomes.length > 0 ||
     challengeIncoming.length > 0 ||
-    challengeOutcomes.length > 0;
+    challengeOutcomes.length > 0 ||
+    teamIncoming.length > 0 ||
+    teamOutcomes.length > 0;
 
   const handleRead = async (notification: AppNotification) => {
     if (notification.isRead) return;
@@ -396,6 +372,19 @@ export default function NotificationBell({
     }
   };
 
+  const handleTeamPlayerRespond = async (
+    invite: TeamPlayerInvite,
+    action: "accept" | "reject",
+  ) => {
+    setBusyKey(`team-${invite.id}`);
+    try {
+      await respondTeamPlayerInvite(invite.id, action);
+      await loadExtraNotifications();
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
   const entries = [
     ...notifications.map((notification) => ({
       key: `social-${notification.id}`,
@@ -429,6 +418,20 @@ export default function NotificationBell({
       at: Date.parse(request.respondedAt || request.createdAt) || 0,
       kind: "challenge" as const,
       request,
+      incoming: false,
+    })),
+    ...teamIncoming.map((invite) => ({
+      key: `team-in-${invite.id}`,
+      at: Date.parse(invite.createdAt) || 0,
+      kind: "team" as const,
+      invite,
+      incoming: true,
+    })),
+    ...teamOutcomes.map((invite) => ({
+      key: `team-out-${invite.id}`,
+      at: Date.parse(invite.respondedAt || invite.createdAt) || 0,
+      kind: "team" as const,
+      invite,
       incoming: false,
     })),
   ].sort((a, b) => b.at - a.at);
@@ -515,10 +518,10 @@ export default function NotificationBell({
                         />
                         <div className="min-w-0 flex-1">
                           <p className={`text-sm ${strongText}`}>
-                            <span className="font-semibold">{actorName}</span>{" "}
-                            <span className={mutedText}>
-                              {playerSearchLabel(request, entry.incoming)}
-                            </span>
+                            <NotificationMessage
+                              parts={playerSearchParts(request, entry.incoming)}
+                              mutedClass={mutedText}
+                            />
                           </p>
                           <NotificationTime
                             value={request.createdAt}
@@ -604,10 +607,10 @@ export default function NotificationBell({
                         />
                         <div className="min-w-0 flex-1">
                           <p className={`text-sm ${strongText}`}>
-                            <span className="font-semibold">{actorName}</span>{" "}
-                            <span className={mutedText}>
-                              {challengeLabel(request, entry.incoming)}
-                            </span>
+                            <NotificationMessage
+                              parts={challengeParts(request, entry.incoming)}
+                              mutedClass={mutedText}
+                            />
                           </p>
                           <NotificationTime
                             value={request.createdAt}
@@ -659,6 +662,94 @@ export default function NotificationBell({
                   );
                 }
 
+                if (entry.kind === "team") {
+                  const invite = entry.invite;
+                  const person = entry.incoming
+                    ? invite.invitedBy
+                    : invite.invitedUser;
+                  const actorName = personName(person);
+                  const pending = entry.incoming && invite.status === "PENDING";
+                  const accepted = invite.status === "ACCEPTED";
+                  const rejected =
+                    invite.status === "REJECTED" ||
+                    invite.status === "CANCELLED";
+                  const busy = busyKey === `team-${invite.id}`;
+
+                  return (
+                    <div
+                      key={entry.key}
+                      className={`px-4 py-3 border-b last:border-b-0 ${
+                        isLightMode ? "border-slate-900/8" : "border-white/6"
+                      } ${pending ? "" : "opacity-80"}`}
+                    >
+                      <div className="flex gap-3">
+                        <Avatar
+                          name={actorName}
+                          src={person.image || undefined}
+                          size="sm"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-sm ${strongText}`}>
+                            <NotificationMessage
+                              parts={teamPlayerInviteParts(
+                                invite,
+                                entry.incoming,
+                              )}
+                              mutedClass={mutedText}
+                            />
+                          </p>
+                          <NotificationTime
+                            value={invite.respondedAt || invite.createdAt}
+                            light={isLightMode}
+                          />
+                          {pending ? (
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() =>
+                                  void handleTeamPlayerRespond(invite, "accept")
+                                }
+                                className="px-3 py-1.5 rounded-lg bg-[#c5f135] text-[#08080e] text-xs font-semibold disabled:opacity-50"
+                              >
+                                Qəbul et
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() =>
+                                  void handleTeamPlayerRespond(invite, "reject")
+                                }
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+                                  isLightMode
+                                    ? "border-slate-900/15 text-slate-700"
+                                    : "border-white/15 text-white/75"
+                                } disabled:opacity-50`}
+                              >
+                                Rədd et
+                              </button>
+                            </div>
+                          ) : null}
+                          {!pending && accepted ? (
+                            <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-500">
+                              <CheckCircle2 size={13} />
+                              Qəbul edildi
+                            </p>
+                          ) : null}
+                          {!pending && rejected ? (
+                            <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-rose-400">
+                              <XCircle size={13} />
+                              {invite.status === "CANCELLED"
+                                ? "Ləğv edildi"
+                                : "Rədd edildi"}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
                 const notification = entry.notification;
                 const actorName = personName(notification.actor);
                 const champPending = isPendingChampionshipInvite(notification);
@@ -700,10 +791,10 @@ export default function NotificationBell({
                       />
                       <div className="min-w-0 flex-1">
                         <p className={`text-sm ${strongText}`}>
-                          <span className="font-semibold">{actorName}</span>{" "}
-                          <span className={mutedText}>
-                            {notificationLabel(notification)}
-                          </span>
+                          <NotificationMessage
+                            parts={notificationParts(notification)}
+                            mutedClass={mutedText}
+                          />
                         </p>
                         <NotificationTime
                           value={notification.createdAt}

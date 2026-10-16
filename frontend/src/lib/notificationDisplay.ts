@@ -1,4 +1,14 @@
 import type { AppNotification } from "../api/notifications";
+import type {
+  ChallengeNotificationRequest,
+  PlayerSearchNotificationRequest,
+} from "../api/social";
+import type { TeamPlayerInvite } from "../api/teams";
+
+export type MessagePart = { text: string; strong?: boolean };
+
+const strong = (text: string): MessagePart => ({ text, strong: true });
+const plain = (text: string): MessagePart => ({ text });
 
 export function formatNotificationDate(value: string) {
   const date = new Date(value);
@@ -17,120 +27,247 @@ export function personName(person?: {
   return full || person.username || "İstifadəçi";
 }
 
-export function notificationLabel(notification: AppNotification) {
+export function notificationParts(notification: AppNotification): MessagePart[] {
+  const actor = personName(notification.actor);
+
   if (
     notification.type === "FRIEND_REQUEST" &&
     notification.friendRequestStatus === "ACCEPTED"
   ) {
-    return "dostluq sorğusunu qəbul etdiniz";
+    return [strong(actor), plain(" dostluq sorğusunu qəbul etdiniz")];
   }
   if (
     notification.type === "FRIEND_REQUEST" &&
     notification.friendRequestStatus === "REJECTED"
   ) {
-    return "dostluq sorğusunu rədd etdiniz";
+    return [strong(actor), plain(" dostluq sorğusunu rədd etdiniz")];
   }
 
   const champName =
     notification.championshipInvite?.championship.name ??
     notification.championshipJoinRequest?.championship.name ??
-    "çempionata";
+    "çempionat";
   const teamName =
     notification.championshipInvite?.team.name ??
-    notification.championshipJoinRequest?.team.name;
+    notification.championshipJoinRequest?.team.name ??
+    "Komanda";
   const leagueName =
     notification.leagueInvite?.league.name ??
     notification.joinRequest?.league.name ??
     "liqa";
   const leagueTeamName =
-    notification.leagueInvite?.team.name ?? notification.joinRequest?.team.name;
+    notification.leagueInvite?.team.name ??
+    notification.joinRequest?.team.name ??
+    "Komanda";
 
   if (notification.type === "CHAMPIONSHIP_INVITE") {
     if (notification.championshipInviteStatus === "ACCEPTED") {
-      return teamName
-        ? `${teamName} komandası ${champName} dəvətini qəbul etdi`
-        : `${champName} dəvətini qəbul etdi`;
+      return [
+        strong(teamName),
+        plain(" komandası "),
+        strong(champName),
+        plain(" çempionatında iştirak dəvətinizi qəbul etdi."),
+      ];
     }
     if (notification.championshipInviteStatus === "REJECTED") {
-      return teamName
-        ? `${teamName} komandası ${champName} dəvətini rədd etdi`
-        : `${champName} dəvətini rədd etdi`;
+      return [
+        strong(teamName),
+        plain(" komandası "),
+        strong(champName),
+        plain(" çempionatında iştirak dəvətinizi rədd etdi."),
+      ];
     }
     if (notification.championshipInviteStatus === "CANCELLED") {
-      return `${champName} dəvəti ləğv edildi`;
+      return [strong(actor), plain(` ${champName} dəvəti ləğv edildi`)];
     }
-    return teamName
-      ? `${teamName} komandanızı ${champName} çempionatına dəvət etdi`
-      : `komandanızı ${champName} çempionatına dəvət etdi`;
+    return [
+      strong(actor),
+      plain(" sizi "),
+      strong(champName),
+      plain(" çempionatında iştirak etməyə dəvət etdi."),
+    ];
   }
 
   if (notification.type === "LEAGUE_INVITE") {
     if (notification.leagueInviteStatus === "ACCEPTED") {
-      return leagueTeamName
-        ? `${leagueTeamName} komandası ${leagueName} dəvətini qəbul etdi`
-        : `${leagueName} dəvətini qəbul etdi`;
+      return [
+        strong(leagueTeamName),
+        plain(" komandası "),
+        strong(leagueName),
+        plain(" liqasında iştirak dəvətinizi qəbul etdi."),
+      ];
     }
     if (notification.leagueInviteStatus === "REJECTED") {
-      return leagueTeamName
-        ? `${leagueTeamName} komandası ${leagueName} dəvətini rədd etdi`
-        : `${leagueName} dəvətini rədd etdi`;
+      return [
+        strong(leagueTeamName),
+        plain(" komandası "),
+        strong(leagueName),
+        plain(" liqasında iştirak dəvətinizi rədd etdi."),
+      ];
     }
     if (notification.leagueInviteStatus === "CANCELLED") {
-      return `${leagueName} dəvəti ləğv edildi`;
+      return [strong(actor), plain(` ${leagueName} dəvəti ləğv edildi`)];
     }
-    return leagueTeamName
-      ? `${leagueTeamName} komandanızı ${leagueName} liqasına dəvət etdi`
-      : `komandanızı ${leagueName} liqasına dəvət etdi`;
+    return [
+      strong(actor),
+      plain(" sizi "),
+      strong(leagueName),
+      plain(" liqasında iştirak etməyə dəvət etdi."),
+    ];
   }
 
   if (notification.type === "JOIN_REQUEST") {
     if (notification.joinRequestStatus === "ACCEPTED") {
-      return leagueTeamName
-        ? `${leagueTeamName} komandasının ${leagueName} sorğusu qəbul edildi`
-        : `${leagueName} sorğusu qəbul edildi`;
+      return [
+        strong(leagueTeamName),
+        plain(" komandasının "),
+        strong(leagueName),
+        plain(" liqasına iştirak təklifi qəbul edildi."),
+      ];
     }
     if (notification.joinRequestStatus === "REJECTED") {
-      return leagueTeamName
-        ? `${leagueTeamName} komandasının ${leagueName} sorğusu rədd edildi`
-        : `${leagueName} sorğusu rədd edildi`;
+      return [
+        strong(leagueTeamName),
+        plain(" komandasının "),
+        strong(leagueName),
+        plain(" liqasına iştirak təklifi rədd edildi."),
+      ];
     }
     if (notification.joinRequestStatus === "CANCELLED") {
-      return leagueTeamName
-        ? `${leagueTeamName} komandası ${leagueName} sorğusunu ləğv etdi`
-        : `${leagueName} sorğusu ləğv edildi`;
+      return [
+        strong(leagueTeamName),
+        plain(` komandası ${leagueName} sorğusunu ləğv etdi`),
+      ];
     }
-    return `${leagueName} ligasında iştirak etmək üçün dəvət göndərdi`;
+    return [
+      strong(leagueTeamName),
+      plain(" komandası "),
+      strong(leagueName),
+      plain(" liqasında iştirak etmək üçün dəvət göndərdi."),
+    ];
   }
 
   if (notification.type === "CHAMPIONSHIP_JOIN_REQUEST") {
     if (notification.championshipJoinRequestStatus === "ACCEPTED") {
-      return teamName
-        ? `${teamName} komandasının ${champName} sorğusu qəbul edildi`
-        : `${champName} sorğusu qəbul edildi`;
+      return [
+        strong(teamName),
+        plain(" komandasının "),
+        strong(champName),
+        plain(" çempionatına iştirak təklifi qəbul edildi."),
+      ];
     }
     if (notification.championshipJoinRequestStatus === "REJECTED") {
-      return teamName
-        ? `${teamName} komandasının ${champName} sorğusu rədd edildi`
-        : `${champName} sorğusu rədd edildi`;
+      return [
+        strong(teamName),
+        plain(" komandasının "),
+        strong(champName),
+        plain(" çempionatına iştirak təklifi rədd edildi."),
+      ];
     }
     if (notification.championshipJoinRequestStatus === "CANCELLED") {
-      return teamName
-        ? `${teamName} komandası ${champName} sorğusunu ləğv etdi`
-        : `${champName} sorğusu ləğv edildi`;
+      return [
+        strong(teamName),
+        plain(` komandası ${champName} sorğusunu ləğv etdi`),
+      ];
     }
-    return `${champName} çempionatında iştirak etmək üçün dəvət göndərdi`;
+    return [
+      strong(teamName),
+      plain(" komandası "),
+      strong(champName),
+      plain(" çempionatında iştirak etmək üçün dəvət göndərdi."),
+    ];
   }
 
   switch (notification.type) {
     case "FRIEND_REQUEST":
-      return "sizə dostluq sorğusu göndərdi";
+      return [strong(actor), plain(" sizə dostluq sorğusu göndərdi")];
     case "FRIEND_ACCEPTED":
-      return "dostluq sorğunuzu qəbul etdi";
+      return [strong(actor), plain(" dostluq sorğunuzu qəbul etdi")];
     case "NEW_MESSAGE":
-      return "yeni mesaj göndərdi";
+      return [strong(actor), plain(" yeni mesaj göndərdi")];
     default:
-      return "bildiriş göndərdi";
+      return [strong(actor), plain(" bildiriş göndərdi")];
   }
+}
+
+export function playerSearchParts(
+  request: PlayerSearchNotificationRequest,
+  incoming: boolean,
+): MessagePart[] {
+  const team = request.playerSearch.hostTeam.name;
+  if (incoming) {
+    const user = personName(request.user);
+    if (request.status === "ACCEPTED") {
+      return [strong(user), plain(" oyunçu axtarışı sorğusunu qəbul etdiniz")];
+    }
+    if (request.status === "REJECTED") {
+      return [strong(user), plain(" oyunçu axtarışı sorğusunu rədd etdiniz")];
+    }
+    return [
+      strong(user),
+      plain(` sizin ${team} komandanızın oyunçu axtarışına qoşulmaq istəyir`),
+    ];
+  }
+  if (request.status === "ACCEPTED") {
+    return [strong(team), plain(" oynamaq təklifinizi qəbul etdi.")];
+  }
+  if (request.status === "CANCELLED") {
+    return [strong(team), plain(" oyunçu axtarışını bağladı")];
+  }
+  return [strong(team), plain(" oynamaq təklifinizi qəbul etmədi.")];
+}
+
+export function challengeParts(
+  request: ChallengeNotificationRequest,
+  incoming: boolean,
+): MessagePart[] {
+  const team = incoming ? request.team.name : request.challenge.team.name;
+  if (incoming) {
+    if (request.status === "PENDING") {
+      return [
+        strong(team),
+        plain(" komandası sizinlə oynamaq üçün dəvət göndərdi."),
+      ];
+    }
+    if (request.status === "ACCEPTED") {
+      return [strong(team), plain(" challenge sorğusunu qəbul etdiniz")];
+    }
+    if (request.status === "REJECTED") {
+      return [strong(team), plain(" challenge sorğusunu rədd etdiniz")];
+    }
+    return [strong(team), plain(" üçün başqa rəqib seçildi")];
+  }
+  if (request.status === "ACCEPTED") {
+    return [strong(team), plain(" komandası oyun təklifinizi qəbul etdi.")];
+  }
+  if (request.status === "REJECTED") {
+    return [strong(team), plain(" komandası oyun təklifinizi qəbul etmədi.")];
+  }
+  return [strong(team), plain(" başqa rəqib seçdi")];
+}
+
+export function teamPlayerInviteParts(
+  invite: TeamPlayerInvite,
+  incoming: boolean,
+): MessagePart[] {
+  const team = invite.team.name;
+  if (incoming) {
+    return [
+      strong(personName(invite.invitedBy)),
+      plain(` sizi ${team} komandasına dəvət etdi`),
+    ];
+  }
+  const player = personName(invite.invitedUser);
+  if (invite.status === "ACCEPTED") {
+    return [
+      strong(player),
+      plain(` sizin ${team} komandasına dəvətinizi qəbul etdi`),
+    ];
+  }
+  return [
+    strong(player),
+    plain(` sizin ${team} komandasına dəvətinizi qəbul etmədi`),
+  ];
 }
 
 export function isPendingFriendRequest(notification: AppNotification) {
