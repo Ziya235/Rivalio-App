@@ -23,6 +23,7 @@ import { startExpireJob } from "./utils/expireListings.js";
 import { startMatchClockJob } from "./utils/matchClockJob.js";
 import { ensureDefaultSports } from "./utils/sports.js";
 import { initSocketServer } from "./socket/socket.server.js";
+import { startTelegramBot } from "./bot/start.js";
 
 dotenv.config();
 
@@ -72,5 +73,8 @@ server.listen(PORT, () => {
   startMatchClockJob();
   ensureDefaultSports().catch((error) => {
     console.log("Failed to ensure default sports:", error);
+  });
+  startTelegramBot(app).catch((error) => {
+    console.error(`[telegram-bot] Not started. ${error?.name || "Error"}`);
   });
 });
