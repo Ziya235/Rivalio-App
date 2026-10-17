@@ -119,6 +119,10 @@ export const FAQS = [
     a: 'Rivalio, oyunçuların müxtəlif idman növləri üzrə rəqib, komanda yoldaşı və idman partnyoru tapmasına kömək edən sosial idman platformasıdır.',
   },
   {
+    q: 'Rivalio nədir və necə istifadə edə bilərəm?',
+    a: 'Rivalio həvəskar futbolçuları, komandaları və liqaları bir araya gətirən idman platformasıdır. Platformada komanda yarada, oyunçular tapa, liqalara qoşula, çempionatları izləyə və digər komandalarla rəqabət apara bilərsən. Məqsədimiz hər oyunu yeni bir fürsətə çevirməkdir — Play. Compete. Become a Rival.',
+  },
+  {
     q: 'Platformada necə komanda yarada bilərəm?',
     a: 'Qeydiyyatdan keçdikdən sonra "Komanda Yarat" düyməsinə klikləyin, idman növünü, komanda adını və digər məlumatları doldurun.',
   },
