@@ -30,7 +30,7 @@ export function TieBreakModal({
             onClick={onSubmit}
             className="inline-flex items-center rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50"
           >
-            Sıralamanı təsdiq et
+            Sıralamanı təsdiq  et
           </button>
         </>
       }
