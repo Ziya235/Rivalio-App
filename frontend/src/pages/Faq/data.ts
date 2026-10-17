@@ -20,6 +20,10 @@ export const FAQS = [
     a: 'Komandanız hazır olduqdan sonra “Rəqib tap” funksiyasından istifadə edin. Uyğun komandalara challenge göndərin. Qəbul olunarsa, oyun təşkil olunur.',
   },
   {
+    q: 'Açıq və özəl liqalar arasında fərq nədir?',
+    a: 'Açıq liqalar daha geniş istifadəçi kütləsi üçün nəzərdə tutulur. Özəl liqalara isə yalnız müvafiq icazəsi və ya dəvəti olan iştirakçılar qoşula bilər.',
+  },
+  {
     q: 'Private liqaları kim görə bilər?',
     a: 'Private liqalar yalnız həmin liqaya üzv olan istifadəçilərə görünür. Üzv olmayanlar yalnız liqanın adını görə bilər.',
   },

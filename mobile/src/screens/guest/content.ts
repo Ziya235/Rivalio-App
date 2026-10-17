@@ -129,6 +129,10 @@ export const FAQS = [
     a: "Komandanız hazır olduqdan sonra “Oyun təklifləri” bölməsindən təklif yaradın və ya digər komandaların təkliflərinə sorğu göndərin.",
   },
   {
+    q: "Açıq və özəl liqalar arasında fərq nədir?",
+    a: "Açıq liqalar daha geniş istifadəçi kütləsi üçün nəzərdə tutulur. Özəl liqalara isə yalnız müvafiq icazəsi və ya dəvəti olan iştirakçılar qoşula bilər.",
+  },
+  {
     q: "Private liqaları kim görə bilər?",
     a: "Özəl liqalar yalnız həmin liqaya üzv olan istifadəçilərə görünür. Üzv olmayanlar yalnız liqanın adını görə bilər.",
   },
