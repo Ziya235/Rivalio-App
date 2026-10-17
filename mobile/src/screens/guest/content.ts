@@ -152,6 +152,10 @@ export const FAQS = [
     q: "Bildirişləri harada görürəm?",
     a: "Aşağı menyudakı “Bildirişlər” bölməsində. Dost sorğuları, komanda dəvətləri və oyun təklifləri orada görünür.",
   },
+  {
+    q: "Salam, Bakı haranın paytaxtıdır?",
+    a: "Bakı Azərbaycanın paytaxtıdır.",
+  },
 ];
 
 export const VALUES: Array<{ icon: IconName; title: string; desc: string; tone: Tone }> = [
