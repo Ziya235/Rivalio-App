@@ -78,6 +78,7 @@ export function TieBreakModal({
                       >
                         ↓
                       </button>
+                      
                     </div>
                   </li>
                 );
