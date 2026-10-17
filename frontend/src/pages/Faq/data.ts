@@ -40,6 +40,10 @@ export const FAQS = [
     a: 'Rivalio-nun əsas funksiyaları tamamilə pulsuzdur. Gələcəkdə premium funksiyalar əlavə edilə bilər.',
   },
   {
+    q: 'Rivalio-dan istifadə ödənişlidirmi?',
+    a: 'Rivalio-nun funksiyalarından və istifadəçi rolundan asılı olaraq şərtlər fərqlənə bilər. Gələcəkdə liqa administratorları üçün ödənişli abunə modeli tətbiq edilməsi planlaşdırılır. Aktual qiymətlər tətbiq olunduğu zaman elan ediləcək.',
+  },
+  {
     q: 'Profilimi necə redaktə edə bilərəm?',
     a: 'Daxil olduqdan sonra header-dəki profil menyusundan “Profilim” səhifəsinə keçin. Şəxsi məlumatlar, şəkil və idman məlumatlarını oradan yeniləyə bilərsiniz.',
   },
