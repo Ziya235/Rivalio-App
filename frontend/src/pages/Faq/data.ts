@@ -47,4 +47,8 @@ export const FAQS = [
     q: 'Hesabımı necə silə bilərəm?',
     a: 'Hesab silmə və ya məlumatlarınızla bağlı sorğular üçün dəstək komandası ilə əlaqə saxlayın. Silinmədən əvvəl komanda kapitansı və liqa üzvlüyü yoxlanılır.',
   },
+  {
+    q: 'Bakı haranın paytaxtıdır?',
+    a: 'Bakı Azərbaycanın paytaxtıdır.',
+  },
 ]
